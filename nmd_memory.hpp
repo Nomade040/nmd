@@ -4,7 +4,7 @@
 // #include <...>
 // #include "..."
 // #define NMD_MEMORY_IMPLEMENTATION
-// #include "nmd_memory_implementation"
+// #include "nmd_memory.hpp"
 //
 // TODOs:
 //  - Finish ValueScan(), implement string scan and some other functionalities.
