@@ -8,7 +8,7 @@
 //
 // TODOs:
 //  - Finish ValueScan(), implement string scan and some other functionalities.
-//  - Make MemEx() work in a wow64 process(target) from a 64 bit process(this process)
+//  - Make MemEx::Call() work in a wow64 process(target) from a 64 bit process(this process)
 
 #ifndef NMD_MEMORY_H
 #define NMD_MEMORY_H
