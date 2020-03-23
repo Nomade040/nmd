@@ -20,8 +20,8 @@ size_t ldisasm(const void* buffer, bool x86_64_mode);
 
 #ifdef NMD_LDISASM_IMPLEMENTATION
 
-#define R(b) (b >> 4) // Four high-order bits of an opcode to index a row of the opcode table
-#define C(b) (b & 0xF) // Four low-order bits to index a column of the table
+#define NMD_R(b) (b >> 4) // Four high-order bits of an opcode to index a row of the opcode table
+#define NMD_C(b) (b & 0xF) // Four low-order bits to index a column of the table
 
 bool nmd_ldisasm_findByte(const uint8_t* arr, const size_t N, const uint8_t x) { for (size_t i = 0; i < N; i++) { if (arr[i] == x) { return true; } }; return false; }
 
@@ -70,7 +70,7 @@ size_t ldisasm(const void* const buffer, const bool x86_64)
 	uint8_t* b = (uint8_t*)(buffer);
 	
 	//Parse legacy prefixes & REX prefixes
-	for (int i = 0; i < 14 && nmd_ldisasm_findByte(prefixes, sizeof(prefixes), *b) || (x86_64 ? (R(*b) == 4) : false); i++, b++)
+	for (int i = 0; i < 14 && nmd_ldisasm_findByte(prefixes, sizeof(prefixes), *b) || (x86_64 ? (NMD_R(*b) == 4) : false); i++, b++)
 	{
 		if (*b == 0x66)
 			operandPrefix = true;
@@ -80,7 +80,7 @@ size_t ldisasm(const void* const buffer, const bool x86_64)
 			repeatNotZeroPrefix = true;
 		else if (*b == 0xf3)
 			repeatPrefix = true;
-		else if (R(*b) == 4 && C(*b) >= 8)
+		else if (NMD_R(*b) == 4 && NMD_C(*b) >= 8)
 			rexW = true;
 	}
 
@@ -116,13 +116,13 @@ size_t ldisasm(const void* const buffer, const bool x86_64)
 				(*b == 0x01 && (mod == 0b11 ? ((reg == 0b000 && rm >= 0b110) || (reg == 0b001 && rm >= 0b100 && rm <= 0b110) || (reg == 0b010 && (rm == 0b010 || rm == 0b011)) || (reg == 0b101 && rm < 0b110) || (reg == 0b111 && (rm > 0b101 || (!x86_64 && rm == 0b000)))) : reg == 0b101)))
 				return false;
 
-			if (R(*b) == 8) //disp32
+			if (NMD_R(*b) == 8) //disp32
 				offset += 4;
-			else if ((R(*b) == 7 && C(*b) < 4) || *b == 0xA4 || *b == 0xC2 || (*b > 0xC3 && *b <= 0xC6) || *b == 0xBA || *b == 0xAC) //imm8
+			else if ((NMD_R(*b) == 7 && NMD_C(*b) < 4) || *b == 0xA4 || *b == 0xC2 || (*b > 0xC3 && *b <= 0xC6) || *b == 0xBA || *b == 0xAC) //imm8
 				offset++;
 
 			//Check for ModR/M, SIB and displacement
-			if (nmd_ldisasm_findByte(op2modrm, sizeof(op2modrm), *b) || (R(*b) != 3 && R(*b) > 0 && R(*b) < 7) || *b >= 0xD0 || (R(*b) == 7 && C(*b) != 7) || R(*b) == 9 || R(*b) == 0xB || (R(*b) == 0xC && C(*b) < 8) || (R(*b) == 0 && C(*b) < 4))
+			if (nmd_ldisasm_findByte(op2modrm, sizeof(op2modrm), *b) || (NMD_R(*b) != 3 && NMD_R(*b) > 0 && NMD_R(*b) < 7) || *b >= 0xD0 || (NMD_R(*b) == 7 && NMD_C(*b) != 7) || NMD_R(*b) == 9 || NMD_R(*b) == 0xB || (NMD_R(*b) == 0xC && NMD_C(*b) < 8) || (NMD_R(*b) == 0 && NMD_C(*b) < 4))
 				nmd_ldisasm_parseModRM(&b, addressPrefix, x86_64);
 		}
 	}
@@ -162,7 +162,7 @@ size_t ldisasm(const void* const buffer, const bool x86_64)
 					return false;
 				break;
 			case 0xdd:
-				if ((reg == 0b101 && mod != 0b11) || R(modrm) == 0xf)
+				if ((reg == 0b101 && mod != 0b11) || NMD_R(modrm) == 0xf)
 					return false;
 				break;
 			case 0xde:
@@ -184,25 +184,25 @@ size_t ldisasm(const void* const buffer, const bool x86_64)
 
 
 		//Check for immediate field
-		if ((R(*b) == 0xE && C(*b) < 8) || (R(*b) == 0xB && C(*b) < 8) || R(*b) == 7 || (R(*b) < 4 && (C(*b) == 4 || C(*b) == 0xC)) || (*b == 0xF6 && !(*(b + 1) & 48)) || nmd_ldisasm_findByte(op1imm8, sizeof(op1imm8), *b)) //imm8
+		if ((NMD_R(*b) == 0xE && NMD_C(*b) < 8) || (NMD_R(*b) == 0xB && NMD_C(*b) < 8) || NMD_R(*b) == 7 || (NMD_R(*b) < 4 && (NMD_C(*b) == 4 || NMD_C(*b) == 0xC)) || (*b == 0xF6 && !(*(b + 1) & 48)) || nmd_ldisasm_findByte(op1imm8, sizeof(op1imm8), *b)) //imm8
 			offset++;
 		else if (*b == 0xC2 || *b == 0xCA) //imm16
 			offset += 2;
 		else if (*b == 0xC8) //imm16 + imm8
 			offset += 3;
-		else if ((R(*b) < 4 && (C(*b) == 5 || C(*b) == 0xD)) || (R(*b) == 0xB && C(*b) >= 8) || (*b == 0xF7 && !(*(b + 1) & 48)) || nmd_ldisasm_findByte(op1imm32, sizeof(op1imm32), *b)) //imm32,16
-			offset += ((R(*b) == 0xB && C(*b) >= 8) && rexW) ? 8 : (operandPrefix ? 2 : 4);
+		else if ((NMD_R(*b) < 4 && (NMD_C(*b) == 5 || NMD_C(*b) == 0xD)) || (NMD_R(*b) == 0xB && NMD_C(*b) >= 8) || (*b == 0xF7 && !(*(b + 1) & 48)) || nmd_ldisasm_findByte(op1imm32, sizeof(op1imm32), *b)) //imm32,16
+			offset += ((NMD_R(*b) == 0xB && NMD_C(*b) >= 8) && rexW) ? 8 : (operandPrefix ? 2 : 4);
 		else if (*b == 0xEA || *b == 0x9A) //imm32,48
 		{
 			if (x86_64)
 				return false;
 			offset += (operandPrefix ? 4 : 6);
 		}
-		else if (R(*b) == 0xA && C(*b) < 4)
+		else if (NMD_R(*b) == 0xA && NMD_C(*b) < 4)
 			offset += x86_64 ? (addressPrefix ? 4 : 8) : (addressPrefix ? 2 : 4);
 
 		//Check for ModR/M, SIB and displacement
-		if (nmd_ldisasm_findByte(op1modrm, sizeof(op1modrm), *b) || (R(*b) < 4 && (C(*b) < 4 || (C(*b) >= 8 && C(*b) < 0xC))) || R(*b) == 8 || (R(*b) == 0xD && C(*b) >= 8))
+		if (nmd_ldisasm_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
 			nmd_ldisasm_parseModRM(&b, addressPrefix, x86_64);
 	}
 
