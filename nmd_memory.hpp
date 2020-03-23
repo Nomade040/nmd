@@ -2,11 +2,10 @@
 // Example:
 // #include <...>
 // #include <...>
-// #include "..."
 // #define NMD_MEMORY_IMPLEMENTATION
 // #include "nmd_memory.hpp"
 //
-// TODOs:
+// TODO:
 //  - Finish ValueScan(), implement string scan and some other functionalities.
 //  - Make MemEx::Call() work in a wow64 process(target) from a 64 bit process(this process)
 
@@ -67,13 +66,13 @@ enum class SCAN_TYPE
 
 enum class VALUE_TYPE
 {
-	ONE_BYTE    = 0x01,
-	TWO_BYTES   = 0x02,
-	FOUR_BYTES  = 0x04,
+	ONE_BYTE = 0x01,
+	TWO_BYTES = 0x02,
+	FOUR_BYTES = 0x04,
 	EIGTH_BYTES = 0x08,
-	FLOAT       = 0x10,
-	DOUBLE      = 0x20,
-	ALL         = (ONE_BYTE | TWO_BYTES | FOUR_BYTES | EIGTH_BYTES | FLOAT | DOUBLE)
+	FLOAT = 0x10,
+	DOUBLE = 0x20,
+	ALL = (ONE_BYTE | TWO_BYTES | FOUR_BYTES | EIGTH_BYTES | FLOAT | DOUBLE)
 };
 
 enum class FLOAT_ROUNDING
