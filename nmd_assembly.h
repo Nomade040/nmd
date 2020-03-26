@@ -1,10 +1,4 @@
-// Important structure:
-//  'Instruction': represents one x86 instruction.
-//
-// Interface:
-//  assemble() -> take as input a string and fill a 'Instruction'.
-//  disassemble() -> take as input a sequence of bytes and fill a 'Instruction'.
-//  construct_string() -> take as input a 'Instruction' and construct its string representation.
+// This is a C library containing an assembler and a disassembler.
 //
 // define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one and only one source file.
 // Example:
@@ -12,10 +6,19 @@
 // #include <...>
 // #define NMD_ASSEMBLY_IMPLEMENTATION
 // #include "nmd_assembly.h"
+//
+// Important struct:
+//  'Instruction': represents one x86 instruction.
+//
+// High level functions(For more details, scroll down to the each function's declaration):
+//  assemble() -> take as input a string and fill a 'Instruction'.
+//  disassemble() -> take as input a sequence of bytes and fill a 'Instruction'.
+//  construct_string() -> take as input a 'Instruction' and construct its string representation.
 
 #ifndef NMD_ASSEMBLY_H
 #define NMD_ASSEMBLY_H
 
+//Dependencies
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -30,8 +33,9 @@ enum FORMAT_FLAGS
 	FORMAT_FLAGS_UPPERCASE             = 0x10, // The string is uppercase.
 	FORMAT_FLAGS_0X_PREFIX             = 0x20, // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
 	FORMAT_FLAGS_H_SUFFIX              = 0x40, // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
-	FORMAT_FLAGS_ALL                   = 0x7F, // Specifies all format flags.
-	FORMAT_FLAGS_DEFAULT               = (FORMAT_FLAGS_HEX | FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | FORMAT_FLAGS_ARGUMENT_SPACES)
+	FORMAT_FLAGS_ENFORCE_HEX_ID        = 0x80, // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
+	FORMAT_FLAGS_ALL                   = 0xFF, // Specifies all format flags.
+	FORMAT_FLAGS_DEFAULT               = (FORMAT_FLAGS_HEX | FORMAT_FLAGS_H_SUFFIX | FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | FORMAT_FLAGS_ARGUMENT_SPACES)
 };
 
 enum INSTRUCTION_PREFIXES
@@ -100,7 +104,9 @@ enum INSTRUCTION_FLAGS
 	INSTRUCTION_FLAGS_X86_64          = 0x02,
 	INSTRUCTION_FLAGS_HAS_MODRM       = 0x04,
 	INSTRUCTION_FLAGS_HAS_SIB         = 0x08,
-	INSTRUCTION_FLAGS_OPERAND_SIZE_64 = 0x10,
+	INSTRUCTION_FLAGS_IS_3OP_38H      = 0x10,
+	INSTRUCTION_FLAGS_OPERAND_SIZE_64 = 0x20,
+	INSTRUCTION_FLAGS_REPEAT_PREFIX   = 0x40,
 };
 
 typedef union InstructionFlags
@@ -154,7 +160,8 @@ bool assemble(const char* string, Instruction* instruction, bool x86_64);
 //                    disassembles x86-32 instructions.
 bool disassemble(const void* buffer, Instruction* instruction, uintptr_t address, bool x86_64);
 
-//Constructs a string from a pointer to an 'Instruction' struct.
+//Constructs a string from a pointer to variable of type 'Instruction'.
+//This function may cause a crash if you modify 'instruction' manually.
 //Parameters:
 //	instruction [in]  A pointer to a variable of type 'Instruction'.
 //	buffer      [out] A pointer to buffer that receives the string.
@@ -172,8 +179,8 @@ bool nmd_asm_findByte(const uint8_t* arr, const size_t N, const uint8_t x) { for
 void nmd_asm_parseModRM(const uint8_t** b, Instruction* const instruction)
 {
 	instruction->flags.hasModrm = true;
-	uint8_t modrm = instruction->modrm.modrm = *++ * b;
-	bool addressPrefix = (bool)(instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX);
+	const uint8_t modrm = instruction->modrm.modrm = *++*b;
+	const bool addressPrefix = (bool)(instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX);
 
 	if (addressPrefix && !instruction->flags.x86_64)
 	{
@@ -231,24 +238,23 @@ bool assemble(const char* const string, Instruction* const instruction, const bo
 	instruction->flags.x86_64 = x86_64;
 
 	char buffer[MAXIMUM_INSTRUCTION_STRING_LENGTH];
-	char* b = buffer;
 
-	//Copy 'string' to 'buffer' converting it to lowercase.
+	//Copy 'string' to 'buffer' converting it to lowercase. If the character ';' is found, stop.
 	size_t length = 0;
 	for (; string[length]; length++)
 	{
 		const char c = string[length];
+		if (c == ';')
+			break;
+
 		buffer[length] = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
 	}
-
-	buffer[length] = '\0';
 
 	//Remove any number of contiguous of white-spaces at the end of the string.
 	for (size_t i = length - 1; i > 0; i--)
 	{
 		if (buffer[i] != ' ')
 		{
-			buffer[i + 1] = '\0';
 			length = i + 1;
 			break;
 		}
@@ -266,14 +272,27 @@ bool assemble(const char* const string, Instruction* const instruction, const bo
 		}
 	}
 
+	//After all the string manipulation, place the null character.
+	buffer[length] = '\0';
+
+	//"index"
+	const char* b = buffer;
+
 	if (nmd_asm_strstr(buffer, "lock ") == buffer)
 		instruction->prefixes |= LOCK_PREFIX, b += 5;
 	else if (nmd_asm_strstr(buffer, "rep ") == buffer)
 		instruction->prefixes |= REPEAT_PREFIX, b += 4;
-	else if(nmd_asm_strstr(buffer, "repe ") == buffer || nmd_asm_strstr(buffer, "repz ") == buffer)
+	else if (nmd_asm_strstr(buffer, "repe ") == buffer || nmd_asm_strstr(buffer, "repz ") == buffer)
 		instruction->prefixes |= REPEAT_PREFIX, b += 5;
 	else if (nmd_asm_strstr(buffer, "repne ") == buffer || nmd_asm_strstr(buffer, "repnz ") == buffer)
 		instruction->prefixes |= REPEAT_NOT_ZERO_PREFIX, b += 6;
+
+	if (nmd_asm_strstr(buffer, "xacquire ") == buffer)
+	{
+	}
+	else if (nmd_asm_strstr(buffer, "xrelease ") == buffer)
+	{
+	}
 
 	//find opcode...
 
@@ -369,7 +388,12 @@ bool disassemble(const void* const buffer, Instruction* const instruction, const
 				(*b == 0x78 || *b == 0x79) && !(instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)) ||
 				(*b == 0xc7 && ((modrm.reg < 0b110 && !(modrm.reg == 0b001 && modrm.mod != 0b11)) || ((modrm.modrm & 0b11110000) && (instruction->prefixes & REPEAT_PREFIX)) || (modrm.reg == 0b111 && modrm.mod != 0b11 && (instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX))))) ||
 				(*b == 0x00 && modrm.reg >= 0b110) ||
-				(*b == 0x01 && (modrm.mod == 0b11 ? ((modrm.reg == 0b000 && modrm.rm >= 0b110) || (modrm.reg == 0b001 && modrm.rm >= 0b100 && modrm.rm <= 0b110) || (modrm.reg == 0b010 && (modrm.rm == 0b010 || modrm.rm == 0b011)) || (modrm.reg == 0b101 && modrm.rm < 0b110) || (modrm.reg == 0b111 && (modrm.rm > 0b101 || (!instruction->flags.x86_64 && modrm.rm == 0b000)))) : modrm.reg == 0b101)))
+				(*b == 0x01 && (modrm.mod == 0b11 ? ((instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_NOT_ZERO_PREFIX | REPEAT_PREFIX) && ((modrm.modrm >= 0xc0 && modrm.modrm <= 0xc5) || (modrm.modrm >= 0xc8 && modrm.modrm <= 0xcb) || (modrm.modrm >= 0xcf && modrm.modrm <= 0xd1) || (modrm.modrm >= 0xd4 && modrm.modrm <= 0xd7) || modrm.modrm == 0xee || modrm.modrm == 0xef || modrm.modrm == 0xfa || modrm.modrm == 0xfb)) || (modrm.reg == 0b000 && modrm.rm >= 0b110) || (modrm.reg == 0b001 && modrm.rm >= 0b100 && modrm.rm <= 0b110) || (modrm.reg == 0b010 && (modrm.rm == 0b010 || modrm.rm == 0b011)) || (modrm.reg == 0b101 && modrm.rm < 0b110 && (!(instruction->prefixes & REPEAT_PREFIX) || (instruction->prefixes & REPEAT_PREFIX && (modrm.rm != 0b000 && modrm.rm != 0b010)))) || (modrm.reg == 0b111 && (modrm.rm > 0b101 || (!instruction->flags.x86_64 && modrm.rm == 0b000)))) : (!(instruction->prefixes & REPEAT_PREFIX) && modrm.reg == 0b101))) ||
+				(instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX) && ((*b >= 0x13 && *b <= 0x17 && !(*b == 0x16 && instruction->prefixes & REPEAT_PREFIX)) || *b == 0x28 || *b == 0x29 || *b == 0x2e || *b == 0x2f)) ||
+				(modrm.mod == 0b11 && (*b == 0x2b || (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x12 || *b == 0x16)) || (!(instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)) && (*b == 0x13 || *b == 0x17)))) ||
+				((*b == 0x1A || *b == 0x1B) && (modrm.reg >= 0b100 && modrm.mod != 0b11)) ||
+				((*b == 0x20 || *b == 0x22) && (modrm.reg == 0b001 || modrm.reg >= 0b101)) ||
+				(*b >= 0x24 && *b <= 0x27) || *b == 0x36 || *b == 0x39 || (*b >= 0x3b && *b <= 0x3f))
 				return false;
 
 			if (NMD_R(*b) == 8) //disp32
@@ -504,8 +528,8 @@ static const char* const opcodeExtensionsGrp7[] = { "sgdt", "sidt", "lgdt", "lid
 static const char* const opcodeExtensionsGrp7reg0[] = { "enclv", "vmcall", "vmlaunch", "vmresume", "vmxoff", "pconfig" };
 static const char* const opcodeExtensionsGrp7reg1[] = { "monitor", "mwait", "clac", "stac", NULL, NULL, NULL, "encls" };
 static const char* const opcodeExtensionsGrp7reg2[] = { "xgetbv", "xsetbv", NULL, NULL, "vmfunc", "xend", "xtest", "enclu" };
-static const char* const opcodeExtensionsGrp7reg3[] = { "vmrun eax", "vmmcall", "vmload eax", "vmsave", "stgi", "clgi", "skinit eax", "invlpga eax,ecx" };
-static const char* const opcodeExtensionsGrp7reg7[] = { "swapgs", "rdtscp", "monitorx", "mwaitx", "clzero eax", "rdpru" };
+static const char* const opcodeExtensionsGrp7reg3[] = { "vmrun ", "vmmcall", "vmload ", "vmsave", "stgi", "clgi", "skinit eax", "invlpga " };
+static const char* const opcodeExtensionsGrp7reg7[] = { "swapgs", "rdtscp", "monitorx", "mwaitx", "clzero ", "rdpru" };
 
 static const char* const escapeOpcodesD8[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
 static const char* const escapeOpcodesD9[] = { "ld", NULL, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
@@ -529,7 +553,7 @@ void appendString(StringInfo* const si, const char* source)
 		*si->buffer++ = *source++;
 };
 
- size_t getNumDigits(uint64_t n, bool hex)
+size_t getNumDigits(uint64_t n, bool hex)
 {
 	size_t numDigits = 0;
 	while ((n /= (hex ? 16 : 10)) > 0)
@@ -543,8 +567,9 @@ void appendNumber(StringInfo* const si, uint64_t n)
 	size_t numDigits = getNumDigits(n, si->formatFlags & FORMAT_FLAGS_HEX);
 	size_t bufferOffset = numDigits + 1;
 
-	if ((si->formatFlags & (FORMAT_FLAGS_HEX | FORMAT_FLAGS_0X_PREFIX)) == (FORMAT_FLAGS_HEX | FORMAT_FLAGS_0X_PREFIX))
-		*si->buffer++ = '0', * si->buffer++ = 'x';
+	const bool condition = n > 9 || si->formatFlags & FORMAT_FLAGS_ENFORCE_HEX_ID;
+	if ((si->formatFlags & (FORMAT_FLAGS_HEX | FORMAT_FLAGS_0X_PREFIX)) == (FORMAT_FLAGS_HEX | FORMAT_FLAGS_0X_PREFIX) && condition)
+		*si->buffer++ = '0', *si->buffer++ = 'x';
 
 	if (si->formatFlags & FORMAT_FLAGS_HEX)
 	{
@@ -562,7 +587,7 @@ void appendNumber(StringInfo* const si, uint64_t n)
 
 	si->buffer += bufferOffset;
 
-	if (si->formatFlags & FORMAT_FLAGS_H_SUFFIX)
+	if (si->formatFlags & FORMAT_FLAGS_H_SUFFIX && condition)
 		*si->buffer++ = 'h';
 }
 
@@ -733,7 +758,7 @@ void appendUdq(StringInfo* const si)
 
 void appendUqq(StringInfo* const si)
 {
-	*si->buffer++ = 'x';
+	*si->buffer++ = 'y';
 	appendNq(si);
 }
 
@@ -793,17 +818,17 @@ void appendEq(StringInfo* const si)
 		appendModRmUpper(si, "qword");
 }
 
- void appendGv(StringInfo* const si)
+void appendGv(StringInfo* const si)
 {
 	appendString(si, (si->instruction->flags.operandSize64 ? reg64 : (si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32))[si->instruction->modrm.reg]);
 }
 
- void appendGb(StringInfo* const si)
+void appendGb(StringInfo* const si)
 {
 	appendString(si, reg8[si->instruction->modrm.reg]);
 }
 
- void appendGw(StringInfo* const si)
+void appendGw(StringInfo* const si)
 {
 	appendString(si, reg16[si->instruction->modrm.reg]);
 }
@@ -1561,24 +1586,48 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 				else if (instruction->modrm.reg == 0b010)
 					appendString(&si, opcodeExtensionsGrp7reg2[instruction->modrm.rm]);
 				else if (instruction->modrm.reg == 0b011)
+				{
 					appendString(&si, opcodeExtensionsGrp7reg3[instruction->modrm.rm]);
+					if (instruction->modrm.rm == 0b000 || instruction->modrm.rm == 0b010 || instruction->modrm.rm == 0b111)
+						appendString(&si, instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "ax" : "eax");
+					
+					if (instruction->modrm.rm == 0b111)
+						appendString(&si, ",ecx");
+				}
 				else if (instruction->modrm.reg == 0b100)
 					appendString(&si, "smsw "), appendString(&si, (instruction->flags.operandSize64 ? reg64 : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32))[instruction->modrm.rm]);
 				else if (instruction->modrm.reg == 0b101)
-					appendString(&si, instruction->modrm.rm == 0b111 ? "wrpkru" : "rdpkru");
+				{
+					if (instruction->prefixes & REPEAT_PREFIX)
+						appendString(&si, instruction->modrm.rm == 0b000 ? "setssbsy" : "saveprevssp");
+					else
+						appendString(&si, instruction->modrm.rm == 0b111 ? "wrpkru" : "rdpkru");
+				}
 				else if (instruction->modrm.reg == 0b110)
 					appendString(&si, "lmsw "), appendString(&si, reg16[instruction->modrm.rm]);
 				else if (instruction->modrm.reg == 0b111)
+				{
 					appendString(&si, opcodeExtensionsGrp7reg7[instruction->modrm.rm]);
+					if (instruction->modrm.rm == 0b100)
+						appendString(&si, instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "ax" : "eax");
+				}
 			}
 			else
 			{
-				appendString(&si, opcodeExtensionsGrp7[instruction->modrm.reg]);
-				*si.buffer++ = ' ';
-				if (si.instruction->modrm.reg == 0b110)
-					appendEw(&si);
+				if (instruction->modrm.reg == 0b101)
+				{
+					appendString(&si, "rstorssp ");
+					appendModRmUpper(&si, "qword");
+				}
 				else
-					appendModRmUpper(&si, si.instruction->modrm.reg == 0b111 ? "byte" : si.instruction->modrm.reg == 0b100 ? "word" : "fword");
+				{
+					appendString(&si, opcodeExtensionsGrp7[instruction->modrm.reg]);
+					*si.buffer++ = ' ';
+					if (si.instruction->modrm.reg == 0b110)
+						appendEw(&si);
+					else
+						appendModRmUpper(&si, si.instruction->modrm.reg == 0b111 ? "byte" : si.instruction->modrm.reg == 0b100 ? "word" : "fword");
+				}
 			}
 		}
 		else if (op == 0x02 || op == 0x03)
@@ -1594,16 +1643,33 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 		else if (op == 0x0d)
 		{
-			appendString(&si, "prefetch ");
-			if (si.instruction->modrm.mod == 0b11)
-				appendString(&si, (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32)[si.instruction->modrm.rm]);
+			if (instruction->modrm.mod == 0b11)
+			{
+				appendString(&si, "nop ");
+				appendString(&si, (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32)[instruction->modrm.rm]);
+				*si.buffer++ = ',';
+				appendString(&si, (instruction->prefixes& OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32)[instruction->modrm.reg]);
+			}
 			else
-				appendModRmUpper(&si, "byte");
+			{
+				appendString(&si, "prefetch");
+				if (instruction->modrm.reg == 0b001)
+					*si.buffer++ = 'w';
+				else if (instruction->modrm.reg == 0b010)
+					appendString(&si, "wt1");
+
+				*si.buffer++ = ' ';
+
+				if (si.instruction->modrm.mod == 0b11)
+					appendString(&si, (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32)[si.instruction->modrm.rm]);
+				else
+					appendModRmUpper(&si, "byte");
+			}
 		}
 		else if (op >= 0x10 && op <= 0x17)
 		{
-			const char* noPrefixMnemonics[] = { "movups", "movups", "movlps", "movlps", "unpcklps", "unpckhps", "vmovhps", "vmovhps" };
-			const char* prefix66Mnemonics[] = { "movupd", "movupd", "movlpd", "movlpd", "unpcklpd", "unpckhpd", "vmovhpd", "vmovhpd" };
+			const char* noPrefixMnemonics[] = { "movups", "movups", "movlps", "movlps", "unpcklps", "unpckhps", "movhps", "movhps" };
+			const char* prefix66Mnemonics[] = { "movupd", "movupd", "movlpd", "movlpd", "unpcklpd", "unpckhpd", "movhpd", "movhpd" };
 			const char* prefixF3Mnemonics[] = { "movss", "movss", "movsldup", NULL, NULL, NULL, "movshdup" };
 			const char* prefixF2Mnemonics[] = { "movsd", "movsd", "movddup" };
 			if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
@@ -1624,8 +1690,21 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 					appendVx(&si);
 					break;
 				case 2:
-					appendW(&si);
+					appendVdq(&si);
 					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
+				case 6:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
 				default:
 					break;
 				}
@@ -1633,39 +1712,214 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			else if (instruction->prefixes & REPEAT_PREFIX)
 			{
 				appendString(&si, prefixF3Mnemonics[NMD_C(op)]);
-			}
-			else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)
-			{
-				appendString(&si, prefixF2Mnemonics[NMD_C(op)]);
-			}
-			else
-			{
-				appendString(&si, noPrefixMnemonics[NMD_C(op)]);
 				*si.buffer++ = ' ';
 
 				switch (NMD_C(op))
 				{
 				case 0:
-					appendVx(&si);
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "dword");
+					break;
+				case 1:
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "dword");
+					*si.buffer++ = ',';
+					appendVdq(&si);
+					break;
+				case 2:
+				case 6:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					appendW(&si);
+					break;
+				}
+			}
+			else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)
+			{
+				appendString(&si, prefixF2Mnemonics[NMD_C(op)]);
+				*si.buffer++ = ' ';
+				
+				switch (NMD_C(op))
+				{
+				case 0:
+				case 2:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
+				case 1:
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					*si.buffer++ = ',';
+					appendVdq(&si);
+					break;
+				}
+			}
+			else
+			{
+				if (op == 0x12 && instruction->modrm.mod == 0b11)
+					appendString(&si, "movhlps");
+				else if (op == 0x16 && instruction->modrm.mod == 0b11)
+					appendString(&si, "movlhps");
+				else
+					appendString(&si, noPrefixMnemonics[NMD_C(op)]);
+				*si.buffer++ = ' ';
+
+				switch (NMD_C(op))
+				{
+				case 0:
+					appendVdq(&si);
 					*si.buffer++ = ',';
 					appendW(&si);
 					break;
 				case 1:
 					appendW(&si);
 					*si.buffer++ = ',';
-					appendVx(&si);
+					appendVdq(&si);
 					break;
 				case 2:
-					appendW(&si);
+					appendVdq(&si);
 					*si.buffer++ = ',';
-					appendModRmUpper(&si, "qword");
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
+				case 6:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
 				default:
 					break;
-				}
+				};
 
 			}
+
+			switch (NMD_C(op))
+			{
+			case 3:
+			case 7:
+				if (si.instruction->modrm.mod == 0b11)
+					appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+				else
+					appendModRmUpper(&si, "qword");
+				*si.buffer++ = ',';
+				appendVdq(&si);
+				break;
+			case 4:
+			case 5:
+				appendVdq(&si);
+				*si.buffer++ = ',';
+				appendW(&si);
+				break;
+			};
 		}
-		else if (op >= 0x20 && op < 0x24)
+		else if (op == 0x18)
+		{
+			if (instruction->modrm.mod == 0b11 || instruction->modrm.reg >= 0b100)
+			{
+				appendString(&si, "nop ");
+				appendEv(&si);
+			}
+			else
+			{
+				if(instruction->modrm.reg == 0b000)
+					appendString(&si, "prefetchnta");
+				else
+				{
+					appendString(&si, "prefetcht");
+					*si.buffer++ = (char)(0x30 + (instruction->modrm.reg - 1));
+				}
+				*si.buffer++ = ' ';
+
+				appendEb(&si);
+			}
+		}
+		else if (op == 0x19)
+		{
+			appendString(&si, "nop ");
+			appendEv(&si);
+			*si.buffer++ = ',';
+			appendGv(&si);
+		}
+		else if (op == 0x1A)
+		{
+			if (instruction->modrm.mod == 0b11)
+			{
+				appendString(&si, "nop ");
+				appendEv(&si);
+				*si.buffer++ = ',';
+				appendGv(&si);
+			}
+			else
+			{
+				if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
+					appendString(&si, "bndcu");
+				else if (instruction->prefixes & REPEAT_PREFIX)
+					appendString(&si, "bndmov");
+				else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)
+					appendString(&si, "bndcl");
+				else
+					appendString(&si, "bndldx");
+
+				appendString(&si, " bnd");
+				*si.buffer++ = (char)(0x30 + instruction->modrm.reg);
+				*si.buffer++ = ',';
+				if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
+					*si.buffer++ = 'q';
+				appendEv(&si);
+			}
+		}
+		else if (op == 0x1B)
+		{
+		if (instruction->modrm.mod == 0b11)
+		{
+			appendString(&si, "nop ");
+			appendEv(&si);
+			*si.buffer++ = ',';
+			appendGv(&si);
+		}
+		else
+		{
+			if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
+				appendString(&si, "bndmov");
+			else if (instruction->prefixes & REPEAT_PREFIX)
+				appendString(&si, "bndmk");
+			else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)
+				appendString(&si, "bndcn");
+			else
+				appendString(&si, "bndstx");
+
+			*si.buffer++ = ' ';
+			appendEv(&si);
+			*si.buffer++ = ',';
+			appendString(&si, "bnd");
+			*si.buffer++ = (char)(0x30 + instruction->modrm.reg);
+		}
+		}
+		else if(op >= 0x1c && op <= 0x1f)
+		{
+			appendString(&si, "nop ");
+			appendEv(&si);
+			*si.buffer++ = ',';
+			appendGv(&si);
+		}
+		else if (op >= 0x20 && op <= 0x23)
 		{
 			appendString(&si, "mov ");
 			if (op < 0x22)
@@ -1682,14 +1936,185 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 				appendString(&si, reg32[instruction->modrm.rm]);
 			}
 		}
-		else if (op == 0x2f)
+		else if (op >= 0x28 && op <= 0x2f)
 		{
-			appendString(&si, "commis");
-			*si.buffer++ = instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 'd' : 's';
-			*si.buffer++ = ' ';
-			appendVdq(&si);
-			*si.buffer++ = ',';
-			appendW(&si);
+			const char* noPrefixMnemonics[] = { "movaps", "movaps", "cvtpi2ps", "movntps", "cvttps2pi", "cvtps2pi", "ucomiss", "comiss" };
+			const char* prefix66Mnemonics[] = { "movapd", "movapd", "cvtpi2pd", "movntpd", "cvttpd2pi", "cvtpd2pi", "ucomisd", "comisd" };
+			const char* prefixF3Mnemonics[] = { NULL, NULL, "cvtsi2ss", "movntss", "cvttss2si", "cvtss2si", NULL, NULL };
+			const char* prefixF2Mnemonics[] = { NULL, NULL, "cvtsi2sd", "movntsd", "cvttsd2si", "cvtsd2si", NULL, NULL };
+			if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
+			{
+				appendString(&si, prefix66Mnemonics[op % 8]);
+				*si.buffer++ = ' ';
+
+				switch (op % 8)
+				{
+				case 0:
+					appendVx(&si);
+					*si.buffer++ = ',';
+					appendW(&si);
+					break;
+				case 1:
+					appendW(&si);
+					*si.buffer++ = ',';
+					appendVx(&si);
+					break;
+				case 2:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (instruction->modrm.mod == 0b11)
+						appendString(&si, "mm"), *si.buffer++ = (char)(0x30 + instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
+				case 4:
+				case 5:
+					appendPq(&si);
+					*si.buffer++ = ',';
+					if (instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "xmmword");
+					break;
+
+				case 6:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), *si.buffer++ = (char)(0x30 + instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
+				case 7:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+				default:
+					break;
+				}
+			}
+			else if (instruction->prefixes & REPEAT_PREFIX)
+			{
+				appendString(&si, prefixF3Mnemonics[op % 8]);
+				*si.buffer++ = ' ';
+
+				switch (op % 8)
+			{
+			case 3:
+				appendModRmUpper(&si, "dword");
+				*si.buffer++ = ',';
+				appendVdq(&si);
+				break;
+			case 4:
+			case 5:
+				appendGv(&si);
+				*si.buffer++ = ',';
+				if (instruction->modrm.mod == 0b11)
+					appendUdq(&si);
+				else
+					appendModRmUpper(&si, "dword");
+				break;
+			case 2:
+			case 6:
+				appendVdq(&si);
+				*si.buffer++ = ',';
+				appendEv(&si);
+				break;
+			}
+			}
+			else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)
+			{
+				appendString(&si, prefixF2Mnemonics[op % 8]);
+				*si.buffer++ = ' ';
+
+				switch (op % 8)
+				{
+				case 2:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					appendEv(&si);
+					break;
+				case 3:
+					appendModRmUpper(&si, "qword");
+					*si.buffer++ = ',';
+					appendVdq(&si);
+					break;
+				case 4:
+				case 5:
+					appendGv(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), *si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
+				}
+			}
+			else
+			{
+				appendString(&si, noPrefixMnemonics[op % 8]);
+				*si.buffer++ = ' ';
+
+				switch (op % 8)
+				{
+				case 0:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					appendW(&si);
+					break;
+				case 1:
+					appendW(&si);
+					*si.buffer++ = ',';
+					appendVdq(&si);
+					break;
+				case 4:
+				case 5:
+					appendPq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
+				case 2:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "mm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "qword");
+					break;
+				case 6:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "dword");
+					break;
+				case 7:
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, "dword");
+					break;
+				default:
+					break;
+				};
+
+			}
+		
+			if(!(instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)) && (op % 8) == 3)
+			{
+				appendModRmUpper(&si, "xmmword");
+				*si.buffer++ = ',';
+				appendVdq(&si);
+			}
 		}
 		else if (NMD_R(op) == 4)
 		{
@@ -1698,7 +2123,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			*si.buffer++ = ' ';
 			appendGv(&si);
 			*si.buffer++ = ',';
-			appendEb(&si);
+			appendEv(&si);
 		}
 		else if (op == 0x78)
 		{
