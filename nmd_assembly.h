@@ -1,4 +1,4 @@
-// This is a C library containing an assembler and a disassembler.
+// This is a C library containing an x86 assembler and disassembler.
 //
 // define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one and only one source file.
 // Example:
@@ -22,20 +22,25 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MAXIMUM_INSTRUCTION_STRING_LENGTH 128
+#define MAXIMUM_INSTRUCTION_STRING_LENGTH 160
 
+//These format flags specify how a string that represents an instruction should be constructed.
 enum FORMAT_FLAGS
 {
-	FORMAT_FLAGS_HEX                   = 0x01, // If set, numbers are displayed in hex base, otherwise they are displayed in decimal base.
-	FORMAT_FLAGS_POINTER_SIZE          = 0x02, // Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed.
-	FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE = 0x04, // If set, only segment overrides using prefixes(e.g. '2EH', '64H') are displayed, otherwise a segment is always present before a memory operand.
-	FORMAT_FLAGS_ARGUMENT_SPACES       = 0x08, // A space is placed between arguments.
-	FORMAT_FLAGS_UPPERCASE             = 0x10, // The string is uppercase.
-	FORMAT_FLAGS_0X_PREFIX             = 0x20, // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
-	FORMAT_FLAGS_H_SUFFIX              = 0x40, // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
-	FORMAT_FLAGS_ENFORCE_HEX_ID        = 0x80, // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
-	FORMAT_FLAGS_ALL                   = 0xFF, // Specifies all format flags.
-	FORMAT_FLAGS_DEFAULT               = (FORMAT_FLAGS_HEX | FORMAT_FLAGS_H_SUFFIX | FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | FORMAT_FLAGS_ARGUMENT_SPACES)
+	FORMAT_FLAGS_HEX                       = 0x001, // If set, numbers are displayed in hex base, otherwise they are displayed in decimal base.
+	FORMAT_FLAGS_POINTER_SIZE              = 0x002, // Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed.
+	FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE     = 0x004, // If set, only segment overrides using prefixes(e.g. '2EH', '64H') are displayed, otherwise a segment is always present before a memory operand.
+	FORMAT_FLAGS_COMMA_SPACES              = 0x008, // A space is placed after a comma.
+	FORMAT_FLAGS_OPERATOR_SPACES           = 0x010, // A space is placed before and after the '+' and '-' characters.
+	FORMAT_FLAGS_UPPERCASE                 = 0x020, // The string is uppercase.
+	FORMAT_FLAGS_0X_PREFIX                 = 0x040, // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
+	FORMAT_FLAGS_H_SUFFIX                  = 0x080, // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
+	FORMAT_FLAGS_ENFORCE_HEX_ID            = 0x100, // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
+	FORMAT_FLAGS_HEX_LOWERCASE             = 0x200, // If the HEX flag is set and the UPPERCASE flag is not set, hexadecimal numbers are displayed in lowercase.
+	FORMAT_FLAGS_RELATIVE_ADDRESS          = 0x400, // If set, relative addresses are displayed as '$[+/-]{IMMEDIATE}'.
+	FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW = 0x800, // If set, signed numbers are displayed as they are represented in memory(e.g. -1 = 0xFFFFFFFF).
+	FORMAT_FLAGS_ALL                       = 0xFFF, // Specifies all format flags.
+	FORMAT_FLAGS_DEFAULT                   = (FORMAT_FLAGS_HEX | FORMAT_FLAGS_H_SUFFIX | FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | FORMAT_FLAGS_COMMA_SPACES | FORMAT_FLAGS_OPERATOR_SPACES)
 };
 
 enum INSTRUCTION_PREFIXES
@@ -158,7 +163,7 @@ bool assemble(const char* string, Instruction* instruction, bool x86_64);
 //                    parameter is NULL, displacements are prefixed with '$+'.
 //	x86_64      [in]  If true, disassembles x86-64 instructions, otherwise
 //                    disassembles x86-32 instructions.
-bool disassemble(const void* buffer, Instruction* instruction, uintptr_t address, bool x86_64);
+bool disassemble(const void* buffer, Instruction* instruction, uint64_t address, bool x86_64);
 
 //Constructs a string from a pointer to variable of type 'Instruction'.
 //This function may cause a crash if you modify 'instruction' manually.
@@ -169,7 +174,7 @@ bool disassemble(const void* buffer, Instruction* instruction, uintptr_t address
 //                    string should be constructed.
 void construct_string(const Instruction* instruction, char* buffer, uint32_t formatFlags);
 
-#ifdef NMD_ASSEMBLY_IMPLEMENTATION
+#if 1// NMD_ASSEMBLY_IMPLEMENTATION
 
 #define NMD_R(b) (b >> 4) // Four high-order bits of an opcode to index a row of the opcode table
 #define NMD_C(b) (b & 0xF) // Four low-order bits to index a column of the table
@@ -299,7 +304,7 @@ bool assemble(const char* const string, Instruction* const instruction, const bo
 	return true;
 }
 
-bool disassemble(const void* const buffer, Instruction* const instruction, const uintptr_t address, const bool x86_64)
+bool disassemble(const void* const buffer, Instruction* const instruction, const uint64_t address, const bool x86_64)
 {
 	const uint8_t prefixes[] = { 0xF0, 0xF2, 0xF3, 0x2E, 0x36, 0x3E, 0x26, 0x64, 0x65, 0x66, 0x67 };
 	const uint8_t op1modrm[] = { 0x62, 0x63, 0x69, 0x6B, 0xC0, 0xC1, 0xC4, 0xC5, 0xC6, 0xC7, 0xD0, 0xD1, 0xD2, 0xD3, 0xF6, 0xF7, 0xFE, 0xFF };
@@ -397,7 +402,7 @@ bool disassemble(const void* const buffer, Instruction* const instruction, const
 				return false;
 
 			if (NMD_R(*b) == 8) //disp32
-				instruction->immMask = IMM32, offset += 4;
+				instruction->immMask = (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? IMM16 : IMM32), offset += instruction->immMask;
 			else if ((NMD_R(*b) == 7 && NMD_C(*b) < 4) || *b == 0xA4 || *b == 0xC2 || (*b > 0xC3 && *b <= 0xC6) || *b == 0xBA || *b == 0xAC) //imm8
 				instruction->immMask = IMM8, offset++;
 
@@ -565,18 +570,22 @@ size_t getNumDigits(uint64_t n, bool hex)
 void appendNumber(StringInfo* const si, uint64_t n)
 {
 	size_t numDigits = getNumDigits(n, si->formatFlags & FORMAT_FLAGS_HEX);
-	size_t bufferOffset = numDigits + 1;
-
-	const bool condition = n > 9 || si->formatFlags & FORMAT_FLAGS_ENFORCE_HEX_ID;
-	if ((si->formatFlags & (FORMAT_FLAGS_HEX | FORMAT_FLAGS_0X_PREFIX)) == (FORMAT_FLAGS_HEX | FORMAT_FLAGS_0X_PREFIX) && condition)
-		*si->buffer++ = '0', *si->buffer++ = 'x';
+	size_t bufferOffset = numDigits + 1;	
 
 	if (si->formatFlags & FORMAT_FLAGS_HEX)
 	{
+		const bool condition = n > 9 || si->formatFlags & FORMAT_FLAGS_ENFORCE_HEX_ID;
+		if (si->formatFlags & FORMAT_FLAGS_0X_PREFIX && condition)
+			*si->buffer++ = '0', *si->buffer++ = 'x';
+
+		const uint8_t baseChar = si->formatFlags & FORMAT_FLAGS_HEX_LOWERCASE ? 0x57 : 0x37;
 		do {
 			size_t num = n % 16;
-			*(si->buffer + numDigits--) = (char)(num > 9 ? 0x37 + num : 0x30 + num);
+			*(si->buffer + numDigits--) = (char)(num > 9 ? baseChar + num : 0x30 + num);
 		} while ((n /= 16) > 0);
+
+		if (si->formatFlags & FORMAT_FLAGS_H_SUFFIX && condition)
+			*(si->buffer + bufferOffset++) = 'h';
 	}
 	else
 	{
@@ -586,9 +595,6 @@ void appendNumber(StringInfo* const si, uint64_t n)
 	}
 
 	si->buffer += bufferOffset;
-
-	if (si->formatFlags & FORMAT_FLAGS_H_SUFFIX && condition)
-		*si->buffer++ = 'h';
 }
 
 void appendSignedNumber(StringInfo* const si, int64_t n, bool showPositiveSign)
@@ -605,6 +611,34 @@ void appendSignedNumber(StringInfo* const si, int64_t n, bool showPositiveSign)
 		*si->buffer++ = '-';
 		appendNumber(si, ~n + 1);
 	}
+}
+
+void appendRelativeAddress8(StringInfo* const si)
+{
+	if (si->formatFlags & FORMAT_FLAGS_RELATIVE_ADDRESS)
+	{
+		*si->buffer++ = '$';
+		appendSignedNumber(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
+	}
+	else
+		appendNumber(si, si->instruction->flags.x86_64 ?
+			(uint64_t)((int64_t)(si->instruction->address + si->instruction->length) + (int8_t)(si->instruction->immediate)) :
+			(uint32_t)((int32_t)(si->instruction->address + si->instruction->length) + (int8_t)(si->instruction->immediate))
+		);
+}
+
+void appendRelativeAddress16_32(StringInfo* const si)
+{
+	if (si->formatFlags & FORMAT_FLAGS_RELATIVE_ADDRESS)
+	{
+		*si->buffer++ = '$';
+		appendSignedNumber(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
+	}
+	else
+		appendNumber(si, (si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->flags.x86_64 ?
+			(uint64_t)((uint64_t)((int64_t)(si->instruction->address + si->instruction->length) + (int32_t)(si->instruction->immediate))) :
+			(uint64_t)((uint32_t)((int32_t)(si->instruction->address + si->instruction->length) + (int32_t)(si->instruction->immediate)))
+		));
 }
 
 void appendModRmMemoryPrefix(StringInfo* const si, const char* addrSpecifierReg)
@@ -857,9 +891,11 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		appendString(&si, "lock ");
 
 	//If the instruction has a 'repeat' or 'repeat not zero' prefix and has the lock prefix or the opcode is 0x86/0x87:
-	if (instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX) && 
+	if (instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX) &&
 		((instruction->prefixes & LOCK_PREFIX || ((op == 0x86 || op == 0x87) && instruction->modrm.mod != 0b11))))
-		appendString(&si, instruction->flags.repeatPrefix ? "xrelease" : "xacquire ");
+		appendString(&si, instruction->flags.repeatPrefix ? "xrelease " : "xacquire ");
+	else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX && (instruction->opcodeSize == 1 && (op == 0xc2 || op == 0xc3 || op == 0xe8 || op == 0xe9 || NMD_R(op) == 7)))
+		appendString(&si, "bnd ");
 
 	if (instruction->opcodeSize == 1)
 	{
@@ -933,7 +969,15 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		else if (op == 0x68 || op == 0x6A)
 		{
 			appendString(&si, "push ");
-			appendNumber(&si, (op == 0x6a && instruction->immediate > 0x7f) ? (0xffffff00 | instruction->immediate) : instruction->immediate);
+			if (op == 0x6a)
+			{
+				if (si.formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW)
+					appendNumber(&si, 0xFFFFFF00 | instruction->immediate);
+				else
+					appendSignedNumber(&si, (int8_t)instruction->immediate, false);
+			}
+			else
+				appendNumber(&si, instruction->immediate);
 		}
 		else if (op == 0x69 || op == 0x6B)
 		{
@@ -942,20 +986,23 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			*si.buffer++ = ',';
 			appendEv(&si);
 			*si.buffer++ = ',';
-			appendNumber(&si, instruction->immediate);
+			if (op == 0x6b)
+			{
+				if (si.formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW)
+					appendNumber(&si, 0xFFFFFF00 | instruction->immediate);
+				else
+					appendSignedNumber(&si, (int8_t)instruction->immediate, false);
+			}
+			else
+				appendNumber(&si, instruction->immediate);
 		}
 		else if (NMD_R(op) == 7)
 		{
 			*si.buffer++ = 'j';
 			appendString(&si, conditionSuffixes[NMD_C(op)]);
 			*si.buffer++ = ' ';
-			if (instruction->address)
-				appendNumber(&si, (ptrdiff_t)(instruction->address + instruction->length) + (int8_t)(instruction->immediate));
-			else
-			{
-				*si.buffer++ = '$';
-				appendSignedNumber(&si, (int64_t)((int8_t)(instruction->immediate) + (int8_t)(instruction->length)), true);
-			}
+
+			appendRelativeAddress8(&si);
 		}
 		else if (op >= 0x80 && op < 0x84) // [80,83]
 		{
@@ -966,7 +1013,15 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			else
 				appendEv(&si);
 			*si.buffer++ = ',';
-			appendNumber(&si, instruction->immediate);
+			if (op == 0x83)
+			{
+				//if (si.formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW || ((instruction->modrm.reg == 0b001 || instruction->modrm.reg == 0b100 || instruction->modrm.reg == 0b110) && instruction->modrm.rm != 0b100 && instruction->modrm.rm != 0b101)/*instruction->modrm.modrm == 0xc || instruction->modrm.modrm == 0x24 || instruction->modrm.modrm == 0x34 || (((instruction->modrm.modrm >= 0x48 && instruction->modrm.modrm <= 0x4f) || (instruction->modrm.modrm >= 0x60 && instruction->modrm.modrm <= 0x67) || (instruction->modrm.modrm >= 0x70 && instruction->modrm.modrm <= 0x77)) && instruction->modrm.rm != 0b100)*/)
+				//	appendNumber(&si, (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 0xFF00 : 0xFFFFFF00) | instruction->immediate);
+				//else
+					appendSignedNumber(&si, (int8_t)(instruction->immediate), false);
+			}
+			else
+				appendNumber(&si, instruction->immediate);
 		}
 		else if (op >= 0x84 && op <= 0x87)
 		{
@@ -1058,20 +1113,20 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			{
 				appendString(&si, "al,");
 				appendModRmMemoryPrefix(&si, "byte");
-				appendNumber(&si, (uint64_t)(instruction->immediate));
+				appendNumber(&si, instruction->immediate);
 				*si.buffer++ = ']';
 			}
 			else if (op == 0xa1)
 			{
-				appendString(&si, instruction->flags.operandSize64 ? "rax,q" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "ax," : "eax,d"));
-				appendModRmMemoryPrefix(&si, "word");
-				appendNumber(&si, (uint64_t)(instruction->immediate));
+				appendString(&si, instruction->flags.operandSize64 ? "rax," : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "ax," : "eax,"));
+				appendModRmMemoryPrefix(&si, instruction->flags.operandSize64 ? "qword" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "word" : "dword"));
+				appendNumber(&si, instruction->immediate);
 				*si.buffer++ = ']';
 			}
 			else if (op == 0xa2)
 			{
 				appendModRmMemoryPrefix(&si, "byte");
-				appendNumber(&si, (uint64_t)(instruction->immediate));
+				appendNumber(&si, instruction->immediate);
 				appendString(&si, "],al");
 			}
 			else if (op == 0xa3)
@@ -1081,7 +1136,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 				else if (!(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX))
 					*si.buffer++ = 'd';
 				appendModRmMemoryPrefix(&si, "word");
-				appendNumber(&si, (uint64_t)(instruction->immediate));
+				appendNumber(&si, instruction->immediate);
 				appendString(&si, "],");
 				appendString(&si, instruction->flags.operandSize64 ? "rax" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "ax" : "eax"));
 			}
@@ -1096,13 +1151,13 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		else if (op == 0xa8)
 		{
 			appendString(&si, "test al,");
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 		else if (op == 0xa9)
 		{
 			appendString(&si, instruction->flags.operandSize64 ? "test rax" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "test ax" : "test eax"));
 			*si.buffer++ = ',';
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 		else if ((op >= 0x6c && op <= 0x6f) || (op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf))
 		{
@@ -1131,7 +1186,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			appendString(&si, "mov ");
 			appendString(&si, (NMD_C(op) < 8 ? reg8 : (instruction->flags.operandSize64 ? reg64 : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32)))[NMD_C(op) % 8]);
 			*si.buffer++ = ',';
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 		else if (op == 0xC0 || op == 0xC1 || (NMD_R(op) == 0xd && NMD_C(op) < 4))
 		{
@@ -1143,7 +1198,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 				appendEv(&si);
 			*si.buffer++ = ',';
 			if (NMD_R(op) == 0xc)
-				appendNumber(&si, (uint64_t)(instruction->immediate));
+				appendNumber(&si, instruction->immediate);
 			else if (NMD_C(op) < 2)
 				appendNumber(&si, 1);
 			else
@@ -1152,7 +1207,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		else if (op == 0xc2)
 		{
 			appendString(&si, "ret ");
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 		else if (op == 0xc4 || op == 0xc5)
 		{
@@ -1168,12 +1223,22 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		else if (op == 0xc6 || op == 0xc7)
 		{
 			appendString(&si, instruction->modrm.reg == 0b000 ? "mov " : (op == 0xc6 ? "xabort " : "xbegin "));
-			if (op == 0xc6)
-				appendEb(&si);
+			if (instruction->modrm.reg == 0b111)
+			{
+				if (op == 0xc6)
+					appendNumber(&si, instruction->immediate);
+				else
+					appendRelativeAddress16_32(&si);
+			}
 			else
-				appendEv(&si);
-			*si.buffer++ = ',';
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			{
+				if (op == 0xc6)
+					appendEb(&si);
+				else
+					appendEv(&si);
+				*si.buffer++ = ',';
+				appendNumber(&si, instruction->immediate);
+			}
 		}
 		else if (op == 0xc8)
 		{
@@ -1184,23 +1249,23 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 		else if (op == 0xca)
 		{
-			appendString(&si, "ret far ");
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendString(&si, "retf ");
+			appendNumber(&si, instruction->immediate);
 		}
 		else if (op == 0xcd)
 		{
 			appendString(&si, "int ");
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 		else if (op == 0xd4)
 		{
 			appendString(&si, "aam ");
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 		else if (op == 0xd5)
 		{
 			appendString(&si, "aad ");
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 		else if (op >= 0xd8 && op <= 0xdf)
 		{
@@ -1424,40 +1489,29 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			const char* mnemonics[] = { "loopne", "loope", "loop", "jecxz" };
 			appendString(&si, mnemonics[NMD_C(op)]);
 			*si.buffer++ = ' ';
-
-			if (instruction->address)
-				appendNumber(&si, (ptrdiff_t)(instruction->address + instruction->length) + (int32_t)(instruction->immediate));
-			else
-			{
-				*si.buffer++ = '$';
-				appendSignedNumber(&si, (int64_t)((int32_t)(instruction->immediate) + (int32_t)(instruction->length)), true);
-			}
+			appendRelativeAddress8(&si);
 		}
 		else if (op == 0xe4 || op == 0xe5)
 		{
 			appendString(&si, "in ");
 			appendString(&si, op == 0xe4 ? "al" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "ax" : "eax"));
 			*si.buffer++ = ',';
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 		else if (op == 0xe6 || op == 0xe7)
 		{
 			appendString(&si, "out ");
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 			*si.buffer++ = ',';
 			appendString(&si, op == 0xe6 ? "al" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "ax" : "eax"));
 		}
 		else if (op == 0xe8 || op == 0xe9 || op == 0xeb)
 		{
 			appendString(&si, op == 0xe8 ? "call " : "jmp ");
-
-			if (instruction->address)
-				appendNumber(&si, (ptrdiff_t)(instruction->address + instruction->length) + (int32_t)(instruction->immediate));
+			if (op == 0xeb)
+				appendRelativeAddress8(&si);
 			else
-			{
-				*si.buffer++ = '$';
-				appendSignedNumber(&si, (int64_t)((int32_t)(instruction->immediate) + (int32_t)(instruction->length)), true);
-			}
+				appendRelativeAddress16_32(&si);
 		}
 		else if (op == 0xea)
 		{
@@ -1489,7 +1543,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			if (instruction->modrm.reg <= 0b001)
 			{
 				*si.buffer++ = ',';
-				appendNumber(&si, (uint64_t)(instruction->immediate));
+				appendNumber(&si, instruction->immediate);
 			}
 		}
 		else if (op == 0xfe)
@@ -1528,7 +1582,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			case 0x61:
 				str = (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? (instruction->opcode == 0x60 ? "pusha" : "popa") : (instruction->opcode == 0x60 ? "pushad" : "popad"));
 				break;
-			case 0xcb: str = "ret far"; break;
+			case 0xcb: str = "retf"; break;
 			case 0xc9: str = "leave"; break;
 			case 0xf1: str = "int1"; break;
 			case 0x06: str = "push es"; break;
@@ -1543,13 +1597,13 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			case 0x2f: str = "das"; break;
 			case 0x3f: str = "aas"; break;
 			case 0xd7: str = "xlat"; break;
-			case 0x9b: str = "fwait"; break;
+			case 0x9b: str = "wait"; break;
 			case 0xf4: str = "hlt"; break;
 			case 0xf5: str = "cmc"; break;
 			case 0x9e: str = "sahf"; break;
 			case 0x9f: str = "lahf"; break;
 			case 0xce: str = "into"; break;
-			case 0xcf: str = (instruction->prefixes & REX_W_PREFIX) ? "iretq" : "iretd"; break;
+			case 0xcf: str = (instruction->prefixes & REX_W_PREFIX) ? "iretq" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "iret" : "iretd"); break;
 			case 0x98: str = (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "cbw" : "cwde"); break;
 			case 0x99: str = (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "cwd" : "cdq"); break;
 			case 0xd6: str = "salc"; break;
@@ -2144,14 +2198,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			*si.buffer++ = 'j';
 			appendString(&si, conditionSuffixes[NMD_C(op)]);
 			*si.buffer++ = ' ';
-
-			if (instruction->address)
-				appendNumber(&si, (ptrdiff_t)(instruction->address + instruction->length) + (int32_t)(instruction->immediate));
-			else
-			{
-				*si.buffer++ = '$';
-				appendSignedNumber(&si, (int64_t)((int32_t)(instruction->immediate) + (int32_t)(instruction->length)), true);
-			}
+			appendRelativeAddress16_32(&si);
 		}
 		else if (NMD_R(op) == 9)
 		{
@@ -2312,7 +2359,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			*si.buffer++ = ',';
 			appendW(&si);
 			*si.buffer++ = ',';
-			appendNumber(&si, (uint64_t)(instruction->immediate));
+			appendNumber(&si, instruction->immediate);
 		}
 	}
 
@@ -2326,7 +2373,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 	}
 
-	if (formatFlags & FORMAT_FLAGS_ARGUMENT_SPACES)
+	if (formatFlags & FORMAT_FLAGS_COMMA_SPACES)
 	{
 		for (size_t i = 0; i < stringLength; i++)
 		{
@@ -2341,9 +2388,27 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 	}
 
+	if (formatFlags & FORMAT_FLAGS_OPERATOR_SPACES)
+	{
+		for (size_t i = 0; i < stringLength; i++)
+		{
+			if (buffer[i] == '+' || (buffer[i] == '-' && buffer[i - 1] != ' '))
+			{
+				for (size_t j = stringLength + 1; j > i; j--)
+					buffer[j] = buffer[j - 2];
+
+				buffer[i + 1] = buffer[i];
+				buffer[i] = ' ' ;
+				buffer[i + 2] = ' ';
+				si.buffer+=2, stringLength += 2;
+				i++;
+			}
+		}
+	}
+
 	*si.buffer = '\0';
 }
 
 #endif // NMD_ASSEMBLY_IMPLEMENTATION
 
-#endif //NMD_ASSEMBLY_H
+#endif // NMD_ASSEMBLY_H
