@@ -27,20 +27,22 @@
 //These format flags specify how a string that represents an instruction should be constructed.
 enum FORMAT_FLAGS
 {
-	FORMAT_FLAGS_HEX                       = 0x001, // If set, numbers are displayed in hex base, otherwise they are displayed in decimal base.
-	FORMAT_FLAGS_POINTER_SIZE              = 0x002, // Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed.
-	FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE     = 0x004, // If set, only segment overrides using prefixes(e.g. '2EH', '64H') are displayed, otherwise a segment is always present before a memory operand.
-	FORMAT_FLAGS_COMMA_SPACES              = 0x008, // A space is placed after a comma.
-	FORMAT_FLAGS_OPERATOR_SPACES           = 0x010, // A space is placed before and after the '+' and '-' characters.
-	FORMAT_FLAGS_UPPERCASE                 = 0x020, // The string is uppercase.
-	FORMAT_FLAGS_0X_PREFIX                 = 0x040, // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
-	FORMAT_FLAGS_H_SUFFIX                  = 0x080, // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
-	FORMAT_FLAGS_ENFORCE_HEX_ID            = 0x100, // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
-	FORMAT_FLAGS_HEX_LOWERCASE             = 0x200, // If the HEX flag is set and the UPPERCASE flag is not set, hexadecimal numbers are displayed in lowercase.
-	FORMAT_FLAGS_RELATIVE_ADDRESS          = 0x400, // If set, relative addresses are displayed as '$[+/-]{IMMEDIATE}'.
-	FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW = 0x800, // If set, signed numbers are displayed as they are represented in memory(e.g. -1 = 0xFFFFFFFF).
-	FORMAT_FLAGS_ALL                       = 0xFFF, // Specifies all format flags.
-	FORMAT_FLAGS_DEFAULT                   = (FORMAT_FLAGS_HEX | FORMAT_FLAGS_H_SUFFIX | FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | FORMAT_FLAGS_COMMA_SPACES | FORMAT_FLAGS_OPERATOR_SPACES)
+	FORMAT_FLAGS_HEX                       = (1 <<  0), // If set, numbers are displayed in hex base, otherwise they are displayed in decimal base.
+	FORMAT_FLAGS_POINTER_SIZE              = (1 <<  1), // Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed.
+	FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE     = (1 <<  2), // If set, only segment overrides using prefixes(e.g. '2EH', '64H') are displayed, otherwise a segment is always present before a memory operand.
+	FORMAT_FLAGS_COMMA_SPACES              = (1 <<  3), // A space is placed after a comma.
+	FORMAT_FLAGS_OPERATOR_SPACES           = (1 <<  4), // A space is placed before and after the '+' and '-' characters.
+	FORMAT_FLAGS_UPPERCASE                 = (1 <<  5), // The string is uppercase.
+	FORMAT_FLAGS_0X_PREFIX                 = (1 <<  6), // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
+	FORMAT_FLAGS_H_SUFFIX                  = (1 <<  7), // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
+	FORMAT_FLAGS_ENFORCE_HEX_ID            = (1 <<  8), // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
+	FORMAT_FLAGS_HEX_LOWERCASE             = (1 <<  9), // If the HEX flag is set and the UPPERCASE flag is not set, hexadecimal numbers are displayed in lowercase.
+	FORMAT_FLAGS_RELATIVE_ADDRESS          = (1 << 10), // If set, relative addresses are displayed as '$[+/-]{IMMEDIATE}'.
+	FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW = (1 << 11), // If set, signed numbers are displayed as they are represented in memory(e.g. -1 = 0xFFFFFFFF).
+	FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX    = (1 << 12), // If set and FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW is also set, the number's hexadecimal representation is displayed in parenthesis.
+	FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC    = (1 << 13), // Same as FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
+	FORMAT_FLAGS_ALL                       = (1 << 14), // Specifies all format flags.
+	FORMAT_FLAGS_DEFAULT                   = (FORMAT_FLAGS_HEX | FORMAT_FLAGS_H_SUFFIX | FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
 };
 
 enum INSTRUCTION_PREFIXES
@@ -174,7 +176,7 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t address,
 //                    string should be constructed.
 void construct_string(const Instruction* instruction, char* buffer, uint32_t formatFlags);
 
-#if 1// NMD_ASSEMBLY_IMPLEMENTATION
+#ifdef NMD_ASSEMBLY_IMPLEMENTATION
 
 #define NMD_R(b) (b >> 4) // Four high-order bits of an opcode to index a row of the opcode table
 #define NMD_C(b) (b & 0xF) // Four low-order bits to index a column of the table
@@ -388,17 +390,20 @@ bool disassemble(const void* const buffer, Instruction* const instruction, const
 			instruction->opcode = *++b;
 
 			const Modrm modrm = *(Modrm*)(b + 1);
-			const uint8_t invalid2op[] = { 0x04, 0x0a, 0x0c, 0x0f };
+			const uint8_t invalid2op[] = { 0x04, 0x0a, 0x0c, 0x0f, 0x7a, 0x7b };
 			if (nmd_asm_findByte(invalid2op, sizeof(invalid2op), *b) ||
-				(*b == 0x78 || *b == 0x79) && !(instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)) ||
 				(*b == 0xc7 && ((modrm.reg < 0b110 && !(modrm.reg == 0b001 && modrm.mod != 0b11)) || ((modrm.modrm & 0b11110000) && (instruction->prefixes & REPEAT_PREFIX)) || (modrm.reg == 0b111 && modrm.mod != 0b11 && (instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX))))) ||
 				(*b == 0x00 && modrm.reg >= 0b110) ||
 				(*b == 0x01 && (modrm.mod == 0b11 ? ((instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_NOT_ZERO_PREFIX | REPEAT_PREFIX) && ((modrm.modrm >= 0xc0 && modrm.modrm <= 0xc5) || (modrm.modrm >= 0xc8 && modrm.modrm <= 0xcb) || (modrm.modrm >= 0xcf && modrm.modrm <= 0xd1) || (modrm.modrm >= 0xd4 && modrm.modrm <= 0xd7) || modrm.modrm == 0xee || modrm.modrm == 0xef || modrm.modrm == 0xfa || modrm.modrm == 0xfb)) || (modrm.reg == 0b000 && modrm.rm >= 0b110) || (modrm.reg == 0b001 && modrm.rm >= 0b100 && modrm.rm <= 0b110) || (modrm.reg == 0b010 && (modrm.rm == 0b010 || modrm.rm == 0b011)) || (modrm.reg == 0b101 && modrm.rm < 0b110 && (!(instruction->prefixes & REPEAT_PREFIX) || (instruction->prefixes & REPEAT_PREFIX && (modrm.rm != 0b000 && modrm.rm != 0b010)))) || (modrm.reg == 0b111 && (modrm.rm > 0b101 || (!instruction->flags.x86_64 && modrm.rm == 0b000)))) : (!(instruction->prefixes & REPEAT_PREFIX) && modrm.reg == 0b101))) ||
-				(instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX) && ((*b >= 0x13 && *b <= 0x17 && !(*b == 0x16 && instruction->prefixes & REPEAT_PREFIX)) || *b == 0x28 || *b == 0x29 || *b == 0x2e || *b == 0x2f)) ||
+				(instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX) && ((*b >= 0x13 && *b <= 0x17 && !(*b == 0x16 && instruction->prefixes & REPEAT_PREFIX)) || *b == 0x28 || *b == 0x29 || *b == 0x2e || *b == 0x2f || (*b <= 0x76 && *b >= 0x74))) ||
 				(modrm.mod == 0b11 && (*b == 0x2b || (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x12 || *b == 0x16)) || (!(instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)) && (*b == 0x13 || *b == 0x17)))) ||
 				((*b == 0x1A || *b == 0x1B) && (modrm.reg >= 0b100 && modrm.mod != 0b11)) ||
-				((*b == 0x20 || *b == 0x22) && (modrm.reg == 0b001 || modrm.reg >= 0b101)) ||
-				(*b >= 0x24 && *b <= 0x27) || *b == 0x36 || *b == 0x39 || (*b >= 0x3b && *b <= 0x3f))
+				(*b >= 0x24 && *b <= 0x27) || *b == 0x36 || *b == 0x39 || (*b >= 0x3b && *b <= 0x3f) ||
+				(NMD_R(*b) == 5 && ((*b == 0x50 && modrm.mod != 0b11) || (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x52 || *b == 0x53)) || (instruction->prefixes & REPEAT_PREFIX && (*b == 0x50 || (*b >= 0x54 && *b <= 0x57))) || (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX && (*b == 0x50 || (*b >= 0x52 && *b <= 0x57) || *b == 0x5b )))) ||
+				(NMD_R(*b) == 6 && ((!(instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)) && (*b == 0x6c || *b == 0x6d)) || (instruction->prefixes & REPEAT_PREFIX && *b != 0x6f) || instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)) ||
+				((*b == 0x78 || *b == 0x79) && instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)) || 
+				((*b == 0x7c || *b == 0x7d) && (instruction->prefixes & REPEAT_PREFIX || !(instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)))) ||
+				((*b == 0x7e || *b == 0x7f) && instruction->prefixes & REPEAT_NOT_ZERO_PREFIX))
 				return false;
 
 			if (NMD_R(*b) == 8) //disp32
@@ -613,6 +618,26 @@ void appendSignedNumber(StringInfo* const si, int64_t n, bool showPositiveSign)
 	}
 }
 
+void appendSignedNumberMemoryView(StringInfo* const si)
+{
+	appendNumber(si, (si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 0xFF00 : (si->instruction->flags.x86_64 ? 0xFFFFFFFFFFFFFF00 : 0xFFFFFF00)) | si->instruction->immediate);
+	if (si->formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX)
+	{
+		*si->buffer++ = '(';
+		appendSignedNumber(si, (int8_t)(si->instruction->immediate), false);
+		*si->buffer++ = ')';
+	}
+	else if (si->formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
+	{
+		*si->buffer++ = '(';
+		const uint32_t previousMask = si->formatFlags;
+		si->formatFlags &= ~FORMAT_FLAGS_HEX;
+		appendSignedNumber(si, (int8_t)(si->instruction->immediate), false);
+		si->formatFlags = previousMask;
+		*si->buffer++ = ')';
+	}
+}
+
 void appendRelativeAddress8(StringInfo* const si)
 {
 	if (si->formatFlags & FORMAT_FLAGS_RELATIVE_ADDRESS)
@@ -807,7 +832,7 @@ void appendUx(StringInfo* const si)
 void appendQq(StringInfo* const si)
 {
 	if (si->instruction->modrm.mod == 0b11)
-		appendPq(si);
+		appendNq(si);
 	else
 		appendModRmUpper(si, "qword");
 }
@@ -870,7 +895,7 @@ void appendGw(StringInfo* const si)
 void appendW(StringInfo* const si)
 {
 	if (si->instruction->modrm.mod == 0b11)
-		appendString(si, "xmm"), * si->buffer++ = (char)(0x30 + si->instruction->modrm.rm);
+		appendString(si, "xmm"), *si->buffer++ = (char)(0x30 + si->instruction->modrm.rm);
 	else
 		appendModRmUpper(si, "xmmword");
 }
@@ -971,8 +996,8 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			appendString(&si, "push ");
 			if (op == 0x6a)
 			{
-				if (si.formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW)
-					appendNumber(&si, 0xFFFFFF00 | instruction->immediate);
+				if (formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
+					appendSignedNumberMemoryView(&si);
 				else
 					appendSignedNumber(&si, (int8_t)instruction->immediate, false);
 			}
@@ -988,8 +1013,8 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			*si.buffer++ = ',';
 			if (op == 0x6b)
 			{
-				if (si.formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW)
-					appendNumber(&si, 0xFFFFFF00 | instruction->immediate);
+				if (si.formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
+					appendSignedNumberMemoryView(&si);
 				else
 					appendSignedNumber(&si, (int8_t)instruction->immediate, false);
 			}
@@ -1015,9 +1040,9 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			*si.buffer++ = ',';
 			if (op == 0x83)
 			{
-				//if (si.formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW || ((instruction->modrm.reg == 0b001 || instruction->modrm.reg == 0b100 || instruction->modrm.reg == 0b110) && instruction->modrm.rm != 0b100 && instruction->modrm.rm != 0b101)/*instruction->modrm.modrm == 0xc || instruction->modrm.modrm == 0x24 || instruction->modrm.modrm == 0x34 || (((instruction->modrm.modrm >= 0x48 && instruction->modrm.modrm <= 0x4f) || (instruction->modrm.modrm >= 0x60 && instruction->modrm.modrm <= 0x67) || (instruction->modrm.modrm >= 0x70 && instruction->modrm.modrm <= 0x77)) && instruction->modrm.rm != 0b100)*/)
-				//	appendNumber(&si, (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 0xFF00 : 0xFFFFFF00) | instruction->immediate);
-				//else
+				if((instruction->modrm.reg == 0b001 || instruction->modrm.reg == 0b100 || instruction->modrm.reg == 0b110) && instruction->immediate >= 0x80)
+					appendNumber(&si, (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 0xFF00 : 0xFFFFFF00) | instruction->immediate);
+				else
 					appendSignedNumber(&si, (int8_t)(instruction->immediate), false);
 			}
 			else
@@ -2016,21 +2041,14 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 				case 2:
 					appendVdq(&si);
 					*si.buffer++ = ',';
-					if (instruction->modrm.mod == 0b11)
-						appendString(&si, "mm"), *si.buffer++ = (char)(0x30 + instruction->modrm.rm);
-					else
-						appendModRmUpper(&si, "qword");
+					appendQq(&si);
 					break;
 				case 4:
 				case 5:
 					appendPq(&si);
 					*si.buffer++ = ',';
-					if (instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + instruction->modrm.rm);
-					else
-						appendModRmUpper(&si, "xmmword");
+					appendW(&si);
 					break;
-
 				case 6:
 					appendVdq(&si);
 					*si.buffer++ = ',';
@@ -2136,10 +2154,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 				case 2:
 					appendVdq(&si);
 					*si.buffer++ = ',';
-					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "mm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
-					else
-						appendModRmUpper(&si, "qword");
+					appendQq(&si);
 					break;
 				case 6:
 					appendVdq(&si);
@@ -2179,6 +2194,134 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			*si.buffer++ = ',';
 			appendEv(&si);
 		}
+		else if (NMD_R(op) == 5)
+		{
+			const char* noPrefixMnemonics[] = { "movmskps", "sqrtps", "rsqrtps", "rcpps", "andps", "andnps", "orps", "xorps", "addps", "mulps", "cvtps2pd",  "cvtdq2ps", "subps", "minps", "divps", "maxps"};
+			const char* prefix66Mnemonics[] = { "movmskpd", "sqrtpd",      NULL,    NULL, "andpd", "andnpd", "orpd", "xorpd", "addpd", "mulpd", "cvtpd2ps",  "cvtps2dq", "subpd", "minpd", "divpd", "maxpd"};
+			const char* prefixF3Mnemonics[] = {       NULL, "sqrtss", "rsqrtss", "rcpss",    NULL,     NULL,   NULL,    NULL, "addss", "mulss", "cvtss2sd", "cvttps2dq", "subss", "minss", "divss", "maxss"};
+			const char* prefixF2Mnemonics[] = {       NULL, "sqrtsd",      NULL,    NULL,    NULL,     NULL,   NULL,    NULL, "addsd", "mulsd", "cvtsd2ss",        NULL, "subsd", "minsd", "divsd", "maxsd" };
+			if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
+			{
+				appendString(&si, prefix66Mnemonics[op % 0x10]);
+				*si.buffer++ = ' ';
+				if (op == 0x50)
+					appendString(&si, reg32[instruction->modrm.reg]);
+				else
+					appendVdq(&si);
+				*si.buffer++ = ',';
+				appendW(&si);
+			}
+			else if (instruction->prefixes & REPEAT_PREFIX)
+			{
+				appendString(&si, prefixF3Mnemonics[op % 0x10]);
+				*si.buffer++ = ' ';
+				appendVdq(&si);
+				*si.buffer++ = ',';
+				if (si.instruction->modrm.mod == 0b11)
+					appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+				else
+					appendModRmUpper(&si, op == 0x5b ? "xmmword" : "dword");
+			}
+			else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)
+			{
+				appendString(&si, prefixF2Mnemonics[op % 0x10]);
+				*si.buffer++ = ' ';
+				appendVdq(&si);
+				*si.buffer++ = ',';
+				if (si.instruction->modrm.mod == 0b11)
+					appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+				else
+					appendModRmUpper(&si, "qword");
+			}
+			else
+			{
+				appendString(&si, noPrefixMnemonics[op % 0x10]);
+				*si.buffer++ = ' ';
+				if (op == 0x50)
+				{
+					appendString(&si, reg32[instruction->modrm.reg]);
+					*si.buffer++ = ',';
+					appendUdq(&si);
+				}
+				else
+				{
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					else
+						appendModRmUpper(&si, op == 0x5a ? "qword" : "xmmword");
+				}
+			}
+		}
+		else if (NMD_R(op) == 6 || (op >= 0x74 && op <= 0x76))
+		{
+			const char* noPrefixMnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw",         NULL,         NULL, "movd",   "movq" };
+			const char* prefix66Mnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw", "punpcklqdq", "punpckhqdq", "movd", "movdqa" };
+
+			if (op == 0x6e)
+			{
+				appendString(&si, "movd ");
+				if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
+					*si.buffer++ = 'x';
+				appendPq(&si);
+				*si.buffer++ = ',';
+				if (si.instruction->modrm.mod == 0b11)
+					appendString(&si, reg32[si.instruction->modrm.rm]);
+				else
+					appendModRmUpper(&si, "dword");
+			}
+			else
+			{
+				if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
+				{
+					appendString(&si, op == 0x74 ? "pcmpeqb" : (op == 0x75 ? "pcmpeqw" : (op == 0x76 ? "pcmpeqd" : prefix66Mnemonics[op % 0x10])));
+					*si.buffer++ = ' ';
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					appendW(&si);
+				}
+				else if (instruction->prefixes & REPEAT_PREFIX)
+				{
+					appendString(&si, "movdqu ");
+					appendVdq(&si);
+					*si.buffer++ = ',';
+					appendW(&si);
+				}
+				else
+				{
+					appendString(&si, op == 0x74 ? "pcmpeqb" : (op == 0x75 ? "pcmpeqw" : (op == 0x76 ? "pcmpeqd" : noPrefixMnemonics[op % 0x10])));
+					*si.buffer++ = ' ';
+					appendPq(&si);
+					*si.buffer++ = ',';
+					appendQq(&si);
+				}
+			}
+		}
+		else if (op == 0x70)
+		{
+			appendString(&si, instruction->prefixes& OPERAND_SIZE_OVERRIDE_PREFIX ? "pshufd" : (instruction->prefixes & REPEAT_PREFIX ? "pshufhw" : (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX ? "pshuflw" : "pshufw")));
+			*si.buffer++ = ' ';
+			if (!(instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)))
+			{
+				appendPq(&si);
+				*si.buffer++ = ',';
+				appendQq(&si);
+			}
+			else
+			{
+				appendVdq(&si);
+				*si.buffer++ = ',';
+				appendW(&si);
+			}
+
+			*si.buffer++ = ',';
+			appendNumber(&si, instruction->immediate);
+		}
+		else if (op >= 0x71 && op <= 0x73)
+		{
+
+		}
 		else if (op == 0x78)
 		{
 			appendString(&si, "vmread ");
@@ -2192,6 +2335,60 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			appendGv(&si);
 			*si.buffer++ = ',';
 			appendEb(&si);
+		}
+		else if (op == 0x7c || op == 0x7d)
+		{
+			appendString(&si, op == 0x7c ? "haddp" : "hsubp");
+			*si.buffer++ = instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 'd' : 's';
+			*si.buffer++ = ' ';
+			appendVdq(&si);
+			*si.buffer++ = ',';
+			appendW(&si);
+		}
+		else if (op == 0x7e)
+		{
+			appendString(&si, instruction->prefixes & REPEAT_PREFIX ? "movq " : "movd ");
+			if (instruction->prefixes & REPEAT_PREFIX)
+			{
+				appendVdq(&si);
+				*si.buffer++ = ',';
+				if (si.instruction->modrm.mod == 0b11)
+					appendUdq(&si);
+				else
+					appendModRmUpper(&si, "qword");
+			}
+			else
+			{
+				if (si.instruction->modrm.mod == 0b11)
+					appendString(&si, reg32[instruction->modrm.rm]);
+				else
+					appendModRmUpper(&si, "dword");
+				*si.buffer++ = ',';
+				if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
+					appendVdq(&si);
+				else
+					appendPq(&si);
+			}
+		}
+		else if (op == 0x7f)
+		{
+			appendString(&si, instruction->prefixes & REPEAT_PREFIX ? "movdqu" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "movdqa" : "movq"));
+			*si.buffer++ = ' ';
+			if (instruction->prefixes & (REPEAT_PREFIX | OPERAND_SIZE_OVERRIDE_PREFIX))
+			{
+				appendW(&si);
+				*si.buffer++ = ',';
+				appendVdq(&si);
+			}
+			else
+			{
+				if (si.instruction->modrm.mod == 0b11)
+					appendNq(&si);
+				else
+					appendModRmUpper(&si, "qword");
+				*si.buffer++ = ',';
+				appendPq(&si);
+			}
 		}
 		else if (NMD_R(op) == 8)
 		{
@@ -2340,6 +2537,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			case 0xa8: str = "push gs"; break;
 			case 0xa9: str = "pop gs"; break;
 			case 0xaa: str = "rsm"; break;
+			default: return;
 			}
 			appendString(&si, str);
 		}
@@ -2392,7 +2590,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 	{
 		for (size_t i = 0; i < stringLength; i++)
 		{
-			if (buffer[i] == '+' || (buffer[i] == '-' && buffer[i - 1] != ' '))
+			if (buffer[i] == '+' || (buffer[i] == '-' && buffer[i - 1] != ' ' && buffer[i - 1] != '('))
 			{
 				for (size_t j = stringLength + 1; j > i; j--)
 					buffer[j] = buffer[j - 2];
@@ -2412,3 +2610,30 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 #endif // NMD_ASSEMBLY_IMPLEMENTATION
 
 #endif // NMD_ASSEMBLY_H
+
+/*
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <http://unlicense.org/>
+*/
