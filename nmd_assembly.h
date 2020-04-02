@@ -14,6 +14,10 @@
 //  assemble() -> takes as input a string and fills a 'Instruction'.
 //  disassemble() -> takes as input a sequence of bytes and fills a 'Instruction'.
 //  construct_string() -> takes as input a 'Instruction' and constructs its string representation.
+//
+// TODO
+//  - assembler
+//  - implement missing instruction encodings(e.g. VEX, EVEX).
 
 #ifndef NMD_ASSEMBLY_H
 #define NMD_ASSEMBLY_H
@@ -25,61 +29,65 @@
 #define MAXIMUM_INSTRUCTION_STRING_LENGTH 128
 
 //These format flags specify how a string that represents an instruction should be constructed.
-enum FORMAT_FLAGS
+enum X86_FORMAT_FLAGS
 {
-	FORMAT_FLAGS_HEX                       = (1 <<  0), // If set, numbers are displayed in hex base, otherwise they are displayed in decimal base.
-	FORMAT_FLAGS_POINTER_SIZE              = (1 <<  1), // Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed.
-	FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE     = (1 <<  2), // If set, only segment overrides using prefixes(e.g. '2EH', '64H') are displayed, otherwise a segment is always present before a memory operand.
-	FORMAT_FLAGS_COMMA_SPACES              = (1 <<  3), // A space is placed after a comma.
-	FORMAT_FLAGS_OPERATOR_SPACES           = (1 <<  4), // A space is placed before and after the '+' and '-' characters.
-	FORMAT_FLAGS_UPPERCASE                 = (1 <<  5), // The string is uppercase.
-	FORMAT_FLAGS_0X_PREFIX                 = (1 <<  6), // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
-	FORMAT_FLAGS_H_SUFFIX                  = (1 <<  7), // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
-	FORMAT_FLAGS_ENFORCE_HEX_ID            = (1 <<  8), // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
-	FORMAT_FLAGS_HEX_LOWERCASE             = (1 <<  9), // If the HEX flag is set and the UPPERCASE flag is not set, hexadecimal numbers are displayed in lowercase.
-	FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW = (1 << 10), // If set, signed numbers are displayed as they are represented in memory(e.g. -1 = 0xFFFFFFFF).
-	FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX    = (1 << 11), // If set and FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW is also set, the number's hexadecimal representation is displayed in parenthesis.
-	FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC    = (1 << 12), // Same as FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
-	FORMAT_FLAGS_SCALE_ONE                 = (1 << 13), // If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al.
-	FORMAT_FLAGS_ALL                       = (1 << 14) - 1, // Specifies all format flags.
-	FORMAT_FLAGS_DEFAULT                   = (FORMAT_FLAGS_HEX | FORMAT_FLAGS_H_SUFFIX | FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
+	X86_FORMAT_FLAGS_HEX                       = (1 <<  0), // If set, numbers are displayed in hex base, otherwise they are displayed in decimal base.
+	X86_FORMAT_FLAGS_POINTER_SIZE              = (1 <<  1), // Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed.
+	X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE     = (1 <<  2), // If set, only segment overrides using prefixes(e.g. '2EH', '64H') are displayed, otherwise a segment is always present before a memory operand.
+	X86_FORMAT_FLAGS_COMMA_SPACES              = (1 <<  3), // A space is placed after a comma.
+	X86_FORMAT_FLAGS_OPERATOR_SPACES           = (1 <<  4), // A space is placed before and after the '+' and '-' characters.
+	X86_FORMAT_FLAGS_UPPERCASE                 = (1 <<  5), // The string is uppercase.
+	X86_FORMAT_FLAGS_0X_PREFIX                 = (1 <<  6), // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
+	X86_FORMAT_FLAGS_H_SUFFIX                  = (1 <<  7), // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
+	X86_FORMAT_FLAGS_ENFORCE_HEX_ID            = (1 <<  8), // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
+	X86_FORMAT_FLAGS_HEX_LOWERCASE             = (1 <<  9), // If the HEX flag is set and the UPPERCASE flag is not set, hexadecimal numbers are displayed in lowercase.
+	X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW = (1 << 10), // If set, signed numbers are displayed as they are represented in memory(e.g. -1 = 0xFFFFFFFF).
+	X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX    = (1 << 11), // If set and X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW is also set, the number's hexadecimal representation is displayed in parenthesis.
+	X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC    = (1 << 12), // Same as X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
+	X86_FORMAT_FLAGS_SCALE_ONE                 = (1 << 13), // If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al.
+	X86_FORMAT_FLAGS_ALL                       = (1 << 14) - 1, // Specifies all format flags.
+	X86_FORMAT_FLAGS_DEFAULT                   = (X86_FORMAT_FLAGS_HEX | X86_FORMAT_FLAGS_H_SUFFIX | X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
 };
 
 enum INSTRUCTION_PREFIXES
 {
-	ES_SEGMENT_OVERRIDE_PREFIX   = 0x0001,
-	CS_SEGMENT_OVERRIDE_PREFIX   = 0x0002,
-	SS_SEGMENT_OVERRIDE_PREFIX   = 0x0004,
-	DS_SEGMENT_OVERRIDE_PREFIX   = 0x0008,
-	FS_SEGMENT_OVERRIDE_PREFIX   = 0x0010,
-	GS_SEGMENT_OVERRIDE_PREFIX   = 0x0020,
-	LOCK_PREFIX                  = 0x0040,
-	REPEAT_NOT_ZERO_PREFIX       = 0x0080,
-	REPEAT_PREFIX                = 0x0100,
-	OPERAND_SIZE_OVERRIDE_PREFIX = 0x0200,
-	ADDRESS_SIZE_OVERRIDE_PREFIX = 0x0400,
-	REX_W_PREFIX                 = 0x0800,
-	REX_R_PREFIX                 = 0x1000,
-	REX_X_PREFIX                 = 0x2000,
-	REX_B_PREFIX                 = 0x4000
+	NONE_PREFIX                  = 0,
+	ES_SEGMENT_OVERRIDE_PREFIX   = (1 <<  0),
+	CS_SEGMENT_OVERRIDE_PREFIX   = (1 <<  1),
+	SS_SEGMENT_OVERRIDE_PREFIX   = (1 <<  2),
+	DS_SEGMENT_OVERRIDE_PREFIX   = (1 <<  3),
+	FS_SEGMENT_OVERRIDE_PREFIX   = (1 <<  4),
+	GS_SEGMENT_OVERRIDE_PREFIX   = (1 <<  5),
+	OPERAND_SIZE_OVERRIDE_PREFIX = (1 <<  6),
+	ADDRESS_SIZE_OVERRIDE_PREFIX = (1 <<  7),
+	LOCK_PREFIX                  = (1 <<  8),
+	REPEAT_NOT_ZERO_PREFIX       = (1 <<  9),
+	REPEAT_PREFIX                = (1 << 10),
+	REX_PREFIX                   = (1 << 11),
+	REX_W_PREFIX                 = (1 << 12),
+	REX_R_PREFIX                 = (1 << 13),
+	REX_X_PREFIX                 = (1 << 14),
+	REX_B_PREFIX                 = (1 << 15)
 };
 
 enum IMM_MASK
 {
-	IMM8    = 0x01,
-	IMM16   = 0x02,
-	IMM32   = 0x04,
-	IMM48   = 0x06,
-	IMM64   = 0x08,
-	ANY_IMM = (IMM8 | IMM16 | IMM32 | IMM64)
+	IMM_NONE = 0,
+	IMM8     = 1,
+	IMM16    = 2,
+	IMM32    = 4,
+	IMM48    = 6,
+	IMM64    = 8,
+	ANY_IMM  = (IMM8 | IMM16 | IMM32 | IMM64)
 };
 
 enum DISP_MASK
 {
-	DISP8    = 0x01,
-	DISP16   = 0x02,
-	DISP32   = 0x04,
-	ANY_DISP = (DISP8 | DISP16 | DISP32)
+	DISP_NONE = 0,
+	DISP8     = (1 << 0),
+	DISP16    = (1 << 1),
+	DISP32    = (1 << 2),
+	ANY_DISP  = (DISP8 | DISP16 | DISP32)
 };
 
 typedef union Modrm
@@ -107,61 +115,97 @@ typedef union SIB
 //You may use this enum to construct a mask and check against InstructionFlags::flags.
 enum INSTRUCTION_FLAGS
 {
-	INSTRUCTION_FLAGS_VALID           = 0x01,
-	INSTRUCTION_FLAGS_X86_64          = 0x02,
-	INSTRUCTION_FLAGS_HAS_MODRM       = 0x04,
-	INSTRUCTION_FLAGS_HAS_SIB         = 0x08,
-	INSTRUCTION_FLAGS_IS_3OP_38H      = 0x10,
-	INSTRUCTION_FLAGS_OPERAND_SIZE_64 = 0x20,
-	INSTRUCTION_FLAGS_REPEAT_PREFIX   = 0x40,
+	INSTRUCTION_FLAGS_VALID           = (1 << 0),
+	INSTRUCTION_FLAGS_X86_64          = (1 << 1),
+	INSTRUCTION_FLAGS_HAS_MODRM       = (1 << 2),
+	INSTRUCTION_FLAGS_HAS_SIB         = (1 << 3),
+	INSTRUCTION_FLAGS_IS_3OP_38H      = (1 << 4),
+	INSTRUCTION_FLAGS_OPERAND_SIZE_64 = (1 << 5),
+	INSTRUCTION_FLAGS_REPEAT_PREFIX   = (1 << 6),
 };
 
+//X86 mode.
 typedef enum X86_MODE
 {
-	X86_MODE_16   = 1,
-	X86_MODE_32   = 2,
-	X86_MODE_64   = 3,
+	X86_MODE_16 = 1,
+	X86_MODE_32 = 2,
+	X86_MODE_64 = 3,
 } X86_MODE;
+
+enum OPCODE_MAP
+{
+	OPCODE_MAP_DEFAULT,
+	OPCODE_MAP_0F,
+	OPCODE_MAP_0F_38,
+	OPCODE_MAP_0F_3A
+};
+
+enum INSTRUCTION_ENCODING
+{
+	INSTRUCTION_ENCODING_LEGACY, // Legacy encoding.
+	//INSTRUCTION_ENCODING_3DNOW,  // AMD's 3DNow! extension. [TODO]
+	//INSTRUCTION_ENCODING_XOP,    // AMD's XOP(eXtended Operations) instruction set. [TODO]
+	INSTRUCTION_ENCODING_VEX,    // Intel's VEX(vector extensions) coding scheme.
+	INSTRUCTION_ENCODING_EVEX,   // Intel's EVEX(Enhanced vector extension) coding scheme.
+	//INSTRUCTION_ENCODING_MVEX,   // MVEX used by Intel's "Xeon Phi" ISA. [TODO]
+};
+
+typedef struct VEX
+{
+	uint8_t byte0; // Either C4h(3-byte VEX) or C5h(2-byte VEX).
+	bool R;
+	bool X;
+	bool B;
+	bool L;
+	bool W;
+	uint8_t m_mmmm;
+	uint8_t vvvv;
+	uint8_t pp;
+	uint8_t vex[3]; //The full vex prefix.
+} VEX;
 
 typedef union InstructionFlags
 {
 	struct
 	{
 		bool valid         : 1; // If true, the instruction is valid.
-		bool hasModrm      : 1;
-		bool hasSIB        : 1;
-		bool is3op38h      : 1; // If true, the instruction has a three byte opcode and the 3-byte escape is 38h.
+		bool hasModrm      : 1; // If true, the instruction has a modrm byte.
+		bool hasSIB        : 1; // If true, the instruction has an SIB byte.
 		bool operandSize64 : 1; // If true, a REX.W is closer to the opcode than a operand size override prefix.
 		bool repeatPrefix  : 1; // If true, a 'repeat' prefix is closer to the opcode than a 'repeat not zero' prefix.
-		uint8_t mode       : 2; // See the 'X86_MODE' enum.
 	};
 	uint8_t flags;
 } InstructionFlags;
 
 typedef struct Instruction
 {
-	InstructionFlags flags;
-	uint8_t length;
-	uint64_t runtimeAddress;
-	uint8_t numPrefixes;
-	uint16_t prefixes;
-	uint8_t segmentOverride;
-	uint8_t opcodeSize;
-	uint8_t opcode;
-	uint8_t fullInstruction[15];
-	Modrm modrm;
-	SIB sib;
-	uint8_t immMask, dispMask;
-	uint64_t immediate;
-	uint32_t displacement;
+	InstructionFlags flags;      // See the 'InstructionFlags' union.
+	uint8_t opcodeMap;           // See the 'OPCODE_MAP' enum.
+	uint8_t encoding;            // See the INSTRUCTION_ENCODING' enum.
+	uint8_t numPrefixes;         // Number of prefixes.
+	uint8_t length;              // Instruction's length in bytes.
+	uint8_t opcodeSize;          // Opcode's size in bytes.
+	uint8_t mode;                // See the 'X86_MODE' enum.
+	uint8_t immMask;             // See the 'IMM_MASK' enum.
+	uint8_t dispMask;            // See the 'DISP_MASK' enum.
+	uint16_t prefixes;           // See the 'INSTRUCTION_PREFIXES' enum.
+	uint8_t segmentOverride;     // One segment override prefix in the 'INSTRUCTION_PREFIXES' enum that is closest to the opcode.
+	uint16_t simdPrefix;         // Either one of these prefixes that is closest to the opcode: 66h, f0h, f2h, f3h, or NONE_PREFIX. The prefixes are specified as members of the 'INSTRUCTION_PREFIXES' enum.
+	uint8_t opcode;              // Opcode byte.
+	VEX vex;
+	uint8_t fullInstruction[15]; // Buffer containing the full instruction.
+	Modrm modrm;                 // Modrm. Check 'flags.hasModrm'.
+	SIB sib;                     // SIB. Check 'flags.hasSIB'.
+	uint32_t displacement;       // Displacement. Check 'dispMask'.
+	uint64_t immediate;          // Immediate. Check 'immMask'.
+	uint64_t runtimeAddress;     // runtime address provided by the user.
 } Instruction;
 
 //Assembles an instruction from a string. Returns true if the operation was successful, false otherwise.
 //Parameters:
 //  string      [in]  A pointer to a string.
 //  instruction [out] A pointer to a variable of type 'Instruction'.
-//	x86_64      [in]  If true, disassembles x86-64 instructions, otherwise
-//                    disassembles x86-32 instructions.
+//	mode        [in]  A member of the 'X86_MODE' enum.
 bool assemble(const char* string, Instruction* instruction, X86_MODE mode);
 
 //Disassembles an instruction from a sequence of bytes. Returns true if the instruction is valid, false otherwise.
@@ -178,7 +222,7 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 //Parameters:
 //	instruction [in]  A pointer to a variable of type 'Instruction'.
 //	buffer      [out] A pointer to buffer that receives the string.
-//  formatFlags [in]  A mask of 'FORMAT_FLAGS_XXX' specifying how the
+//  formatFlags [in]  A mask of 'X86_FORMAT_FLAGS_XXX' specifying how the
 //                    string should be constructed.
 void construct_string(const Instruction* instruction, char* buffer, uint32_t formatFlags);
 
@@ -195,7 +239,7 @@ void nmd_asm_parseModRM(const uint8_t** b, Instruction* const instruction)
 	const uint8_t modrm = instruction->modrm.modrm = *++*b;
 	const bool addressPrefix = (bool)(instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX);
 
-	if (instruction->flags.mode == X86_MODE_16)
+	if (instruction->mode == X86_MODE_16)
 	{
 		if (instruction->modrm.mod != 0b11)
 		{
@@ -210,7 +254,7 @@ void nmd_asm_parseModRM(const uint8_t** b, Instruction* const instruction)
 	}
 	else
 	{
-		if (addressPrefix && !(instruction->flags.mode == X86_MODE_64))
+		if (addressPrefix && !(instruction->mode == X86_MODE_64))
 		{
 			if ((instruction->modrm.mod == 0b00 && instruction->modrm.rm == 0b110) || instruction->modrm.mod == 0b10)
 				instruction->dispMask = DISP16;
@@ -255,78 +299,78 @@ const char* nmd_asm_strstr(const char* buffer, const char* string)
 	return b;
 }
 
-bool assemble(const char* string, Instruction* instruction, X86_MODE mode)
-{
-	if (*string == '\0')
-		return false;
-
-	//Clear instruction
-	for (int i = 0; i < sizeof(Instruction); i++)
-		((uint8_t*)(instruction))[i] = 0x00;
-
-	instruction->flags.mode = mode;
-
-	char buffer[MAXIMUM_INSTRUCTION_STRING_LENGTH];
-
-	//Copy 'string' to 'buffer' converting it to lowercase. If the character ';' is found, stop.
-	size_t length = 0;
-	for (; string[length]; length++)
-	{
-		const char c = string[length];
-		if (c == ';')
-			break;
-
-		buffer[length] = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
-	}
-
-	//Remove any number of contiguous of white-spaces at the end of the string.
-	for (size_t i = length - 1; i > 0; i--)
-	{
-		if (buffer[i] != ' ')
-		{
-			length = i + 1;
-			break;
-		}
-	}
-
-	//Remove all white-spaces where the previous character is not a lowercase letter. 
-	for (size_t i = 0; i < length; i++)
-	{
-		if (buffer[i] == ' ' && (i == 0 || !(buffer[i - 1] >= 'a' && buffer[i - 1] <= 'z')))
-		{
-			for (size_t j = i; j < length; j++)
-				buffer[j] = buffer[j + 1];
-
-			length--;
-		}
-	}
-
-	//After all the string manipulation, place the null character.
-	buffer[length] = '\0';
-
-	//"index"
-	const char* b = buffer;
-
-	if (nmd_asm_strstr(buffer, "lock ") == buffer)
-		instruction->prefixes |= LOCK_PREFIX, b += 5;
-	else if (nmd_asm_strstr(buffer, "rep ") == buffer)
-		instruction->prefixes |= REPEAT_PREFIX, b += 4;
-	else if (nmd_asm_strstr(buffer, "repe ") == buffer || nmd_asm_strstr(buffer, "repz ") == buffer)
-		instruction->prefixes |= REPEAT_PREFIX, b += 5;
-	else if (nmd_asm_strstr(buffer, "repne ") == buffer || nmd_asm_strstr(buffer, "repnz ") == buffer)
-		instruction->prefixes |= REPEAT_NOT_ZERO_PREFIX, b += 6;
-
-	if (nmd_asm_strstr(buffer, "xacquire ") == buffer)
-	{
-	}
-	else if (nmd_asm_strstr(buffer, "xrelease ") == buffer)
-	{
-	}
-
-	//find opcode...
-
-	return true;
-}
+//bool assemble(const char* string, Instruction* instruction, X86_MODE mode)
+//{
+//	if (*string == '\0')
+//		return false;
+//
+//	//Clear instruction
+//	for (int i = 0; i < sizeof(Instruction); i++)
+//		((uint8_t*)(instruction))[i] = 0x00;
+//
+//	instruction->mode = mode;
+//
+//	char buffer[MAXIMUM_INSTRUCTION_STRING_LENGTH];
+//
+//	//Copy 'string' to 'buffer' converting it to lowercase. If the character ';' is found, stop.
+//	size_t length = 0;
+//	for (; string[length]; length++)
+//	{
+//		const char c = string[length];
+//		if (c == ';')
+//			break;
+//
+//		buffer[length] = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
+//	}
+//
+//	//Remove any number of contiguous of white-spaces at the end of the string.
+//	for (size_t i = length - 1; i > 0; i--)
+//	{
+//		if (buffer[i] != ' ')
+//		{
+//			length = i + 1;
+//			break;
+//		}
+//	}
+//
+//	//Remove all white-spaces where the previous character is not a lowercase letter. 
+//	for (size_t i = 0; i < length; i++)
+//	{
+//		if (buffer[i] == ' ' && (i == 0 || !(buffer[i - 1] >= 'a' && buffer[i - 1] <= 'z')))
+//		{
+//			for (size_t j = i; j < length; j++)
+//				buffer[j] = buffer[j + 1];
+//
+//			length--;
+//		}
+//	}
+//
+//	//After all the string manipulation, place the null character.
+//	buffer[length] = '\0';
+//
+//	//"index"
+//	const char* b = buffer;
+//
+//	if (nmd_asm_strstr(buffer, "lock ") == buffer)
+//		instruction->prefixes |= LOCK_PREFIX, b += 5;
+//	else if (nmd_asm_strstr(buffer, "rep ") == buffer)
+//		instruction->prefixes |= REPEAT_PREFIX, b += 4;
+//	else if (nmd_asm_strstr(buffer, "repe ") == buffer || nmd_asm_strstr(buffer, "repz ") == buffer)
+//		instruction->prefixes |= REPEAT_PREFIX, b += 5;
+//	else if (nmd_asm_strstr(buffer, "repne ") == buffer || nmd_asm_strstr(buffer, "repnz ") == buffer)
+//		instruction->prefixes |= REPEAT_NOT_ZERO_PREFIX, b += 6;
+//
+//	if (nmd_asm_strstr(buffer, "xacquire ") == buffer)
+//	{
+//	}
+//	else if (nmd_asm_strstr(buffer, "xrelease ") == buffer)
+//	{
+//	}
+//
+//	//find opcode...
+//
+//	return true;
+//}
 
 bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeAddress, X86_MODE mode)
 {
@@ -341,7 +385,7 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 		((uint8_t*)(instruction))[i] = 0x00;
 
 	instruction->runtimeAddress = runtimeAddress;
-	instruction->flags.mode = mode;
+	instruction->mode = mode;
 
 	size_t offset = 0;
 	const uint8_t* b = (const uint8_t*)(buffer);
@@ -351,27 +395,30 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 	{
 		switch (*b)
 		{
-		case 0xF0: instruction->prefixes |= LOCK_PREFIX; continue;
-		case 0xF2: instruction->prefixes |= REPEAT_NOT_ZERO_PREFIX, instruction->flags.repeatPrefix = false; continue;
-		case 0xF3: instruction->prefixes |= REPEAT_PREFIX, instruction->flags.repeatPrefix = true; continue;
+		case 0xF0: instruction->prefixes |= (instruction->simdPrefix = LOCK_PREFIX); continue;
+		case 0xF2: instruction->prefixes |= (instruction->simdPrefix = REPEAT_NOT_ZERO_PREFIX), instruction->flags.repeatPrefix = false; continue;
+		case 0xF3: instruction->prefixes |= (instruction->simdPrefix = REPEAT_PREFIX), instruction->flags.repeatPrefix = true; continue;
 		case 0x2E: instruction->prefixes |= (instruction->segmentOverride = CS_SEGMENT_OVERRIDE_PREFIX); continue;
 		case 0x36: instruction->prefixes |= (instruction->segmentOverride = SS_SEGMENT_OVERRIDE_PREFIX); continue;
 		case 0x3E: instruction->prefixes |= (instruction->segmentOverride = DS_SEGMENT_OVERRIDE_PREFIX); continue;
 		case 0x26: instruction->prefixes |= (instruction->segmentOverride = ES_SEGMENT_OVERRIDE_PREFIX); continue;
 		case 0x64: instruction->prefixes |= (instruction->segmentOverride = FS_SEGMENT_OVERRIDE_PREFIX); continue;
 		case 0x65: instruction->prefixes |= (instruction->segmentOverride = GS_SEGMENT_OVERRIDE_PREFIX); continue;
-		case 0x66: instruction->prefixes |= OPERAND_SIZE_OVERRIDE_PREFIX, instruction->flags.operandSize64 = false; continue;
+		case 0x66: instruction->prefixes |= (instruction->simdPrefix = OPERAND_SIZE_OVERRIDE_PREFIX), instruction->flags.operandSize64 = false; continue;
 		case 0x67: instruction->prefixes |= ADDRESS_SIZE_OVERRIDE_PREFIX; continue;
 		default:
-			if ((instruction->flags.mode == X86_MODE_64) && NMD_R(*b) == 4) // 0x40
+			if ((instruction->mode == X86_MODE_64) && NMD_R(*b) == 4) // 0x40
 			{
+				instruction->prefixes |= REX_PREFIX;
+				instruction->prefixes &= ~(REX_B_PREFIX | REX_X_PREFIX | REX_R_PREFIX | REX_W_PREFIX);
+
 				if (*b & 0b0001) // bit position 0
 					instruction->prefixes |= REX_B_PREFIX;
-				else if (*b & 0b0010) // bit position 1
+				if (*b & 0b0010) // bit position 1
 					instruction->prefixes |= REX_X_PREFIX;
-				else if (*b & 0b0100) // bit position 2
+				if (*b & 0b0100) // bit position 2
 					instruction->prefixes |= REX_R_PREFIX;
-				else if (*b & 0b1000) // bit position 3
+				if (*b & 0b1000) // bit position 3
 					instruction->prefixes |= REX_W_PREFIX, instruction->flags.operandSize64 = true;
 
 				continue;
@@ -382,6 +429,9 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 	}
 
 	instruction->numPrefixes = (uint8_t)((ptrdiff_t)(b)-(ptrdiff_t)(buffer));
+
+	//Assume INSTRUCTION_ENCODING_LEGACY.
+	instruction->encoding = INSTRUCTION_ENCODING_LEGACY;
 
 	//Parse opcode(s)
 	if (*b == 0x0F) // 2,3 bytes
@@ -396,7 +446,7 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 
 			if (*(b - 1) == 0x38)
 			{
-				instruction->flags.is3op38h = true;
+				instruction->opcodeMap = OPCODE_MAP_0F_38;
 
 				if (((*b == 0xf0 || *b == 0xf1) && ((instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX || !(instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX))) && modrm.mod == 0b11)) || 
 					!(*b <= 0xb || (*b >= 0x1c && *b <= 0x1e) || (*b >= 0xc8 && *b <= 0xcd) ||
@@ -407,6 +457,7 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 			}
 			else
 			{
+				instruction->opcodeMap = OPCODE_MAP_0F_3A;
 				instruction->immMask = IMM8, offset++;
 
 				if (!(((instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX || !(instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX))) && *b == 0xf) || *b == 0xcc ||
@@ -418,6 +469,7 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 		}
 		else // 2 bytes
 		{
+			instruction->opcodeMap = OPCODE_MAP_0F;
 			instruction->opcodeSize = 2;
 			instruction->opcode = *b;
 
@@ -426,7 +478,7 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 			if (nmd_asm_findByte(invalid2op, sizeof(invalid2op), *b) ||
 				(*b == 0xc7 && (modrm.reg == 0b000 || modrm.reg == 0b010 || (modrm.mod == 0b11 && (instruction->prefixes & REPEAT_PREFIX ? modrm.reg != 0b111 : (!(instruction->prefixes & REPEAT_NOT_ZERO_PREFIX) ? modrm.reg <= 0b101 : true))) || (instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX) && modrm.reg >= 0b010 && modrm.reg <= 0b101))) ||
 				(*b == 0x00 && modrm.reg >= 0b110) ||
-				(*b == 0x01 && (modrm.mod == 0b11 ? ((instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_NOT_ZERO_PREFIX | REPEAT_PREFIX) && ((modrm.modrm >= 0xc0 && modrm.modrm <= 0xc5) || (modrm.modrm >= 0xc8 && modrm.modrm <= 0xcb) || (modrm.modrm >= 0xcf && modrm.modrm <= 0xd1) || (modrm.modrm >= 0xd4 && modrm.modrm <= 0xd7) || modrm.modrm == 0xee || modrm.modrm == 0xef || modrm.modrm == 0xfa || modrm.modrm == 0xfb)) || (modrm.reg == 0b000 && modrm.rm >= 0b110) || (modrm.reg == 0b001 && modrm.rm >= 0b100 && modrm.rm <= 0b110) || (modrm.reg == 0b010 && (modrm.rm == 0b010 || modrm.rm == 0b011)) || (modrm.reg == 0b101 && modrm.rm < 0b110 && (!(instruction->prefixes & REPEAT_PREFIX) || (instruction->prefixes & REPEAT_PREFIX && (modrm.rm != 0b000 && modrm.rm != 0b010)))) || (modrm.reg == 0b111 && (modrm.rm > 0b101 || (!(instruction->flags.mode == X86_MODE_64) && modrm.rm == 0b000)))) : (!(instruction->prefixes & REPEAT_PREFIX) && modrm.reg == 0b101))) ||
+				(*b == 0x01 && (modrm.mod == 0b11 ? ((instruction->prefixes & (OPERAND_SIZE_OVERRIDE_PREFIX | REPEAT_NOT_ZERO_PREFIX | REPEAT_PREFIX) && ((modrm.modrm >= 0xc0 && modrm.modrm <= 0xc5) || (modrm.modrm >= 0xc8 && modrm.modrm <= 0xcb) || (modrm.modrm >= 0xcf && modrm.modrm <= 0xd1) || (modrm.modrm >= 0xd4 && modrm.modrm <= 0xd7) || modrm.modrm == 0xee || modrm.modrm == 0xef || modrm.modrm == 0xfa || modrm.modrm == 0xfb)) || (modrm.reg == 0b000 && modrm.rm >= 0b110) || (modrm.reg == 0b001 && modrm.rm >= 0b100 && modrm.rm <= 0b110) || (modrm.reg == 0b010 && (modrm.rm == 0b010 || modrm.rm == 0b011)) || (modrm.reg == 0b101 && modrm.rm < 0b110 && (!(instruction->prefixes & REPEAT_PREFIX) || (instruction->prefixes & REPEAT_PREFIX && (modrm.rm != 0b000 && modrm.rm != 0b010)))) || (modrm.reg == 0b111 && (modrm.rm > 0b101 || (!(instruction->mode == X86_MODE_64) && modrm.rm == 0b000)))) : (!(instruction->prefixes & REPEAT_PREFIX) && modrm.reg == 0b101))) ||
 				(instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX) && ((*b >= 0x13 && *b <= 0x17 && !(*b == 0x16 && instruction->prefixes & REPEAT_PREFIX)) || *b == 0x28 || *b == 0x29 || *b == 0x2e || *b == 0x2f || (*b <= 0x76 && *b >= 0x74))) ||
 				(modrm.mod == 0b11 && (*b == 0xb2 || *b == 0xb4 || *b == 0xb5 ||*b == 0xc3 || *b == 0xe7 || *b == 0x2b || (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x12 || *b == 0x16)) || (!(instruction->prefixes & (REPEAT_PREFIX | REPEAT_NOT_ZERO_PREFIX)) && (*b == 0x13 || *b == 0x17)))) ||
 				((*b == 0x1A || *b == 0x1B) && (modrm.reg >= 0b100 && modrm.mod != 0b11)) ||
@@ -456,12 +508,18 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 				instruction->immMask = IMM8, offset++;
 
 			//Check for ModR/M, SIB and displacement
-			if (nmd_asm_findByte(op2modrm, sizeof(op2modrm), *b) || (NMD_R(*b) != 3 && NMD_R(*b) > 0 && NMD_R(*b) < 7) || *b >= 0xD0 || (NMD_R(*b) == 7 && NMD_C(*b) != 7) || NMD_R(*b) == 9 || NMD_R(*b) == 0xB || (NMD_R(*b) == 0xC && NMD_C(*b) < 8) || (NMD_R(*b) == 0 && NMD_C(*b) < 4))
+			if (*b >= 0x20 && *b <= 0x23)
+				instruction->flags.hasModrm = true, instruction->modrm.modrm = *++b;
+			else if (nmd_asm_findByte(op2modrm, sizeof(op2modrm), *b) || (NMD_R(*b) != 3 && NMD_R(*b) > 0 && NMD_R(*b) < 7) || *b >= 0xD0 || (NMD_R(*b) == 7 && NMD_C(*b) != 7) || NMD_R(*b) == 9 || NMD_R(*b) == 0xB || (NMD_R(*b) == 0xC && NMD_C(*b) < 8))
 				nmd_asm_parseModRM(&b, instruction);
 		}
 	}
 	else // 1 byte
 	{
+		instruction->opcodeSize = 1;
+		instruction->opcode = *b;
+		instruction->opcodeMap = OPCODE_MAP_DEFAULT;
+
 		//Check for potential invalid instructions
 		const Modrm modrm = *(Modrm*)(b + 1);
 		if (((*b == 0xC6 || *b == 0xC7) && ((modrm.reg != 0b000 && modrm.reg != 0b111) || (modrm.reg == 0b111 && (modrm.mod != 0b11 || modrm.rm != 0b000)))) ||
@@ -470,7 +528,8 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 			(*b == 0xff && (modrm.reg == 0b111 || (modrm.mod == 0b11 && (modrm.reg == 0b011 || modrm.reg == 0b101)))) ||
 			((*b == 0x8c || *b == 0x8e) && modrm.reg >= 6) ||
 			(*b == 0x8e && modrm.reg == 0b001) ||
-			(modrm.mod == 0b11 && (*b == 0x62 || *b == 0x8d || *b == 0xc4 || *b == 0xc5)))
+			(modrm.mod == 0b11 && *b == 0x8d) ||
+			((*b == 0xc4 || *b == 0xc5) && mode == X86_MODE_64 && modrm.mod != 0b11))
 			return false;
 		else if (*b >= 0xd8 && *b <= 0xdf)
 		{
@@ -502,36 +561,76 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 				break;
 			}
 		}
-		else if (mode == X86_MODE_64 && (*b == 0x6 || *b == 0x7 || *b == 0xe || *b == 0x16 || *b == 0x17 || *b == 0x1e || *b == 0x1f || *b == 0x27 || *b == 0x2f || *b == 0x37 || *b == 0x3f || (*b >= 0x60 && *b <= 0x62) || *b == 0x82))
+		else if (mode == X86_MODE_64 && (*b == 0x6 || *b == 0x7 || *b == 0xe || *b == 0x16 || *b == 0x17 || *b == 0x1e || *b == 0x1f || *b == 0x27 || *b == 0x2f || *b == 0x37 || *b == 0x3f || (*b >= 0x60 && *b <= 0x62) || *b == 0x82 || *b == 0xce || (*b >= 0xd4 && *b <= 0xd6)))
 			return false;
-
-		instruction->opcodeSize = 1;
-		instruction->opcode = *b;
-
-		//Check for immediate field
-		if ((NMD_R(*b) == 0xE && NMD_C(*b) < 8) || (NMD_R(*b) == 0xB && NMD_C(*b) < 8) || NMD_R(*b) == 7 || (NMD_R(*b) < 4 && (NMD_C(*b) == 4 || NMD_C(*b) == 0xC)) || (*b == 0xF6 && !(*(b + 1) & 48)) || nmd_asm_findByte(op1imm8, sizeof(op1imm8), *b)) //imm8
-			instruction->immMask = IMM8, offset++;
-		else if (*b == 0xC2 || *b == 0xCA) //imm16
-			instruction->immMask = IMM16, offset += 2;
-		else if (*b == 0xC8) //imm16 + imm8
-			instruction->immMask = IMM16 | IMM8, offset += 3;
-		else if ((NMD_R(*b) < 4 && (NMD_C(*b) == 5 || NMD_C(*b) == 0xD)) || (NMD_R(*b) == 0xB && NMD_C(*b) >= 8) || (*b == 0xF7 && !(*(b + 1) & 48)) || nmd_asm_findByte(op1imm32, sizeof(op1imm32), *b)) //imm32,16
+		
+		//if (*b == 0x62 && modrm.mod == 0b11)
+		//{
+		//	instruction->encoding = INSTRUCTION_ENCODING_EVEX;
+		//}
+		//else if ((*b == 0xc4 || *b == 0xc5) && modrm.mod == 0b11)
+		//{
+		//	instruction->encoding = INSTRUCTION_ENCODING_VEX;
+		//
+		//	instruction->vex.byte0 = *b;
+		//	const uint8_t byte1 = *++b;
+		//
+		//	instruction->vex.R = byte1 & 0b10000000;
+		//	if (*b == 0xc4)
+		//	{
+		//		instruction->vex.X      = byte1 & 0b01000000;
+		//		instruction->vex.B      = byte1 & 0b00100000;
+		//		instruction->vex.m_mmmm = byte1 & 0b00011111;
+		//
+		//		const uint8_t byte2 = *(b + 2);
+		//		instruction->vex.W    = byte2 & 0b10000000;
+		//		instruction->vex.vvvv = byte2 & 0b01111000;
+		//		instruction->vex.L    = byte2 & 0b00000100;
+		//		instruction->vex.pp   = byte2 & 0b00000011;
+		//
+		//		b += 2;
+		//		instruction->opcode = *b;
+		//	}
+		//	else
+		//	{
+		//		instruction->vex.vvvv = byte1 & 0b01111000;
+		//		instruction->vex.L    = byte1 & 0b00000100;
+		//		instruction->vex.pp   = byte1 & 0b00000011;
+		//
+		//		b++;
+		//		instruction->opcode = *b;
+		//	}
+		//
+		//	nmd_asm_parseModRM(&b, instruction);
+		//}
+		//else
 		{
-			instruction->immMask = ((NMD_R(*b) == 0xB && NMD_C(*b) >= 8) && (instruction->prefixes & REX_W_PREFIX)) ? IMM64 : ((instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && instruction->flags.mode != X86_MODE_32) || (instruction->flags.mode == X86_MODE_16 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? IMM16 : IMM32);
-			offset += instruction->immMask;
-		}
-		else if (*b == 0xEA || *b == 0x9A) //imm32,48
-		{
-			if ((instruction->flags.mode == X86_MODE_64))
-				return false;
-			instruction->immMask = (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? IMM32 : IMM48), offset += instruction->immMask;
-		}
-		else if (NMD_R(*b) == 0xA && NMD_C(*b) < 4)
-			instruction->immMask = (instruction->flags.mode == X86_MODE_64) ? (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX ? IMM32 : IMM64) : (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX ? IMM16 : IMM32), offset += instruction->immMask;
 
-		//Check for ModR/M, SIB and displacement
-		if (nmd_asm_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
-			nmd_asm_parseModRM(&b, instruction);
+			//Check for immediate field
+			if ((NMD_R(*b) == 0xE && NMD_C(*b) < 8) || (NMD_R(*b) == 0xB && NMD_C(*b) < 8) || NMD_R(*b) == 7 || (NMD_R(*b) < 4 && (NMD_C(*b) == 4 || NMD_C(*b) == 0xC)) || (*b == 0xF6 && !(*(b + 1) & 48)) || nmd_asm_findByte(op1imm8, sizeof(op1imm8), *b)) //imm8
+				instruction->immMask = IMM8, offset++;
+			else if (*b == 0xC2 || *b == 0xCA) //imm16
+				instruction->immMask = IMM16, offset += 2;
+			else if (*b == 0xC8) //imm16 + imm8
+				instruction->immMask = IMM16 | IMM8, offset += 3;
+			else if ((NMD_R(*b) < 4 && (NMD_C(*b) == 5 || NMD_C(*b) == 0xD)) || (NMD_R(*b) == 0xB && NMD_C(*b) >= 8) || (*b == 0xF7 && !(*(b + 1) & 48)) || nmd_asm_findByte(op1imm32, sizeof(op1imm32), *b)) //imm32,16
+			{
+				instruction->immMask = ((NMD_R(*b) == 0xB && NMD_C(*b) >= 8) && (instruction->prefixes & REX_W_PREFIX)) ? IMM64 : ((instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && instruction->mode != X86_MODE_32) || (instruction->mode == X86_MODE_16 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? IMM16 : IMM32);
+				offset += instruction->immMask;
+			}
+			else if (*b == 0xEA || *b == 0x9A) //imm32,48
+			{
+				if ((instruction->mode == X86_MODE_64))
+					return false;
+				instruction->immMask = (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? IMM32 : IMM48), offset += instruction->immMask;
+			}
+			else if (NMD_R(*b) == 0xA && NMD_C(*b) < 4)
+				instruction->immMask = (instruction->mode == X86_MODE_64) ? (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX ? IMM32 : IMM64) : (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX ? IMM16 : IMM32), offset += instruction->immMask;
+
+			//Check for ModR/M, SIB and displacement
+			if (nmd_asm_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
+				nmd_asm_parseModRM(&b, instruction);
+		}
 	}
 
 	if (instruction->prefixes & LOCK_PREFIX)
@@ -556,7 +655,11 @@ bool disassemble(const void* buffer, Instruction* instruction, uint64_t runtimeA
 	return true;
 }
 
+//If there's was potential for a crash because of bad logic it won't crash, just print an empty string.
+#define ASM_NULL ""
+
 static const char* const reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
+static const char* const reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };
 static const char* const reg16[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
 static const char* const reg32[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
 static const char* const reg64[] = { "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi" };
@@ -571,19 +674,19 @@ static const char* const opcodeExtensionsGrp2[] = { "rol", "ror", "rcl", "rcr", 
 static const char* const opcodeExtensionsGrp3[] = { "test", "test", "not", "neg", "mul", "imul", "div", "idiv" };
 static const char* const opcodeExtensionsGrp5[] = { "inc", "dec", "call", "call far", "jmp", "jmp far", "push" };
 static const char* const opcodeExtensionsGrp6[] = { "sldt", "str", "lldt", "ltr", "verr", "verw" };
-static const char* const opcodeExtensionsGrp7[] = { "sgdt", "sidt", "lgdt", "lidt", "smsw", NULL, "lmsw", "invlpg" };
+static const char* const opcodeExtensionsGrp7[] = { "sgdt", "sidt", "lgdt", "lidt", "smsw", ASM_NULL, "lmsw", "invlpg" };
 static const char* const opcodeExtensionsGrp7reg0[] = { "enclv", "vmcall", "vmlaunch", "vmresume", "vmxoff", "pconfig" };
-static const char* const opcodeExtensionsGrp7reg1[] = { "monitor", "mwait", "clac", "stac", NULL, NULL, NULL, "encls" };
-static const char* const opcodeExtensionsGrp7reg2[] = { "xgetbv", "xsetbv", NULL, NULL, "vmfunc", "xend", "xtest", "enclu" };
+static const char* const opcodeExtensionsGrp7reg1[] = { "monitor", "mwait", "clac", "stac", ASM_NULL, ASM_NULL, ASM_NULL, "encls" };
+static const char* const opcodeExtensionsGrp7reg2[] = { "xgetbv", "xsetbv", ASM_NULL, ASM_NULL, "vmfunc", "xend", "xtest", "enclu" };
 static const char* const opcodeExtensionsGrp7reg3[] = { "vmrun ", "vmmcall", "vmload ", "vmsave", "stgi", "clgi", "skinit eax", "invlpga " };
 static const char* const opcodeExtensionsGrp7reg7[] = { "swapgs", "rdtscp", "monitorx", "mwaitx", "clzero ", "rdpru" };
 
 static const char* const escapeOpcodesD8[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
-static const char* const escapeOpcodesD9[] = { "ld", NULL, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
+static const char* const escapeOpcodesD9[] = { "ld", ASM_NULL, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
 static const char* const escapeOpcodesDA_DE[] = { "iadd", "imul", "icom", "icomp", "isub", "isubr", "idiv", "idivr" };
-static const char* const escapeOpcodesDB[] = { "ild", "isttp", "ist", "istp", NULL, "ld", NULL, "stp" };
+static const char* const escapeOpcodesDB[] = { "ild", "isttp", "ist", "istp", ASM_NULL, "ld", ASM_NULL, "stp" };
 static const char* const escapeOpcodesDC[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
-static const char* const escapeOpcodesDD[] = { "ld", "isttp", "st", "stp", "rstor", NULL, "nsave", "nstsw" };
+static const char* const escapeOpcodesDD[] = { "ld", "isttp", "st", "stp", "rstor", ASM_NULL, "nsave", "nstsw" };
 static const char* const escapeOpcodesDF[] = { "ild", "isttp", "ist", "istp", "bld", "ild", "bstp", "istp" };
 static const char* const* escapeOpcodes[] = { escapeOpcodesD8, escapeOpcodesD9, escapeOpcodesDA_DE, escapeOpcodesDB, escapeOpcodesDC, escapeOpcodesDD, escapeOpcodesDA_DE, escapeOpcodesDF };
 
@@ -611,22 +714,22 @@ size_t getNumDigits(uint64_t n, bool hex)
 
 void appendNumber(StringInfo* const si, uint64_t n)
 {
-	size_t numDigits = getNumDigits(n, si->formatFlags & FORMAT_FLAGS_HEX);
+	size_t numDigits = getNumDigits(n, si->formatFlags & X86_FORMAT_FLAGS_HEX);
 	size_t bufferOffset = numDigits + 1;	
 
-	if (si->formatFlags & FORMAT_FLAGS_HEX)
+	if (si->formatFlags & X86_FORMAT_FLAGS_HEX)
 	{
-		const bool condition = n > 9 || si->formatFlags & FORMAT_FLAGS_ENFORCE_HEX_ID;
-		if (si->formatFlags & FORMAT_FLAGS_0X_PREFIX && condition)
+		const bool condition = n > 9 || si->formatFlags & X86_FORMAT_FLAGS_ENFORCE_HEX_ID;
+		if (si->formatFlags & X86_FORMAT_FLAGS_0X_PREFIX && condition)
 			*si->buffer++ = '0', *si->buffer++ = 'x';
 
-		const uint8_t baseChar = si->formatFlags & FORMAT_FLAGS_HEX_LOWERCASE ? 0x57 : 0x37;
+		const uint8_t baseChar = si->formatFlags & X86_FORMAT_FLAGS_HEX_LOWERCASE ? 0x57 : 0x37;
 		do {
 			size_t num = n % 16;
 			*(si->buffer + numDigits--) = (char)(num > 9 ? baseChar + num : 0x30 + num);
 		} while ((n /= 16) > 0);
 
-		if (si->formatFlags & FORMAT_FLAGS_H_SUFFIX && condition)
+		if (si->formatFlags & X86_FORMAT_FLAGS_H_SUFFIX && condition)
 			*(si->buffer + bufferOffset++) = 'h';
 	}
 	else
@@ -657,18 +760,18 @@ void appendSignedNumber(StringInfo* const si, int64_t n, bool showPositiveSign)
 
 void appendSignedNumberMemoryView(StringInfo* const si)
 {
-	appendNumber(si, (si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 0xFF00 : (si->instruction->flags.mode == X86_MODE_64 ? 0xFFFFFFFFFFFFFF00 : 0xFFFFFF00)) | si->instruction->immediate);
-	if (si->formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX)
+	appendNumber(si, (si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 0xFF00 : (si->instruction->mode == X86_MODE_64 ? 0xFFFFFFFFFFFFFF00 : 0xFFFFFF00)) | si->instruction->immediate);
+	if (si->formatFlags & X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX)
 	{
 		*si->buffer++ = '(';
 		appendSignedNumber(si, (int8_t)(si->instruction->immediate), false);
 		*si->buffer++ = ')';
 	}
-	else if (si->formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
+	else if (si->formatFlags & X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
 	{
 		*si->buffer++ = '(';
 		const uint32_t previousMask = si->formatFlags;
-		si->formatFlags &= ~FORMAT_FLAGS_HEX;
+		si->formatFlags &= ~X86_FORMAT_FLAGS_HEX;
 		appendSignedNumber(si, (int8_t)(si->instruction->immediate), false);
 		si->formatFlags = previousMask;
 		*si->buffer++ = ')';
@@ -677,17 +780,17 @@ void appendSignedNumberMemoryView(StringInfo* const si)
 
 void appendRelativeAddress8(StringInfo* const si)
 {
-	//if (si->formatFlags & FORMAT_FLAGS_RELATIVE_ADDRESS)
-	//{
-	//	*si->buffer++ = '$';
-	//	appendSignedNumber(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
-	//}
-	//else
+	if (si->instruction->runtimeAddress == -1)
+	{
+		*si->buffer++ = '$';
+		appendSignedNumber(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
+	}
+	else
 	{
 		uint64_t n;
-		if (si->instruction->flags.mode == X86_MODE_64)
+		if (si->instruction->mode == X86_MODE_64)
 			n = (uint64_t)((int64_t)(si->instruction->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
-		else if (si->instruction->flags.mode == X86_MODE_16)
+		else if (si->instruction->mode == X86_MODE_16)
 			n = (uint16_t)((int16_t)(si->instruction->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else
 			n = (uint32_t)((int32_t)(si->instruction->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
@@ -697,13 +800,13 @@ void appendRelativeAddress8(StringInfo* const si)
 
 void appendRelativeAddress16_32(StringInfo* const si)
 {
-	//if (si->formatFlags & FORMAT_FLAGS_RELATIVE_ADDRESS)
-	//{
-	//	*si->buffer++ = '$';
-	//	appendSignedNumber(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
-	//}
-	//else
-		appendNumber(si, ((si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && si->instruction->flags.mode == X86_MODE_32) || (si->instruction->flags.mode == X86_MODE_16 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->flags.mode == X86_MODE_64 ?
+	if (si->instruction->runtimeAddress == -1)
+	{
+		*si->buffer++ = '$';
+		appendSignedNumber(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
+	}
+	else
+		appendNumber(si, ((si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && si->instruction->mode == X86_MODE_32) || (si->instruction->mode == X86_MODE_16 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == X86_MODE_64 ?
 			(uint64_t)((uint64_t)((int64_t)(si->instruction->runtimeAddress + si->instruction->length) + (int32_t)(si->instruction->immediate))) :
 			(uint64_t)((uint32_t)((int32_t)(si->instruction->runtimeAddress + si->instruction->length) + (int32_t)(si->instruction->immediate)))
 		));
@@ -711,13 +814,13 @@ void appendRelativeAddress16_32(StringInfo* const si)
 
 void appendModRmMemoryPrefix(StringInfo* const si, const char* addrSpecifierReg)
 {
-	if (si->formatFlags & FORMAT_FLAGS_POINTER_SIZE)
+	if (si->formatFlags & X86_FORMAT_FLAGS_POINTER_SIZE)
 	{
 		appendString(si, addrSpecifierReg);
 		appendString(si, " ptr ");
 	}
 
-	if (!(si->formatFlags & FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE && !si->instruction->segmentOverride))
+	if (!(si->formatFlags & X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE && !si->instruction->segmentOverride))
 	{
 		size_t i = 0;
 		if (si->instruction->segmentOverride)
@@ -767,32 +870,45 @@ void appendModRm32Upper(StringInfo* const si, const char* addrSpecifierReg)
 		if (si->instruction->sib.base == 0b101)
 		{
 			if (si->instruction->modrm.mod != 0b00)
-				appendString(si, si->instruction->flags.mode == X86_MODE_64 ? "rbp" : "ebp");
+				appendString(si, si->instruction->mode == X86_MODE_64 ? (si->instruction->prefixes & REX_B_PREFIX ? "r13" : "rbp") : "ebp");
 		}
 		else
-			appendString(si, (si->instruction->flags.mode == X86_MODE_64 ? reg64 : reg32)[si->instruction->sib.base]);
+			appendString(si, (si->instruction->mode == X86_MODE_64 ? (si->instruction->prefixes & REX_B_PREFIX ? regrx : reg64) : reg32)[si->instruction->sib.base]);
 		
 		if (si->instruction->sib.index != 0b100)
 		{
 			if(!(si->instruction->sib.base == 0b101 && si->instruction->modrm.mod == 0b00))
 				*si->buffer++ = '+';
-			appendString(si, (si->instruction->flags.mode == X86_MODE_64 ? reg64 : reg32)[si->instruction->sib.index]);
-		
-			if (!(si->instruction->sib.scale == 0b00 && !(si->formatFlags & FORMAT_FLAGS_SCALE_ONE)))
+			appendString(si, (si->instruction->mode == X86_MODE_64 ? (si->instruction->prefixes & REX_X_PREFIX ? regrx : reg64) : reg32)[si->instruction->sib.index]);
+			if (!(si->instruction->sib.scale == 0b00 && !(si->formatFlags & X86_FORMAT_FLAGS_SCALE_ONE)))
+				*si->buffer++ = '*', *si->buffer++ = (char)('0' + (1 << si->instruction->sib.scale));
+		}
+
+		if (si->instruction->prefixes & REX_X_PREFIX && si->instruction->sib.index == 0b100)
+		{
+			if (*(si->buffer - 1) != '[')
+				*si->buffer++ = '+';
+			appendString(si, "r12");
+			if (!(si->instruction->sib.scale == 0b00 && !(si->formatFlags & X86_FORMAT_FLAGS_SCALE_ONE)))
 				*si->buffer++ = '*', *si->buffer++ = (char)('0' + (1 << si->instruction->sib.scale));
 		}
 	}
 	else if (!(si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101))
-		appendString(si, (si->instruction->flags.mode == X86_MODE_64 && !(si->instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX) ? reg64 : reg32)[si->instruction->modrm.rm]);
-
+		appendString(si, (si->instruction->mode == X86_MODE_64 && !(si->instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX) ? (si->instruction->prefixes & REX_B_PREFIX ? regrx : reg64) : reg32)[si->instruction->modrm.rm]);
+		
 	if ((si->instruction->displacement || *(si->buffer - 1) == '[') && (si->instruction->modrm.mod > 0b00 || (si->instruction->modrm.mod == 0b00 && (si->instruction->modrm.rm == 0b101 || (si->instruction->modrm.rm == 0b100 && si->instruction->sib.base == 0b101)))))
 	{
-		bool isSigned = (((si->instruction->dispMask == DISP8) ? (int8_t)(si->instruction->displacement) : ((si->instruction->dispMask == DISP32) ? (int32_t)(si->instruction->displacement) : (int16_t)(si->instruction->displacement))) > 0);
-		if (si->instruction->flags.mode == X86_MODE_64 && si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101)
-			appendString(si, "rip");
-		if(*(si->buffer - 1) != '[')
-			*si->buffer++ = isSigned ? '+' : '-';
-		appendNumber(si, (size_t)(isSigned ? 1 : -1) * ((si->instruction->dispMask == DISP8) ? (int8_t)(si->instruction->displacement) : ((si->instruction->dispMask == DISP32) ? (int32_t)(si->instruction->displacement) : (int16_t)(si->instruction->displacement))));
+		//if (si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101 && si->instruction->runtimeAddress != -1)
+		//	appendNumber(si, (uint64_t)((int64_t)(si->instruction->runtimeAddress + si->instruction->length) + (int64_t)si->instruction->displacement));
+		//else
+		{
+			if(si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101 && si->instruction->mode == X86_MODE_64)
+				appendString(si,"rip");
+			bool isSigned = (((si->instruction->dispMask == DISP8) ? (int8_t)(si->instruction->displacement) : ((si->instruction->dispMask == DISP32) ? (int32_t)(si->instruction->displacement) : (int16_t)(si->instruction->displacement))) > 0);
+			if (*(si->buffer - 1) != '[')
+				*si->buffer++ = isSigned ? '+' : '-';
+			appendNumber(si, (size_t)(isSigned ? 1 : -1) * ((si->instruction->dispMask == DISP8) ? (int8_t)(si->instruction->displacement) : ((si->instruction->dispMask == DISP32) ? (int32_t)(si->instruction->displacement) : (int16_t)(si->instruction->displacement))));
+		}
 	}
 
 	*si->buffer++ = ']';
@@ -800,7 +916,7 @@ void appendModRm32Upper(StringInfo* const si, const char* addrSpecifierReg)
 
 void appendModRmUpper(StringInfo* const si, const char* addrSpecifierReg)
 {
-	if ((si->instruction->flags.mode == X86_MODE_16 && !(si->instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX)) || (si->instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX && si->instruction->flags.mode == X86_MODE_32))
+	if ((si->instruction->mode == X86_MODE_16 && !(si->instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX)) || (si->instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX && si->instruction->mode == X86_MODE_32))
 		appendModRm16Upper(si, addrSpecifierReg);
 	else
 		appendModRm32Upper(si, addrSpecifierReg);
@@ -869,9 +985,18 @@ void appendQq(StringInfo* const si)
 void appendEv(StringInfo* const si)
 {
 	if (si->instruction->modrm.mod == 0b11)
-		appendString(si, ((si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && si->instruction->flags.mode != X86_MODE_16) || (si->instruction->flags.mode == X86_MODE_16 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? reg16 : reg32)[si->instruction->modrm.rm]);
+	{
+		if (si->instruction->prefixes & REX_B_PREFIX)
+		{
+			appendString(si, regrx[si->instruction->modrm.rm]);
+			if(!(si->instruction->prefixes & REX_W_PREFIX))
+				*si->buffer++ = 'd';
+		}
+		else
+			appendString(si, ((si->instruction->flags.operandSize64 ? reg64 : (si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && si->instruction->mode != X86_MODE_16) || (si->instruction->mode == X86_MODE_16 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? reg16 : reg32))[si->instruction->modrm.rm]);
+	}
 	else
-		appendModRmUpper(si, (si->instruction->flags.operandSize64 || (si->instruction->flags.mode == X86_MODE_64 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX))) ? "qword" : ((si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && si->instruction->flags.mode != X86_MODE_16) || (si->instruction->flags.mode == X86_MODE_16 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? "word" : "dword"));
+		appendModRmUpper(si, (si->instruction->flags.operandSize64 ) ? "qword" : ((si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && si->instruction->mode != X86_MODE_16) || (si->instruction->mode == X86_MODE_16 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? "word" : "dword"));
 }
 
 void appendEy(StringInfo* const si)
@@ -885,7 +1010,12 @@ void appendEy(StringInfo* const si)
 void appendEb(StringInfo* const si)
 {
 	if (si->instruction->modrm.mod == 0b11)
-		appendString(si, reg8[si->instruction->modrm.rm]);
+	{
+		if (si->instruction->prefixes & REX_B_PREFIX)
+			appendString(si, regrx[si->instruction->modrm.rm]), *si->buffer++ = 'b';
+		else
+			appendString(si, (si->instruction->prefixes & REX_PREFIX ? reg8_x64 : reg8)[si->instruction->modrm.rm]);
+	}
 	else
 		appendModRmUpper(si, "byte");
 }
@@ -921,7 +1051,14 @@ void appendRv(StringInfo* const si)
 
 void appendGv(StringInfo* const si)
 {
-	appendString(si, ((si->instruction->flags.operandSize64 || (si->instruction->flags.mode == X86_MODE_64 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX))) ? reg64 : ((si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && si->instruction->flags.mode != X86_MODE_16) || (si->instruction->flags.mode == X86_MODE_16 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? reg16 : reg32))[si->instruction->modrm.reg]);
+	if (si->instruction->prefixes & REX_R_PREFIX)
+	{
+		appendString(si, regrx[si->instruction->modrm.reg]);
+		if(!(si->instruction->prefixes & REX_W_PREFIX))
+			*si->buffer++ = 'd';
+	}
+	else
+		appendString(si, ((si->instruction->flags.operandSize64 ) ? reg64 : ((si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && si->instruction->mode != X86_MODE_16) || (si->instruction->mode == X86_MODE_16 && !(si->instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? reg16 : reg32))[si->instruction->modrm.reg]);
 }
 
 void appendGy(StringInfo* const si)
@@ -931,7 +1068,10 @@ void appendGy(StringInfo* const si)
 
 void appendGb(StringInfo* const si)
 {
-	appendString(si, reg8[si->instruction->modrm.reg]);
+	if (si->instruction->prefixes & REX_R_PREFIX)
+		appendString(si, regrx[si->instruction->modrm.reg]), *si->buffer++ = 'b';
+	else
+		appendString(si, (si->instruction->prefixes & REX_PREFIX ? reg8_x64 : reg8)[si->instruction->modrm.reg]);
 }
 
 void appendGw(StringInfo* const si)
@@ -967,731 +1107,757 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 	if (instruction->prefixes & LOCK_PREFIX)
 		appendString(&si, "lock ");
 	
-	const bool operandSize = (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && instruction->flags.mode != X86_MODE_32) || (instruction->flags.mode == X86_MODE_16 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX));
+	const bool operandSize = (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && instruction->mode != X86_MODE_32) || (instruction->mode == X86_MODE_16 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX));
 
-	if (instruction->opcodeSize == 1)
+	if (instruction->opcodeMap == OPCODE_MAP_DEFAULT)
 	{
-		if (NMD_R(op) < 4 && (NMD_C(op) < 6 || (NMD_C(op) >= 8 && NMD_C(op) < 0xE)))
+		//if (instruction->encoding == INSTRUCTION_ENCODING_VEX)
+		//{
+		//	if (instruction->vex.byte0 == 0xc4)
+		//	{
+		//		if (instruction->opcode == 0x0d)
+		//		{
+		//		}
+		//	}
+		//}
+		//else if (instruction->encoding == INSTRUCTION_ENCODING_EVEX)
+		//{
+		//
+		//}
+		//else //if (instruction->encoding == INSTRUCTION_ENCODING_LEGACY)
 		{
-			appendString(&si, op1OpcodeMapMnemonics[NMD_R((NMD_C(op) > 6 ? op + 0x40 : op))]);
-			*si.buffer++ = ' ';
+			if (NMD_R(op) < 4 && (NMD_C(op) < 6 || (NMD_C(op) >= 8 && NMD_C(op) < 0xE)))
+			{
+				appendString(&si, op1OpcodeMapMnemonics[NMD_R((NMD_C(op) > 6 ? op + 0x40 : op))]);
+				*si.buffer++ = ' ';
 
-			switch (NMD_C(op) % 8)
-			{
-			case 0:
-				appendEb(&si);
-				*si.buffer++ = ',';
-				appendGb(&si);
-				break;
-			case 1:
-				appendEv(&si);
-				*si.buffer++ = ',';
-				appendGv(&si);
-				break;
-			case 2:
-				appendGb(&si);
-				*si.buffer++ = ',';
-				appendEb(&si);
-				break;
-			case 3:
-				appendGv(&si);
-				*si.buffer++ = ',';
-				appendEv(&si);
-				break;
-			case 4:
-				appendString(&si, "al,");
-				appendNumber(&si, instruction->immediate);
-				break;
-			case 5:
-				appendString(&si, instruction->flags.operandSize64 ? "rax" : (operandSize ? "ax" : "eax"));
-				*si.buffer++ = ',';
-				appendNumber(&si, instruction->immediate);
-				break;
-			}
-		}
-		else if (NMD_R(op) == 4 || NMD_R(op) == 5) //Parse all one byte opcodes in the interval [0x40, 0x60[
-		{
-			appendString(&si, NMD_C(op) < 8 ? (NMD_R(op) == 4 ? "inc " : "push ") : (NMD_R(op) == 4 ? "dec " : "pop "));
-			appendString(&si, (instruction->prefixes & REX_B_PREFIX ? regrx : (instruction->flags.mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX) ? reg64 : (operandSize ? reg16 : reg32)))[NMD_C(op) % 8]);
-		}
-		else if (op == 0x62)
-		{
-			appendString(&si, "bound ");
-			appendGv(&si);
-			*si.buffer++ = ',';
-			appendModRmUpper(&si, operandSize ? "dword" : "qword");
-		}
-		else if (op == 0x63)
-		{
-			if (instruction->flags.mode == X86_MODE_64)
-			{
-				appendString(&si, "movsxd ");
-				appendString(&si, (instruction->flags.mode == X86_MODE_64 ? reg64 : (operandSize ? reg16 : reg32))[instruction->modrm.reg]);
-				*si.buffer++ = ',';
-				if (instruction->modrm.mod == 0b11)
-					appendString(&si, ((instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && instruction->flags.mode == X86_MODE_32) || (instruction->flags.mode == X86_MODE_16 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? reg16 : reg32)[instruction->modrm.rm]);
-				else
-					appendModRmUpper(&si, (instruction->flags.operandSize64 || (instruction->flags.mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX))) ? "qword" : ((instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && instruction->flags.mode == X86_MODE_32) || (instruction->flags.mode == X86_MODE_16 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? "word" : "dword"));
-			}
-			else
-			{
-				appendString(&si, "arpl ");
-				appendEw(&si);
-				*si.buffer++ = ',';
-				appendGw(&si);
-			}
-		}
-		else if (op == 0x68 || op == 0x6A)
-		{
-			appendString(&si, "push ");
-			if (op == 0x6a)
-			{
-				if (formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
-					appendSignedNumberMemoryView(&si);
-				else
-					appendSignedNumber(&si, (int8_t)instruction->immediate, false);
-			}
-			else
-				appendNumber(&si, instruction->immediate);
-		}
-		else if (op == 0x69 || op == 0x6B)
-		{
-			appendString(&si, "imul ");
-			appendGv(&si);
-			*si.buffer++ = ',';
-			appendEv(&si);
-			*si.buffer++ = ',';
-			if (op == 0x6b)
-			{
-				if (si.formatFlags & FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
-					appendSignedNumberMemoryView(&si);
-				else
-					appendSignedNumber(&si, (int8_t)instruction->immediate, false);
-			}
-			else
-				appendNumber(&si, instruction->immediate);
-		}
-		else if (NMD_R(op) == 7)
-		{
-			*si.buffer++ = 'j';
-			appendString(&si, conditionSuffixes[NMD_C(op)]);
-			*si.buffer++ = ' ';
-
-			appendRelativeAddress8(&si);
-		}
-		else if (op >= 0x80 && op < 0x84) // [80,83]
-		{
-			appendString(&si, opcodeExtensionsGrp1[instruction->modrm.reg]);
-			*si.buffer++ = ' ';
-			if (op == 0x80 || op == 0x82)
-				appendEb(&si);
-			else
-				appendEv(&si);
-			*si.buffer++ = ',';
-			if (op == 0x83)
-			{
-				if((instruction->modrm.reg == 0b001 || instruction->modrm.reg == 0b100 || instruction->modrm.reg == 0b110) && instruction->immediate >= 0x80)
-					appendNumber(&si, (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX || instruction->flags.mode == X86_MODE_16 ? 0xFF00 : 0xFFFFFF00) | instruction->immediate);
-				else
-					appendSignedNumber(&si, (int8_t)(instruction->immediate), false);
-			}
-			else
-				appendNumber(&si, instruction->immediate);
-		}
-		else if (op >= 0x84 && op <= 0x87)
-		{
-			appendString(&si, op > 0x85 ? "xchg " : "test ");
-			if (op % 2 == 0)
-			{
-				appendEb(&si);
-				*si.buffer++ = ',';
-				appendGb(&si);
-			}
-			else
-			{
-				appendEv(&si);
-				*si.buffer++ = ',';
-				appendGv(&si);
-			}
-		}
-		else if (op >= 0x88 && op <= 0x8e && op != 0x8d)
-		{
-			appendString(&si, "mov ");
-			if (op == 0x88)
-			{
-				appendEb(&si);
-				*si.buffer++ = ',';
-				appendGb(&si);
-			}
-			else if (op == 0x89)
-			{
-				appendEv(&si);
-				*si.buffer++ = ',';
-				appendGv(&si);
-			}
-			else if (op == 0x8a)
-			{
-				appendGb(&si);
-				*si.buffer++ = ',';
-				appendEb(&si);
-			}
-			else if (op == 0x8b)
-			{
-				appendGv(&si);
-				*si.buffer++ = ',';
-				appendEv(&si);
-			}
-			else if (op == 0x8c)
-			{
-				if (si.instruction->modrm.mod == 0b11)
-					appendString(&si, (si.instruction->flags.operandSize64 ? reg64 : (si.instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX || instruction->flags.mode == X86_MODE_16 ? reg16 : reg32))[si.instruction->modrm.rm]);
-				else
-					appendModRmUpper(&si, "word");
-
-				*si.buffer++ = ',';
-				appendString(&si, segmentReg[instruction->modrm.reg]);
-			}
-			else if (op == 0x8e)
-			{
-				appendString(&si, segmentReg[instruction->modrm.reg]);
-				*si.buffer++ = ',';
-				appendEw(&si);
-			}
-		}
-		else if (op == 0x8d)
-		{
-			appendString(&si, "lea ");
-			appendGv(&si);
-			*si.buffer++ = ',';
-			appendModRmUpper(&si, "dword");
-		}
-		else if (op == 0x8f)
-		{
-			appendString(&si, "pop ");
-			if (instruction->modrm.mod == 0b11)
-				appendString(&si, (operandSize ? reg16 : reg32)[instruction->modrm.rm]);
-			else
-				appendModRmUpper(&si, instruction->flags.mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX) ? "qword" : (operandSize ? "word" : "dword"));
-		}
-		else if (op == 0x90 && instruction->prefixes & REPEAT_PREFIX)
-		{
-			appendString(&si, "pause");
-		}
-		else if (op > 0x90 && op < 0x98)
-		{
-			appendString(&si, "xchg ");
-			appendString(&si, (operandSize ? reg16 : reg32)[NMD_C(op)]);
-			appendString(&si, operandSize ? ",ax" : ",eax");
-		}
-		else if (op >= 0xA0 && op < 0xA4)
-		{
-			appendString(&si, "mov ");
-
-			if (op == 0xa0)
-			{
-				appendString(&si, "al,");
-				appendModRmMemoryPrefix(&si, "byte");
-				appendNumber(&si, (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX || instruction->flags.mode == X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
-				*si.buffer++ = ']';
-			}
-			else if (op == 0xa1)
-			{
-				appendString(&si, instruction->flags.operandSize64 ? "rax," : (operandSize ? "ax," : "eax,"));
-				appendModRmMemoryPrefix(&si, instruction->flags.operandSize64 ? "qword" : (operandSize ? "word" : "dword"));
-				appendNumber(&si, (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX || instruction->flags.mode == X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF)& instruction->immediate);
-				*si.buffer++ = ']';
-			}
-			else if (op == 0xa2)
-			{
-				appendModRmMemoryPrefix(&si, "byte");
-				appendNumber(&si, (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX || instruction->flags.mode == X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
-				appendString(&si, "],al");
-			}
-			else if (op == 0xa3)
-			{
-				appendModRmMemoryPrefix(&si, instruction->flags.operandSize64 ? "qword" : (operandSize ? "word" : "dword"));
-				appendNumber(&si, (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX || instruction->flags.mode == X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
-				appendString(&si, "],");
-				appendString(&si, instruction->flags.operandSize64 ? "rax" : (operandSize ? "ax" : "eax"));
-			}
-		}
-		else if (op == 0x9A)
-		{
-			appendString(&si, "call far ");
-			appendNumber(&si, (uint64_t)(*(uint16_t*)((char*)(&instruction->immediate) + (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 2 : 4))));
-			*si.buffer++ = ':';
-			appendNumber(&si, (uint64_t)(operandSize ? *((uint16_t*)(&instruction->immediate)) : *((uint32_t*)(&instruction->immediate))));
-		}
-		else if (op == 0xa8)
-		{
-			appendString(&si, "test al,");
-			appendNumber(&si, instruction->immediate);
-		}
-		else if (op == 0xa9)
-		{
-			appendString(&si, instruction->flags.operandSize64 ? "test rax" : (operandSize ? "test ax" : "test eax"));
-			*si.buffer++ = ',';
-			appendNumber(&si, instruction->immediate);
-		}
-		else if ((op >= 0x6c && op <= 0x6f) || (op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf))
-		{
-			if (instruction->prefixes & REPEAT_PREFIX)
-				appendString(&si, "rep ");
-			else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)
-				appendString(&si, "repne ");
-
-			const char* str = 0;
-			switch (op)
-			{
-			case 0x6c: case 0x6d: str = "ins"; break;
-			case 0x6e: case 0x6f: str = "outs"; break;
-			case 0xa4: case 0xa5: str = "movs"; break;
-			case 0xa6: case 0xa7: str = "cmps"; break;
-			case 0xaa: case 0xab: str = "stos"; break;
-			case 0xac: case 0xad: str = "lods"; break;
-			case 0xae: case 0xaf: str = "scas"; break;
-			}
-			appendString(&si, str);
-
-			*si.buffer++ = ((op % 2 == 0) ? 'b' : (instruction->flags.operandSize64 ? 'q' : (operandSize ? 'w' : 'd')));
-		}
-		else if (NMD_R(op) == 0xb)
-		{
-			appendString(&si, "mov ");
-			appendString(&si, (NMD_C(op) < 8 ? reg8 : (instruction->flags.operandSize64 ? reg64 : (operandSize ? reg16 : reg32)))[NMD_C(op) % 8]);
-			*si.buffer++ = ',';
-			appendNumber(&si, instruction->immediate);
-		}
-		else if (op == 0xC0 || op == 0xC1 || (NMD_R(op) == 0xd && NMD_C(op) < 4))
-		{
-			appendString(&si, opcodeExtensionsGrp2[instruction->modrm.reg]);
-			*si.buffer++ = ' ';
-			if (op % 2 == 0)
-				appendEb(&si);
-			else
-				appendEv(&si);
-			*si.buffer++ = ',';
-			if (NMD_R(op) == 0xc)
-				appendNumber(&si, instruction->immediate);
-			else if (NMD_C(op) < 2)
-				appendNumber(&si, 1);
-			else
-				appendString(&si, "cl");
-		}
-		else if (op == 0xc2)
-		{
-			appendString(&si, "ret ");
-			appendNumber(&si, instruction->immediate);
-		}
-		else if (op == 0xc4 || op == 0xc5)
-		{
-			appendString(&si, op == 0xc4 ? "les" : "lds");
-			*si.buffer++ = ' ';
-			appendGv(&si);
-			*si.buffer++ = ',';
-			if (si.instruction->modrm.mod == 0b11)
-				appendString(&si, (si.instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32)[si.instruction->modrm.rm]);
-			else
-				appendModRmUpper(&si, si.instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "dword" : "fword");
-		}
-		else if (op == 0xc6 || op == 0xc7)
-		{
-			appendString(&si, instruction->modrm.reg == 0b000 ? "mov " : (op == 0xc6 ? "xabort " : "xbegin "));
-			if (instruction->modrm.reg == 0b111)
-			{
-				if (op == 0xc6)
+				switch (NMD_C(op) % 8)
+				{
+				case 0:
+					appendEb(&si);
+					*si.buffer++ = ',';
+					appendGb(&si);
+					break;
+				case 1:
+					appendEv(&si);
+					*si.buffer++ = ',';
+					appendGv(&si);
+					break;
+				case 2:
+					appendGb(&si);
+					*si.buffer++ = ',';
+					appendEb(&si);
+					break;
+				case 3:
+					appendGv(&si);
+					*si.buffer++ = ',';
+					appendEv(&si);
+					break;
+				case 4:
+					appendString(&si, "al,");
 					appendNumber(&si, instruction->immediate);
-				else
-					appendRelativeAddress16_32(&si);
+					break;
+				case 5:
+					appendString(&si, instruction->flags.operandSize64 ? "rax" : (operandSize ? "ax" : "eax"));
+					*si.buffer++ = ',';
+					appendNumber(&si, instruction->immediate);
+					break;
+				}
 			}
-			else
+			else if (NMD_R(op) == 4 || NMD_R(op) == 5) //Parse all one byte opcodes in the interval [0x40, 0x60[
 			{
-				if (op == 0xc6)
+				appendString(&si, NMD_C(op) < 8 ? (NMD_R(op) == 4 ? "inc " : "push ") : (NMD_R(op) == 4 ? "dec " : "pop "));
+				appendString(&si, (instruction->prefixes & REX_B_PREFIX ? regrx : (instruction->mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX) ? reg64 : (operandSize ? reg16 : reg32)))[NMD_C(op) % 8]);
+			}
+			else if (op == 0x62)
+			{
+				appendString(&si, "bound ");
+				appendGv(&si);
+				*si.buffer++ = ',';
+				appendModRmUpper(&si, operandSize ? "dword" : "qword");
+			}
+			else if (op == 0x63)
+			{
+				if (instruction->mode == X86_MODE_64)
+				{
+					appendString(&si, "movsxd ");
+					appendString(&si, (instruction->mode == X86_MODE_64 ? (instruction->prefixes & REX_R_PREFIX ? regrx : reg64) : (operandSize ? reg16 : reg32))[instruction->modrm.reg]);
+					*si.buffer++ = ',';
+					if (instruction->modrm.mod == 0b11)
+					{
+						if (instruction->prefixes & REX_B_PREFIX)
+							appendString(&si, regrx[instruction->modrm.rm]), * si.buffer++ = 'd';
+						else
+							appendString(&si, ((instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && instruction->mode == X86_MODE_32) || (instruction->mode == X86_MODE_16 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? reg16 : reg32)[instruction->modrm.rm]);
+					}
+					else
+						appendModRmUpper(&si, (instruction->flags.operandSize64 && !(instruction->prefixes & REX_W_PREFIX)) ? "qword" : ((instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX && instruction->mode == X86_MODE_32) || (instruction->mode == X86_MODE_16 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)) ? "word" : "dword"));
+				}
+				else
+				{
+					appendString(&si, "arpl ");
+					appendEw(&si);
+					*si.buffer++ = ',';
+					appendGw(&si);
+				}
+			}
+			else if (op == 0x68 || op == 0x6A)
+			{
+				appendString(&si, "push ");
+				if (op == 0x6a)
+				{
+					if (formatFlags & X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
+						appendSignedNumberMemoryView(&si);
+					else
+						appendSignedNumber(&si, (int8_t)instruction->immediate, false);
+				}
+				else
+					appendNumber(&si, instruction->immediate);
+			}
+			else if (op == 0x69 || op == 0x6B)
+			{
+				appendString(&si, "imul ");
+				appendGv(&si);
+				*si.buffer++ = ',';
+				appendEv(&si);
+				*si.buffer++ = ',';
+				if (op == 0x6b)
+				{
+					if (si.formatFlags & X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
+						appendSignedNumberMemoryView(&si);
+					else
+						appendSignedNumber(&si, (int8_t)instruction->immediate, false);
+				}
+				else
+					appendNumber(&si, instruction->immediate);
+			}
+			else if (NMD_R(op) == 7)
+			{
+				*si.buffer++ = 'j';
+				appendString(&si, conditionSuffixes[NMD_C(op)]);
+				*si.buffer++ = ' ';
+
+				appendRelativeAddress8(&si);
+			}
+			else if (op >= 0x80 && op < 0x84) // [80,83]
+			{
+				appendString(&si, opcodeExtensionsGrp1[instruction->modrm.reg]);
+				*si.buffer++ = ' ';
+				if (op == 0x80 || op == 0x82)
 					appendEb(&si);
 				else
 					appendEv(&si);
 				*si.buffer++ = ',';
-				appendNumber(&si, instruction->immediate);
-			}
-		}
-		else if (op == 0xc8)
-		{
-			appendString(&si, "enter ");
-			appendNumber(&si, (uint64_t)(*(uint16_t*)(&instruction->immediate)));
-			*si.buffer++ = ',';
-			appendNumber(&si, (uint64_t)(*((uint8_t*)(&instruction->immediate) + 2)));
-		}
-		else if (op == 0xca)
-		{
-			appendString(&si, "retf ");
-			appendNumber(&si, instruction->immediate);
-		}
-		else if (op == 0xcd)
-		{
-			appendString(&si, "int ");
-			appendNumber(&si, instruction->immediate);
-		}
-		else if (op == 0xd4)
-		{
-			appendString(&si, "aam ");
-			appendNumber(&si, instruction->immediate);
-		}
-		else if (op == 0xd5)
-		{
-			appendString(&si, "aad ");
-			appendNumber(&si, instruction->immediate);
-		}
-		else if (op >= 0xd8 && op <= 0xdf)
-		{
-			*si.buffer++ = 'f';
-
-			if (instruction->modrm.modrm < 0xc0)
-			{
-				appendString(&si, escapeOpcodes[NMD_C(op) - 8][instruction->modrm.reg]);
-				*si.buffer++ = ' ';
-				switch (op)
+				if (op == 0x83)
 				{
-				case 0xd8: case 0xda: appendModRmUpper(&si, "dword"); break;
-				case 0xd9: appendModRmUpper(&si, instruction->modrm.reg & 0b100 ? (instruction->modrm.reg & 0b001 ? "word" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "m14" : "m28")) : "dword"); break;
-				case 0xdb: appendModRmUpper(&si, instruction->modrm.reg & 0b100 ? "tbyte" : "dword"); break;
-				case 0xdc: appendModRmUpper(&si, "qword"); break;
-				case 0xdd: appendModRmUpper(&si, instruction->modrm.reg & 0b100 ? ((instruction->modrm.reg & 0b111) == 0b111 ? "word" : "byte") : "qword"); break;
-				case 0xde: appendModRmUpper(&si, "word"); break;
-				case 0xdf: appendModRmUpper(&si, instruction->modrm.reg & 0b100 ? (instruction->modrm.reg & 0b001 ? "qword" : "tbyte") : "word"); break;
+					if ((instruction->modrm.reg == 0b001 || instruction->modrm.reg == 0b100 || instruction->modrm.reg == 0b110) && instruction->immediate >= 0x80)
+						appendNumber(&si, (instruction->prefixes & REX_W_PREFIX ? 0xFFFFFFFFFFFFFF00 : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX || instruction->mode == X86_MODE_16 ? 0xFF00 : 0xFFFFFF00)) | instruction->immediate);
+					else
+						appendSignedNumber(&si, (int8_t)(instruction->immediate), false);
+				}
+				else
+					appendNumber(&si, instruction->immediate);
+			}
+			else if (op >= 0x84 && op <= 0x87)
+			{
+				appendString(&si, op > 0x85 ? "xchg " : "test ");
+				if (op % 2 == 0)
+				{
+					appendEb(&si);
+					*si.buffer++ = ',';
+					appendGb(&si);
+				}
+				else
+				{
+					appendEv(&si);
+					*si.buffer++ = ',';
+					appendGv(&si);
 				}
 			}
-			else
+			else if (op >= 0x88 && op <= 0x8e && op != 0x8d)
 			{
+				appendString(&si, "mov ");
+				if (op == 0x88)
+				{
+					appendEb(&si);
+					*si.buffer++ = ',';
+					appendGb(&si);
+				}
+				else if (op == 0x89)
+				{
+					appendEv(&si);
+					*si.buffer++ = ',';
+					appendGv(&si);
+				}
+				else if (op == 0x8a)
+				{
+					appendGb(&si);
+					*si.buffer++ = ',';
+					appendEb(&si);
+				}
+				else if (op == 0x8b)
+				{
+					appendGv(&si);
+					*si.buffer++ = ',';
+					appendEv(&si);
+				}
+				else if (op == 0x8c)
+				{
+					if (si.instruction->modrm.mod == 0b11)
+						appendString(&si, (si.instruction->flags.operandSize64 ? reg64 : (si.instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX || instruction->mode == X86_MODE_16 ? reg16 : reg32))[si.instruction->modrm.rm]);
+					else
+						appendModRmUpper(&si, "word");
+
+					*si.buffer++ = ',';
+					appendString(&si, segmentReg[instruction->modrm.reg]);
+				}
+				else if (op == 0x8e)
+				{
+					appendString(&si, segmentReg[instruction->modrm.reg]);
+					*si.buffer++ = ',';
+					appendEw(&si);
+				}
+			}
+			else if (op == 0x8d)
+			{
+				appendString(&si, "lea ");
+				appendGv(&si);
+				*si.buffer++ = ',';
+				appendModRmUpper(&si, "dword");
+			}
+			else if (op == 0x8f)
+			{
+				appendString(&si, "pop ");
+				if (instruction->modrm.mod == 0b11)
+					appendString(&si, (operandSize ? reg16 : reg32)[instruction->modrm.rm]);
+				else
+					appendModRmUpper(&si, instruction->mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX) ? "qword" : (operandSize ? "word" : "dword"));
+			}
+			else if (op > 0x90 && op <= 0x97)
+			{
+				appendString(&si, "xchg ");
+				if (instruction->prefixes & REX_B_PREFIX)
+				{
+					appendString(&si, regrx[NMD_C(op)]);
+					if (!(instruction->prefixes & REX_W_PREFIX))
+						*si.buffer++ = 'd';
+				}
+				else
+					appendString(&si, (instruction->prefixes & REX_W_PREFIX ? reg64 : (operandSize ? reg16 : reg32))[NMD_C(op)]);
+				appendString(&si, (instruction->prefixes & REX_W_PREFIX ? ",rax" : (operandSize ? ",ax" : ",eax")));
+			}
+			else if (op >= 0xA0 && op < 0xA4)
+			{
+				appendString(&si, "mov ");
+
+				if (op == 0xa0)
+				{
+					appendString(&si, "al,");
+					appendModRmMemoryPrefix(&si, "byte");
+					appendNumber(&si, (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX || instruction->mode == X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
+					*si.buffer++ = ']';
+				}
+				else if (op == 0xa1)
+				{
+					appendString(&si, instruction->flags.operandSize64 ? "rax," : (operandSize ? "ax," : "eax,"));
+					appendModRmMemoryPrefix(&si, instruction->flags.operandSize64 ? "qword" : (operandSize ? "word" : "dword"));
+					appendNumber(&si, (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX || instruction->mode == X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
+					*si.buffer++ = ']';
+				}
+				else if (op == 0xa2)
+				{
+					appendModRmMemoryPrefix(&si, "byte");
+					appendNumber(&si, (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX || instruction->mode == X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
+					appendString(&si, "],al");
+				}
+				else if (op == 0xa3)
+				{
+					appendModRmMemoryPrefix(&si, instruction->flags.operandSize64 ? "qword" : (operandSize ? "word" : "dword"));
+					appendNumber(&si, (instruction->prefixes & ADDRESS_SIZE_OVERRIDE_PREFIX || instruction->mode == X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
+					appendString(&si, "],");
+					appendString(&si, instruction->flags.operandSize64 ? "rax" : (operandSize ? "ax" : "eax"));
+				}
+			}
+			else if (op == 0x9A)
+			{
+				appendString(&si, "call far ");
+				appendNumber(&si, (uint64_t)(*(uint16_t*)((char*)(&instruction->immediate) + (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? 2 : 4))));
+				*si.buffer++ = ':';
+				appendNumber(&si, (uint64_t)(operandSize ? *((uint16_t*)(&instruction->immediate)) : *((uint32_t*)(&instruction->immediate))));
+			}
+			else if (op == 0xa8)
+			{
+				appendString(&si, "test al,");
+				appendNumber(&si, instruction->immediate);
+			}
+			else if (op == 0xa9)
+			{
+				appendString(&si, instruction->flags.operandSize64 ? "test rax" : (operandSize ? "test ax" : "test eax"));
+				*si.buffer++ = ',';
+				appendNumber(&si, instruction->immediate);
+			}
+			else if ((op >= 0x6c && op <= 0x6f) || (op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf))
+			{
+				if (instruction->prefixes & REPEAT_PREFIX)
+					appendString(&si, "rep ");
+				else if (instruction->prefixes & REPEAT_NOT_ZERO_PREFIX)
+					appendString(&si, "repne ");
+
+				const char* str = 0;
 				switch (op)
 				{
-				case 0xd8:
-					appendString(&si, escapeOpcodesD8[(NMD_R(instruction->modrm.modrm) - 0xc) * 2 + (NMD_C(instruction->modrm.modrm) > 7 ? 1 : 0)]);
-					appendString(&si, " st(0),st(");
-					*si.buffer++ = (char)(0x30 + instruction->modrm.modrm % 8), * si.buffer++ = ')';
-					break;
-				case 0xd9:
-					if (NMD_R(instruction->modrm.modrm) == 0xc)
+				case 0x6c: case 0x6d: str = "ins"; break;
+				case 0x6e: case 0x6f: str = "outs"; break;
+				case 0xa4: case 0xa5: str = "movs"; break;
+				case 0xa6: case 0xa7: str = "cmps"; break;
+				case 0xaa: case 0xab: str = "stos"; break;
+				case 0xac: case 0xad: str = "lods"; break;
+				case 0xae: case 0xaf: str = "scas"; break;
+				}
+				appendString(&si, str);
+				*si.buffer++ = (op % 2 == 0) ? 'b' : (operandSize ? 'w' : 'd');
+			}
+			else if (NMD_R(op) == 0xb)
+			{
+				appendString(&si, "mov ");
+				if (instruction->prefixes & REX_B_PREFIX)
+					appendString(&si, regrx[NMD_C(op) % 8]), * si.buffer++ = NMD_C(op) < 8 ? 'b' : 'd';
+				else
+					appendString(&si, (NMD_C(op) < 8 ? (instruction->prefixes & REX_PREFIX ? reg8_x64 : reg8) : (instruction->flags.operandSize64 ? reg64 : (operandSize ? reg16 : reg32)))[NMD_C(op) % 8]);
+				*si.buffer++ = ',';
+				appendNumber(&si, instruction->immediate);
+			}
+			else if (op == 0xC0 || op == 0xC1 || (NMD_R(op) == 0xd && NMD_C(op) < 4))
+			{
+				appendString(&si, opcodeExtensionsGrp2[instruction->modrm.reg]);
+				*si.buffer++ = ' ';
+				if (op % 2 == 0)
+					appendEb(&si);
+				else
+					appendEv(&si);
+				*si.buffer++ = ',';
+				if (NMD_R(op) == 0xc)
+					appendNumber(&si, instruction->immediate);
+				else if (NMD_C(op) < 2)
+					appendNumber(&si, 1);
+				else
+					appendString(&si, "cl");
+			}
+			else if (op == 0xc2)
+			{
+				appendString(&si, "ret ");
+				appendNumber(&si, instruction->immediate);
+			}
+			else if (op == 0xc4 || op == 0xc5)
+			{
+				appendString(&si, op == 0xc4 ? "les" : "lds");
+				*si.buffer++ = ' ';
+				appendGv(&si);
+				*si.buffer++ = ',';
+				if (si.instruction->modrm.mod == 0b11)
+					appendString(&si, (si.instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? reg16 : reg32)[si.instruction->modrm.rm]);
+				else
+					appendModRmUpper(&si, si.instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "dword" : "fword");
+			}
+			else if (op == 0xc6 || op == 0xc7)
+			{
+				appendString(&si, instruction->modrm.reg == 0b000 ? "mov " : (op == 0xc6 ? "xabort " : "xbegin "));
+				if (instruction->modrm.reg == 0b111)
+				{
+					if (op == 0xc6)
+						appendNumber(&si, instruction->immediate);
+					else
+						appendRelativeAddress16_32(&si);
+				}
+				else
+				{
+					if (op == 0xc6)
+						appendEb(&si);
+					else
+						appendEv(&si);
+					*si.buffer++ = ',';
+					appendNumber(&si, instruction->immediate);
+				}
+			}
+			else if (op == 0xc8)
+			{
+				appendString(&si, "enter ");
+				appendNumber(&si, (uint64_t)(*(uint16_t*)(&instruction->immediate)));
+				*si.buffer++ = ',';
+				appendNumber(&si, (uint64_t)(*((uint8_t*)(&instruction->immediate) + 2)));
+			}
+			else if (op == 0xca)
+			{
+				appendString(&si, instruction->prefixes & REX_W_PREFIX ? "retfq " : "retf ");
+				appendNumber(&si, instruction->immediate);
+			}
+			else if (op == 0xcd)
+			{
+				appendString(&si, "int ");
+				appendNumber(&si, instruction->immediate);
+			}
+			else if (op == 0xd4)
+			{
+				appendString(&si, "aam ");
+				appendNumber(&si, instruction->immediate);
+			}
+			else if (op == 0xd5)
+			{
+				appendString(&si, "aad ");
+				appendNumber(&si, instruction->immediate);
+			}
+			else if (op >= 0xd8 && op <= 0xdf)
+			{
+				*si.buffer++ = 'f';
+
+				if (instruction->modrm.modrm < 0xc0)
+				{
+					appendString(&si, escapeOpcodes[NMD_C(op) - 8][instruction->modrm.reg]);
+					*si.buffer++ = ' ';
+					switch (op)
 					{
-						appendString(&si, NMD_C(instruction->modrm.modrm) < 8 ? "ld" : "xch");
+					case 0xd8: case 0xda: appendModRmUpper(&si, "dword"); break;
+					case 0xd9: appendModRmUpper(&si, instruction->modrm.reg & 0b100 ? (instruction->modrm.reg & 0b001 ? "word" : (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX ? "m14" : "m28")) : "dword"); break;
+					case 0xdb: appendModRmUpper(&si, instruction->modrm.reg & 0b100 ? "tbyte" : "dword"); break;
+					case 0xdc: appendModRmUpper(&si, "qword"); break;
+					case 0xdd: appendModRmUpper(&si, instruction->modrm.reg & 0b100 ? ((instruction->modrm.reg & 0b111) == 0b111 ? "word" : "byte") : "qword"); break;
+					case 0xde: appendModRmUpper(&si, "word"); break;
+					case 0xdf: appendModRmUpper(&si, instruction->modrm.reg & 0b100 ? (instruction->modrm.reg & 0b001 ? "qword" : "tbyte") : "word"); break;
+					}
+				}
+				else
+				{
+					switch (op)
+					{
+					case 0xd8:
+						appendString(&si, escapeOpcodesD8[(NMD_R(instruction->modrm.modrm) - 0xc) * 2 + (NMD_C(instruction->modrm.modrm) > 7 ? 1 : 0)]);
 						appendString(&si, " st(0),st(");
 						*si.buffer++ = (char)(0x30 + instruction->modrm.modrm % 8), * si.buffer++ = ')';
-					}
-					else if (instruction->modrm.modrm >= 0xd8 && instruction->modrm.modrm <= 0xdf)
-					{
-						appendString(&si, "stpnce st(");
-						*si.buffer++ = (char)(0x30 + instruction->modrm.modrm % 8);
-						appendString(&si, "),st(0)");
-					}
-					else
-					{
-						const char* str = 0;
-						switch (instruction->modrm.modrm)
+						break;
+					case 0xd9:
+						if (NMD_R(instruction->modrm.modrm) == 0xc)
 						{
-						case 0xd0: str = "nop"; break;
-						case 0xe0: str = "chs"; break;
-						case 0xe1: str = "abs"; break;
-						case 0xe4: str = "tst"; break;
-						case 0xe5: str = "xam"; break;
-						case 0xe8: str = "ld1"; break;
-						case 0xe9: str = "ldl2t"; break;
-						case 0xea: str = "ldl2e"; break;
-						case 0xeb: str = "ldpi"; break;
-						case 0xec: str = "ldlg2"; break;
-						case 0xed: str = "ldln2"; break;
-						case 0xee: str = "ldz"; break;
-						case 0xf0: str = "2xm1"; break;
-						case 0xf1: str = "yl2x"; break;
-						case 0xf2: str = "ptan"; break;
-						case 0xf3: str = "patan"; break;
-						case 0xf4: str = "xtract"; break;
-						case 0xf5: str = "prem1"; break;
-						case 0xf6: str = "decstp"; break;
-						case 0xf7: str = "incstp"; break;
-						case 0xf8: str = "prem"; break;
-						case 0xf9: str = "yl2xp1"; break;
-						case 0xfa: str = "sqrt"; break;
-						case 0xfb: str = "sincos"; break;
-						case 0xfc: str = "rndint"; break;
-						case 0xfd: str = "scale"; break;
-						case 0xfe: str = "sin"; break;
-						case 0xff: str = "cos"; break;
+							appendString(&si, NMD_C(instruction->modrm.modrm) < 8 ? "ld" : "xch");
+							appendString(&si, " st(0),st(");
+							*si.buffer++ = (char)(0x30 + instruction->modrm.modrm % 8), * si.buffer++ = ')';
 						}
-						appendString(&si, str);
-					}
-					break;
-				case 0xda:
-					if (instruction->modrm.modrm == 0xe9)
-						appendString(&si, "ucompp");
-					else
-					{
-						const char* mnemonics[4] = { "cmovb", "cmovbe", "cmove", "cmovu" };
-						appendString(&si, mnemonics[(NMD_R(instruction->modrm.modrm) - 0xc) + (NMD_C(instruction->modrm.modrm) > 7 ? 2 : 0)]);
-						appendString(&si, " st(0),st(");
-						*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
-						*si.buffer++ = ')';
-					}
-					break;
-				case 0xdb:
-					if (NMD_R(instruction->modrm.modrm) == 0xe && NMD_C(instruction->modrm.modrm) < 8)
-					{
-						const char* mnemonics[] = { "eni8087_nop", "disi8087_nop","nclex","ninit","setpm287_nop" };
-						appendString(&si, mnemonics[NMD_C(instruction->modrm.modrm)]);
-					}
-					else
-					{
-						if (instruction->modrm.modrm >= 0xe0)
-							appendString(&si, instruction->modrm.modrm < 0xf0 ? "ucomi" : "comi");
-						else
+						else if (instruction->modrm.modrm >= 0xd8 && instruction->modrm.modrm <= 0xdf)
 						{
-							appendString(&si, "cmovn");
-							if (instruction->modrm.modrm < 0xc8)
-								*si.buffer++ = 'b';
-							else if (instruction->modrm.modrm < 0xd0)
-								*si.buffer++ = 'e';
-							else if (instruction->modrm.modrm >= 0xd8)
-								*si.buffer++ = 'u';
-							else
-								appendString(&si, "be");
-						}
-						appendString(&si, " st(0),st(");
-						*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
-						*si.buffer++ = ')';
-					}
-					break;
-				case 0xdc:
-					if (NMD_R(instruction->modrm.modrm) == 0xc)
-						appendString(&si, NMD_C(instruction->modrm.modrm) > 7 ? "mul" : "add");
-					else
-					{
-						appendString(&si, NMD_R(instruction->modrm.modrm) == 0xd ? "com" : (NMD_R(instruction->modrm.modrm) == 0xe ? "subr" : "div"));
-						if (NMD_R(instruction->modrm.modrm) == 0xd && NMD_C(instruction->modrm.modrm) >= 8)
-						{
-							if (NMD_R(instruction->modrm.modrm) >= 8)
-								*si.buffer++ = 'p';
+							appendString(&si, "stpnce st(");
+							*si.buffer++ = (char)(0x30 + instruction->modrm.modrm % 8);
+							appendString(&si, "),st(0)");
 						}
 						else
 						{
-							if (NMD_R(instruction->modrm.modrm) < 8)
-								*si.buffer++ = 'r';
+							const char* str = 0;
+							switch (instruction->modrm.modrm)
+							{
+							case 0xd0: str = "nop"; break;
+							case 0xe0: str = "chs"; break;
+							case 0xe1: str = "abs"; break;
+							case 0xe4: str = "tst"; break;
+							case 0xe5: str = "xam"; break;
+							case 0xe8: str = "ld1"; break;
+							case 0xe9: str = "ldl2t"; break;
+							case 0xea: str = "ldl2e"; break;
+							case 0xeb: str = "ldpi"; break;
+							case 0xec: str = "ldlg2"; break;
+							case 0xed: str = "ldln2"; break;
+							case 0xee: str = "ldz"; break;
+							case 0xf0: str = "2xm1"; break;
+							case 0xf1: str = "yl2x"; break;
+							case 0xf2: str = "ptan"; break;
+							case 0xf3: str = "patan"; break;
+							case 0xf4: str = "xtract"; break;
+							case 0xf5: str = "prem1"; break;
+							case 0xf6: str = "decstp"; break;
+							case 0xf7: str = "incstp"; break;
+							case 0xf8: str = "prem"; break;
+							case 0xf9: str = "yl2xp1"; break;
+							case 0xfa: str = "sqrt"; break;
+							case 0xfb: str = "sincos"; break;
+							case 0xfc: str = "rndint"; break;
+							case 0xfd: str = "scale"; break;
+							case 0xfe: str = "sin"; break;
+							case 0xff: str = "cos"; break;
+							}
+							appendString(&si, str);
 						}
-					}
-
-					if (NMD_R(instruction->modrm.modrm) == 0xd)
-					{
-						appendString(&si, " st(0),st(");
-						*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
-						*si.buffer++ = ')';
-					}
-					else
-					{
-						appendString(&si, " st(");
-						*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
-						appendString(&si, "),st(0)");
-					}
-					break;
-				case 0xdd:
-					if (NMD_R(instruction->modrm.modrm) == 0xc)
-						appendString(&si, NMD_C(instruction->modrm.modrm) < 8 ? "free" : "xch");
-					else
-					{
-						appendString(&si, instruction->modrm.modrm < 0xe0 ? "st" : "ucom");
-						if (NMD_C(instruction->modrm.modrm) >= 8)
-							*si.buffer++ = 'p';
-					}
-
-					appendString(&si, " st(");
-					*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
-					*si.buffer++ = ')';
-
-					break;
-				case 0xde:
-					if (instruction->modrm.modrm == 0xd9)
-						appendString(&si, "compp");
-					else
-					{
-						if (instruction->modrm.modrm >= 0xd0 && instruction->modrm.modrm <= 0xd7)
+						break;
+					case 0xda:
+						if (instruction->modrm.modrm == 0xe9)
+							appendString(&si, "ucompp");
+						else
 						{
-							appendString(&si, "comp st(0),st(");
+							const char* mnemonics[4] = { "cmovb", "cmovbe", "cmove", "cmovu" };
+							appendString(&si, mnemonics[(NMD_R(instruction->modrm.modrm) - 0xc) + (NMD_C(instruction->modrm.modrm) > 7 ? 2 : 0)]);
+							appendString(&si, " st(0),st(");
 							*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
 							*si.buffer++ = ')';
 						}
+						break;
+					case 0xdb:
+						if (NMD_R(instruction->modrm.modrm) == 0xe && NMD_C(instruction->modrm.modrm) < 8)
+						{
+							const char* mnemonics[] = { "eni8087_nop", "disi8087_nop","nclex","ninit","setpm287_nop" };
+							appendString(&si, mnemonics[NMD_C(instruction->modrm.modrm)]);
+						}
 						else
 						{
-							if (NMD_R(instruction->modrm.modrm) == 0xc)
-								appendString(&si, NMD_C(instruction->modrm.modrm) < 8 ? "add" : "mul");
+							if (instruction->modrm.modrm >= 0xe0)
+								appendString(&si, instruction->modrm.modrm < 0xf0 ? "ucomi" : "comi");
 							else
 							{
-								appendString(&si, instruction->modrm.modrm < 0xf0 ? "sub" : "div");
-								if (NMD_R(instruction->modrm.modrm) < 8 || (NMD_R(instruction->modrm.modrm) >= 0xe && NMD_C(instruction->modrm.modrm) < 8))
+								appendString(&si, "cmovn");
+								if (instruction->modrm.modrm < 0xc8)
+									*si.buffer++ = 'b';
+								else if (instruction->modrm.modrm < 0xd0)
+									*si.buffer++ = 'e';
+								else if (instruction->modrm.modrm >= 0xd8)
+									*si.buffer++ = 'u';
+								else
+									appendString(&si, "be");
+							}
+							appendString(&si, " st(0),st(");
+							*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+							*si.buffer++ = ')';
+						}
+						break;
+					case 0xdc:
+						if (NMD_R(instruction->modrm.modrm) == 0xc)
+							appendString(&si, NMD_C(instruction->modrm.modrm) > 7 ? "mul" : "add");
+						else
+						{
+							appendString(&si, NMD_R(instruction->modrm.modrm) == 0xd ? "com" : (NMD_R(instruction->modrm.modrm) == 0xe ? "subr" : "div"));
+							if (NMD_R(instruction->modrm.modrm) == 0xd && NMD_C(instruction->modrm.modrm) >= 8)
+							{
+								if (NMD_R(instruction->modrm.modrm) >= 8)
+									*si.buffer++ = 'p';
+							}
+							else
+							{
+								if (NMD_R(instruction->modrm.modrm) < 8)
 									*si.buffer++ = 'r';
 							}
-							appendString(&si, "p st(");
-							*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
-							appendString(&si, "),st(0)");
 						}
-					}
-					break;
-				case 0xdf:
-					if (instruction->modrm.modrm == 0xe0)
-						appendString(&si, "nstsw ax");
-					else
-					{
-						if (instruction->modrm.modrm >= 0xe8)
+
+						if (NMD_R(instruction->modrm.modrm) == 0xd)
 						{
-							if (instruction->modrm.modrm < 0xf0)
-								*si.buffer++ = 'u';
-							appendString(&si, "comip");
 							appendString(&si, " st(0),st(");
 							*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
 							*si.buffer++ = ')';
 						}
 						else
 						{
-							appendString(&si, instruction->modrm.modrm < 0xc8 ? "freep" : (instruction->modrm.modrm >= 0xd0 ? "stp" : "xch"));
 							appendString(&si, " st(");
 							*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
-							*si.buffer++ = ')';
+							appendString(&si, "),st(0)");
 						}
-					}
+						break;
+					case 0xdd:
+						if (NMD_R(instruction->modrm.modrm) == 0xc)
+							appendString(&si, NMD_C(instruction->modrm.modrm) < 8 ? "free" : "xch");
+						else
+						{
+							appendString(&si, instruction->modrm.modrm < 0xe0 ? "st" : "ucom");
+							if (NMD_C(instruction->modrm.modrm) >= 8)
+								*si.buffer++ = 'p';
+						}
 
-					break;
+						appendString(&si, " st(");
+						*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+						*si.buffer++ = ')';
+
+						break;
+					case 0xde:
+						if (instruction->modrm.modrm == 0xd9)
+							appendString(&si, "compp");
+						else
+						{
+							if (instruction->modrm.modrm >= 0xd0 && instruction->modrm.modrm <= 0xd7)
+							{
+								appendString(&si, "comp st(0),st(");
+								*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+								*si.buffer++ = ')';
+							}
+							else
+							{
+								if (NMD_R(instruction->modrm.modrm) == 0xc)
+									appendString(&si, NMD_C(instruction->modrm.modrm) < 8 ? "add" : "mul");
+								else
+								{
+									appendString(&si, instruction->modrm.modrm < 0xf0 ? "sub" : "div");
+									if (NMD_R(instruction->modrm.modrm) < 8 || (NMD_R(instruction->modrm.modrm) >= 0xe && NMD_C(instruction->modrm.modrm) < 8))
+										*si.buffer++ = 'r';
+								}
+								appendString(&si, "p st(");
+								*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+								appendString(&si, "),st(0)");
+							}
+						}
+						break;
+					case 0xdf:
+						if (instruction->modrm.modrm == 0xe0)
+							appendString(&si, "nstsw ax");
+						else
+						{
+							if (instruction->modrm.modrm >= 0xe8)
+							{
+								if (instruction->modrm.modrm < 0xf0)
+									*si.buffer++ = 'u';
+								appendString(&si, "comip");
+								appendString(&si, " st(0),st(");
+								*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+								*si.buffer++ = ')';
+							}
+							else
+							{
+								appendString(&si, instruction->modrm.modrm < 0xc8 ? "freep" : (instruction->modrm.modrm >= 0xd0 ? "stp" : "xch"));
+								appendString(&si, " st(");
+								*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+								*si.buffer++ = ')';
+							}
+						}
+
+						break;
+					}
 				}
 			}
-		}
-		else if (op >= 0xe0 && op <= 0xe3)
-		{
-			const char* mnemonics[] = { "loopne", "loope", "loop", instruction->flags.mode == X86_MODE_64 ? "jrcxz" : "jecxz" };
-			appendString(&si, mnemonics[NMD_C(op)]);
-			*si.buffer++ = ' ';
-			appendRelativeAddress8(&si);
-		}
-		else if (op == 0xe4 || op == 0xe5)
-		{
-			appendString(&si, "in ");
-			appendString(&si, op == 0xe4 ? "al" : (operandSize ? "ax" : "eax"));
-			*si.buffer++ = ',';
-			appendNumber(&si, instruction->immediate);
-		}
-		else if (op == 0xe6 || op == 0xe7)
-		{
-			appendString(&si, "out ");
-			appendNumber(&si, instruction->immediate);
-			*si.buffer++ = ',';
-			appendString(&si, op == 0xe6 ? "al" : (operandSize ? "ax" : "eax"));
-		}
-		else if (op == 0xe8 || op == 0xe9 || op == 0xeb)
-		{
-			appendString(&si, op == 0xe8 ? "call " : "jmp ");
-			if (op == 0xeb)
-				appendRelativeAddress8(&si);
-			else
-				appendRelativeAddress16_32(&si);
-		}
-		else if (op == 0xea)
-		{
-			appendString(&si, "jmp far ");
-			appendNumber(&si, (uint64_t)(*(uint16_t*)(((uint8_t*)(&instruction->immediate) + 4))));
-			*si.buffer++ = ':';
-			appendNumber(&si, (uint64_t)(*(uint32_t*)(&instruction->immediate)));
-		}
-		else if (op == 0xec || op == 0xed)
-		{
-			appendString(&si, "in ");
-			appendString(&si, op == 0xec ? "al" : (operandSize ? "ax" : "eax"));
-			appendString(&si, ",dx");
-		}
-		else if (op == 0xee || op == 0xef)
-		{
-			appendString(&si, "out dx,");
-			appendString(&si, op == 0xee ? "al" : (operandSize ? "ax" : "eax"));
-		}
-		else if (op == 0xf6 || op == 0xf7)
-		{
-			appendString(&si, opcodeExtensionsGrp3[instruction->modrm.reg]);
-			*si.buffer++ = ' ';
-			if (op == 0xf6)
-				appendEb(&si);
-			else
-				appendEv(&si);
-
-			if (instruction->modrm.reg <= 0b001)
+			else if (op >= 0xe0 && op <= 0xe3)
 			{
+				const char* mnemonics[] = { "loopne", "loope", "loop", instruction->mode == X86_MODE_64 ? "jrcxz" : "jecxz" };
+				appendString(&si, mnemonics[NMD_C(op)]);
+				*si.buffer++ = ' ';
+				appendRelativeAddress8(&si);
+			}
+			else if (op == 0xe4 || op == 0xe5)
+			{
+				appendString(&si, "in ");
+				appendString(&si, op == 0xe4 ? "al" : (operandSize ? "ax" : "eax"));
 				*si.buffer++ = ',';
 				appendNumber(&si, instruction->immediate);
 			}
-		}
-		else if (op == 0xfe)
-		{
-			appendString(&si, instruction->modrm.reg == 0b000 ? "inc " : "dec ");
-			appendEb(&si);
-		}
-		else if (op == 0xff)
-		{
-			appendString(&si, opcodeExtensionsGrp5[instruction->modrm.reg]);
-			*si.buffer++ = ' ';
-			if (instruction->modrm.mod == 0b11)
-				appendString(&si, (operandSize ? reg16 : reg32)[si.instruction->modrm.rm]);
-			else
-				appendModRmUpper(&si, (instruction->modrm.reg == 0b011 || instruction->modrm.reg == 0b101) ? "fword" : (instruction->flags.mode == X86_MODE_64 && instruction->modrm.reg >= 0b010 && instruction->modrm.reg <= 0b101 ? "qword" : (operandSize ? "word" : "dword")));
-		}
-		else //Try to parse all opcodes not parsed by the checks above
-		{
-			const char* str = 0;
-			switch (instruction->opcode)
+			else if (op == 0xe6 || op == 0xe7)
 			{
-			case 0xcc: str = "int3"; break;
-			case 0xc3: str = "ret"; break;
-			case 0x90:
-				if (instruction->prefixes & REPEAT_PREFIX)
-					str = "pause";
-				else if (instruction->prefixes & (REX_B_PREFIX | REX_W_PREFIX))
-					str = "xchg r8, rax";
-				else
-					str = "nop";
-				break;
-			case 0x9c: str = instruction->flags.mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX) ? "pushfq" : (operandSize ? "pushf" : "pushfd"); break;
-			case 0x9d: str = instruction->flags.mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX) ? "popfq" : (operandSize ? "popf" : "popfd"); break;
-			case 0x60:
-			case 0x61:
-				str = operandSize ? (instruction->opcode == 0x60 ? "pusha" : "popa") : (instruction->opcode == 0x60 ? "pushad" : "popad");
-				break;
-			case 0xcb: str = "retf"; break;
-			case 0xc9: str = "leave"; break;
-			case 0xf1: str = "int1"; break;
-			case 0x06: str = "push es"; break;
-			case 0x16: str = "push ss"; break;
-			case 0x1e: str = "push ds"; break;
-			case 0x0e: str = "push cs"; break;
-			case 0x07: str = "pop es"; break;
-			case 0x17: str = "pop ss"; break;
-			case 0x1f: str = "pop ds"; break;
-			case 0x27: str = "daa"; break;
-			case 0x37: str = "aaa"; break;
-			case 0x2f: str = "das"; break;
-			case 0x3f: str = "aas"; break;
-			case 0xd7: str = "xlat"; break;
-			case 0x9b: str = "wait"; break;
-			case 0xf4: str = "hlt"; break;
-			case 0xf5: str = "cmc"; break;
-			case 0x9e: str = "sahf"; break;
-			case 0x9f: str = "lahf"; break;
-			case 0xce: str = "into"; break;
-			case 0xcf: str = (instruction->prefixes & REX_W_PREFIX) ? "iretq" : (operandSize ? "iret" : "iretd"); break;
-			case 0x98: str = (operandSize ? "cbw" : "cwde"); break;
-			case 0x99: str = (operandSize ? "cwd" : "cdq"); break;
-			case 0xd6: str = "salc"; break;
-			case 0xf8: str = "clc"; break;
-			case 0xf9: str = "stc"; break;
-			case 0xfa: str = "cli"; break;
-			case 0xfb: str = "sti"; break;
-			case 0xfc: str = "cld"; break;
-			case 0xfd: str = "std"; break;
-			default: return;
+				appendString(&si, "out ");
+				appendNumber(&si, instruction->immediate);
+				*si.buffer++ = ',';
+				appendString(&si, op == 0xe6 ? "al" : (operandSize ? "ax" : "eax"));
 			}
-			appendString(&si, str);
+			else if (op == 0xe8 || op == 0xe9 || op == 0xeb)
+			{
+				appendString(&si, op == 0xe8 ? "call " : "jmp ");
+				if (op == 0xeb)
+					appendRelativeAddress8(&si);
+				else
+					appendRelativeAddress16_32(&si);
+			}
+			else if (op == 0xea)
+			{
+				appendString(&si, "jmp far ");
+				appendNumber(&si, (uint64_t)(*(uint16_t*)(((uint8_t*)(&instruction->immediate) + 4))));
+				*si.buffer++ = ':';
+				appendNumber(&si, (uint64_t)(*(uint32_t*)(&instruction->immediate)));
+			}
+			else if (op == 0xec || op == 0xed)
+			{
+				appendString(&si, "in ");
+				appendString(&si, op == 0xec ? "al" : (operandSize ? "ax" : "eax"));
+				appendString(&si, ",dx");
+			}
+			else if (op == 0xee || op == 0xef)
+			{
+				appendString(&si, "out dx,");
+				appendString(&si, op == 0xee ? "al" : (operandSize ? "ax" : "eax"));
+			}
+			else if (op == 0xf6 || op == 0xf7)
+			{
+				appendString(&si, opcodeExtensionsGrp3[instruction->modrm.reg]);
+				*si.buffer++ = ' ';
+				if (op == 0xf6)
+					appendEb(&si);
+				else
+					appendEv(&si);
+
+				if (instruction->modrm.reg <= 0b001)
+				{
+					*si.buffer++ = ',';
+					appendNumber(&si, instruction->immediate);
+				}
+			}
+			else if (op == 0xfe)
+			{
+				appendString(&si, instruction->modrm.reg == 0b000 ? "inc " : "dec ");
+				appendEb(&si);
+			}
+			else if (op == 0xff)
+			{
+				appendString(&si, opcodeExtensionsGrp5[instruction->modrm.reg]);
+				*si.buffer++ = ' ';
+				if (instruction->modrm.mod == 0b11)
+					appendString(&si, (operandSize ? reg16 : reg32)[si.instruction->modrm.rm]);
+				else
+					appendModRmUpper(&si, (instruction->modrm.reg == 0b011 || instruction->modrm.reg == 0b101) ? "fword" : (instruction->mode == X86_MODE_64 && ((instruction->modrm.reg >= 0b010 && instruction->modrm.reg <= 0b110) || (instruction->prefixes & REX_W_PREFIX && instruction->modrm.reg <= 0b010)) ? "qword" : (operandSize ? "word" : "dword")));
+			}
+			else //Try to parse all opcodes not parsed by the checks above
+			{
+				const char* str = 0;
+				switch (instruction->opcode)
+				{
+				case 0xcc: str = "int3"; break;
+				case 0xc3: str = "ret"; break;
+				case 0x90:
+					if (instruction->prefixes & REPEAT_PREFIX)
+						str = "pause";
+					else if (instruction->prefixes & REX_B_PREFIX)
+						str = instruction->prefixes & REX_W_PREFIX ? "xchg r8,rax" : "xchg r8d,eax";
+					else
+						str = "nop";
+					break;
+				case 0x9c: str = instruction->mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX) ? "pushfq" : (operandSize ? "pushf" : "pushfd"); break;
+				case 0x9d: str = instruction->mode == X86_MODE_64 && !(instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX) ? "popfq" : (operandSize ? "popf" : "popfd"); break;
+				case 0x60:
+				case 0x61:
+					str = operandSize ? (instruction->opcode == 0x60 ? "pusha" : "popa") : (instruction->opcode == 0x60 ? "pushad" : "popad");
+					break;
+				case 0xcb: str = instruction->prefixes & REX_W_PREFIX ? "retfq" : "retf"; break;
+				case 0xc9: str = "leave"; break;
+				case 0xf1: str = "int1"; break;
+				case 0x06: str = "push es"; break;
+				case 0x16: str = "push ss"; break;
+				case 0x1e: str = "push ds"; break;
+				case 0x0e: str = "push cs"; break;
+				case 0x07: str = "pop es"; break;
+				case 0x17: str = "pop ss"; break;
+				case 0x1f: str = "pop ds"; break;
+				case 0x27: str = "daa"; break;
+				case 0x37: str = "aaa"; break;
+				case 0x2f: str = "das"; break;
+				case 0x3f: str = "aas"; break;
+				case 0xd7: str = "xlat"; break;
+				case 0x9b: str = "wait"; break;
+				case 0xf4: str = "hlt"; break;
+				case 0xf5: str = "cmc"; break;
+				case 0x9e: str = "sahf"; break;
+				case 0x9f: str = "lahf"; break;
+				case 0xce: str = "into"; break;
+				case 0xcf: str = (instruction->prefixes & REX_W_PREFIX) ? "iretq" : (operandSize ? "iret" : "iretd"); break;
+				case 0x98: str = (instruction->prefixes & REX_W_PREFIX ? "cdqe" : (operandSize ? "cbw" : "cwde")); break;
+				case 0x99: str = (instruction->prefixes & REX_W_PREFIX ? "cqo" : (operandSize ? "cwd" : "cdq")); break;
+				case 0xd6: str = "salc"; break;
+				case 0xf8: str = "clc"; break;
+				case 0xf9: str = "stc"; break;
+				case 0xfa: str = "cli"; break;
+				case 0xfb: str = "sti"; break;
+				case 0xfc: str = "cld"; break;
+				case 0xfd: str = "std"; break;
+				default: return;
+				}
+				appendString(&si, str);
+			}
 		}
 	}
-	else if (instruction->opcodeSize == 2)
+	else if (instruction->opcodeMap == OPCODE_MAP_0F)
 	{
 		if (op == 0x00)
 		{
@@ -1797,7 +1963,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		{
 			const char* noPrefixMnemonics[] = { "movups", "movups", "movlps", "movlps", "unpcklps", "unpckhps", "movhps", "movhps" };
 			const char* prefix66Mnemonics[] = { "movupd", "movupd", "movlpd", "movlpd", "unpcklpd", "unpckhpd", "movhpd", "movhpd" };
-			const char* prefixF3Mnemonics[] = { "movss", "movss", "movsldup", NULL, NULL, NULL, "movshdup" };
+			const char* prefixF3Mnemonics[] = { "movss", "movss", "movsldup", ASM_NULL, ASM_NULL, ASM_NULL, "movshdup" };
 			const char* prefixF2Mnemonics[] = { "movsd", "movsd", "movddup" };
 			if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
 			{
@@ -2067,8 +2233,8 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		{
 			const char* noPrefixMnemonics[] = { "movaps", "movaps", "cvtpi2ps", "movntps", "cvttps2pi", "cvtps2pi", "ucomiss", "comiss" };
 			const char* prefix66Mnemonics[] = { "movapd", "movapd", "cvtpi2pd", "movntpd", "cvttpd2pi", "cvtpd2pi", "ucomisd", "comisd" };
-			const char* prefixF3Mnemonics[] = { NULL, NULL, "cvtsi2ss", "movntss", "cvttss2si", "cvtss2si", NULL, NULL };
-			const char* prefixF2Mnemonics[] = { NULL, NULL, "cvtsi2sd", "movntsd", "cvttsd2si", "cvtsd2si", NULL, NULL };
+			const char* prefixF3Mnemonics[] = { ASM_NULL, ASM_NULL, "cvtsi2ss", "movntss", "cvttss2si", "cvtss2si", ASM_NULL, ASM_NULL };
+			const char* prefixF2Mnemonics[] = { ASM_NULL, ASM_NULL, "cvtsi2sd", "movntsd", "cvttsd2si", "cvtsd2si", ASM_NULL, ASM_NULL };
 			if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
 			{
 				appendString(&si, prefix66Mnemonics[op % 8]);
@@ -2245,9 +2411,9 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		else if (NMD_R(op) == 5)
 		{
 			const char* noPrefixMnemonics[] = { "movmskps", "sqrtps", "rsqrtps", "rcpps", "andps", "andnps", "orps", "xorps", "addps", "mulps", "cvtps2pd",  "cvtdq2ps", "subps", "minps", "divps", "maxps"};
-			const char* prefix66Mnemonics[] = { "movmskpd", "sqrtpd",      NULL,    NULL, "andpd", "andnpd", "orpd", "xorpd", "addpd", "mulpd", "cvtpd2ps",  "cvtps2dq", "subpd", "minpd", "divpd", "maxpd"};
-			const char* prefixF3Mnemonics[] = {       NULL, "sqrtss", "rsqrtss", "rcpss",    NULL,     NULL,   NULL,    NULL, "addss", "mulss", "cvtss2sd", "cvttps2dq", "subss", "minss", "divss", "maxss"};
-			const char* prefixF2Mnemonics[] = {       NULL, "sqrtsd",      NULL,    NULL,    NULL,     NULL,   NULL,    NULL, "addsd", "mulsd", "cvtsd2ss",        NULL, "subsd", "minsd", "divsd", "maxsd" };
+			const char* prefix66Mnemonics[] = { "movmskpd", "sqrtpd",      ASM_NULL,    ASM_NULL, "andpd", "andnpd", "orpd", "xorpd", "addpd", "mulpd", "cvtpd2ps",  "cvtps2dq", "subpd", "minpd", "divpd", "maxpd"};
+			const char* prefixF3Mnemonics[] = {       ASM_NULL, "sqrtss", "rsqrtss", "rcpss",    ASM_NULL,     ASM_NULL,   ASM_NULL,    ASM_NULL, "addss", "mulss", "cvtss2sd", "cvttps2dq", "subss", "minss", "divss", "maxss"};
+			const char* prefixF2Mnemonics[] = {       ASM_NULL, "sqrtsd",      ASM_NULL,    ASM_NULL,    ASM_NULL,     ASM_NULL,   ASM_NULL,    ASM_NULL, "addsd", "mulsd", "cvtsd2ss",        ASM_NULL, "subsd", "minsd", "divsd", "maxsd" };
 			if (instruction->prefixes & OPERAND_SIZE_OVERRIDE_PREFIX)
 			{
 				appendString(&si, prefix66Mnemonics[op % 0x10]);
@@ -2304,7 +2470,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 		else if (NMD_R(op) == 6 || (op >= 0x74 && op <= 0x76))
 		{
-			const char* noPrefixMnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw",         NULL,         NULL, "movd",   "movq" };
+			const char* noPrefixMnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw",         ASM_NULL,         ASM_NULL, "movd",   "movq" };
 			const char* prefix66Mnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw", "punpcklqdq", "punpckhqdq", "movd", "movdqa" };
 
 			if (op == 0x6e)
@@ -2526,7 +2692,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 				}
 				else
 				{
-					const char* mnemonics[] = { "rdfsbase", "rdgsbase", "wrfsbase", "wrgsbase", NULL, "lfence", "mfence", "sfence" };
+					const char* mnemonics[] = { "rdfsbase", "rdgsbase", "wrfsbase", "wrgsbase", ASM_NULL, "lfence", "mfence", "sfence" };
 					appendString(&si, mnemonics[instruction->modrm.reg]);
 				}
 			}
@@ -2820,7 +2986,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 		else if (op >= 0xd1 && op <= 0xfe)
 		{
-			const char* mnemonics[] = { "srlw", "srld", "srlq", "addq", "mullw", NULL, NULL, "subusb", "subusw", "minub", "and", "addusb", "addusw", "maxub", "andn", "avgb", "sraw", "srad", "avgw", "mulhuw", "mulhw", NULL, NULL, "subsb", "subsw", "minsw", "or", "addsb", "addsw", "maxsw", "xor", NULL, "sllw", "slld", "sllq", "muludq", "maddwd", "sadbw", NULL, "subb", "subw", "subd", "subq", "addb", "addw", "addd" };
+			const char* mnemonics[] = { "srlw", "srld", "srlq", "addq", "mullw", ASM_NULL, ASM_NULL, "subusb", "subusw", "minub", "and", "addusb", "addusw", "maxub", "andn", "avgb", "sraw", "srad", "avgw", "mulhuw", "mulhw", ASM_NULL, ASM_NULL, "subsb", "subsw", "minsw", "or", "addsb", "addsw", "maxsw", "xor", ASM_NULL, "sllw", "slld", "sllq", "muludq", "maddwd", "sadbw", ASM_NULL, "subb", "subw", "subd", "subq", "addb", "addw", "addd" };
 			*si.buffer++ = 'p';
 			appendString(&si, mnemonics[op - 0xd1]);
 			*si.buffer++ = ' ';
@@ -2839,7 +3005,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 		else
 		{
-			const char* str = NULL;
+			const char* str = ASM_NULL;
 			switch (op)
 			{
 			case 0x05: str = "syscall"; break;
@@ -2870,7 +3036,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			appendString(&si, str);
 		}
 	}
-	else if (instruction->flags.is3op38h)
+	else if (instruction->opcodeMap == OPCODE_MAP_0F_38)
 	{
 		if ((NMD_R(op) == 2 || NMD_R(op) == 3) && NMD_C(op) <= 5)
 		{
@@ -3000,7 +3166,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		
 		
 	}
-	else
+	else if (instruction->opcodeMap == OPCODE_MAP_0F_3A)
 	{
 		if (NMD_R(op) == 1)
 		{
@@ -3055,7 +3221,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 			}
 			else if (NMD_R(op) == 4)
 			{
-				const char* mnemonics[] = { "dpps", "dppd", "mpsadbw", NULL, "pclmulqdq" };
+				const char* mnemonics[] = { "dpps", "dppd", "mpsadbw", ASM_NULL, "pclmulqdq" };
 				appendString(&si, mnemonics[NMD_C(op)]);
 			}
 			else if (NMD_R(op) == 6)
@@ -3085,9 +3251,8 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		*si.buffer++ = ',';
 		appendNumber(&si, instruction->immediate);
 	}
-
 	size_t stringLength = si.buffer - buffer;
-	if (formatFlags & FORMAT_FLAGS_UPPERCASE)
+	if (formatFlags & X86_FORMAT_FLAGS_UPPERCASE)
 	{
 		for (size_t i = 0; i < stringLength; i++)
 		{
@@ -3096,7 +3261,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 	}
 
-	if (formatFlags & FORMAT_FLAGS_COMMA_SPACES)
+	if (formatFlags & X86_FORMAT_FLAGS_COMMA_SPACES)
 	{
 		for (size_t i = 0; i < stringLength; i++)
 		{
@@ -3111,7 +3276,7 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 		}
 	}
 
-	if (formatFlags & FORMAT_FLAGS_OPERATOR_SPACES)
+	if (formatFlags & X86_FORMAT_FLAGS_OPERATOR_SPACES)
 	{
 		for (size_t i = 0; i < stringLength; i++)
 		{
