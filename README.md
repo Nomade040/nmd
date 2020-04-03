@@ -1,5 +1,5 @@
 # nmd
-set of single-header libraries in C/C++
+set of single-header libraries for C/C++
 
 - x86 assembler & disassembler: [nmd_assembly.h](nmd_assembly.h)
 - length disassembler: [nmd_ldisasm.h](nmd_ldisasm.h)
