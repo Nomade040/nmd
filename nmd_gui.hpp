@@ -1,3 +1,5 @@
+// This is a C++ retained mode graphical user interface library.
+//
 // define the 'NMD_GUI_IMPLEMENTATION' macro in one and only one source file.
 // Example:
 // #include <...>
@@ -5,17 +7,22 @@
 // #define NMD_GUI_IMPLEMENTATION
 // #include "nmd_gui.hpp"
 //
-//Credits to https://github.com/ocornut/imgui. This library was inspired by it.
+//Credits:
+// - imgui - https://github.com/ocornut/imgui
+// - stb_truetype - https://github.com/nothings/stb/blob/master/stb_truetype.h
+// - stb_image - https://github.com/nothings/stb/blob/master/stb_image.h
 
 #ifndef NMD_GUI_H
 #define NMD_GUI_H
 
+//Common dependencies
 #include <cinttypes>
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <queue>
 
-//You may use uint32_t if you preffer.
+//You may use 'uint32_t' instead of 'const char*' if you preffer. It will likely improve performance.
 typedef const char* IdentifierType;
 
 //You may use uint32_t if uint16_t is not enough.
@@ -153,16 +160,16 @@ namespace Gui
 
     enum CORNER_FLAGS
     {
-        CORNER_FLAGS_NONE = 0x0,
-        CORNER_FLAGS_TOP_LEFT = 0x1,
-        CORNER_FLAGS_TOP_RIGHT = 0x2,
-        CORNER_FLAGS_BOTTOM_LEFT = 0x4,
-        CORNER_FLAGS_BOTTOM_RIGHT = 0x8,
-        CORNER_FLAGS_TOP = CORNER_FLAGS_TOP_LEFT | CORNER_FLAGS_TOP_RIGHT,
-        CORNER_FLAGS_BOTTOM = CORNER_FLAGS_BOTTOM_LEFT | CORNER_FLAGS_BOTTOM_RIGHT,
-        CORNER_FLAGS_LEFT = CORNER_FLAGS_TOP_LEFT | CORNER_FLAGS_BOTTOM_LEFT,
-        CORNER_FLAGS_RIGHT = CORNER_FLAGS_TOP_RIGHT | CORNER_FLAGS_BOTTOM_RIGHT,
-        CORNER_FLAGS_ALL = 0xF
+        CORNER_FLAGS_NONE         = (1 << 0),
+        CORNER_FLAGS_TOP_LEFT     = (1 << 1),
+        CORNER_FLAGS_TOP_RIGHT    = (1 << 2),
+        CORNER_FLAGS_BOTTOM_LEFT  = (1 << 3),
+        CORNER_FLAGS_BOTTOM_RIGHT = (1 << 4),
+        CORNER_FLAGS_ALL          = (1 << 5) - 1,
+        CORNER_FLAGS_TOP          = CORNER_FLAGS_TOP_LEFT    | CORNER_FLAGS_TOP_RIGHT,
+        CORNER_FLAGS_BOTTOM       = CORNER_FLAGS_BOTTOM_LEFT | CORNER_FLAGS_BOTTOM_RIGHT,
+        CORNER_FLAGS_LEFT         = CORNER_FLAGS_TOP_LEFT    | CORNER_FLAGS_BOTTOM_LEFT,
+        CORNER_FLAGS_RIGHT        = CORNER_FLAGS_TOP_RIGHT   | CORNER_FLAGS_BOTTOM_RIGHT
     };
 
     class DrawList
@@ -199,6 +206,14 @@ namespace Gui
 
     struct IO
     {
+        struct MouseUpEvent
+        {
+            int key;
+            Vec2 pos;
+
+            MouseUpEvent(int key, const Vec2& pos) : key(key), pos(pos) {}
+        };
+
         Vec2 displaySize;
 
         Vec2 lastMousePos, mousePos;
@@ -214,6 +229,8 @@ namespace Gui
         Vec2 mouseClickedPos[5]; //Mouse's position when the button was last clicked
 
         std::vector<uint16_t> charatersQueue;
+        std::queue<MouseUpEvent> mouseUpQueue;
+        MouseUpEvent* firstMouseUpEvent;
 
         bool IsAnyMouseDown();
         void AddInputCharacter(uint16_t c);
@@ -246,17 +263,17 @@ namespace Gui
 
     enum EVENT_TYPE
     {
-        EVENT_UNKNOWN = 0x000,
-        EVENT_MOUSE_CLICK = 0x001,
-        EVENT_MOUSE_HOVER = 0x002,
-        EVENT_MOUSE_ENTER = 0x004,
-        EVENT_MOUSE_LEAVE = 0x008,
-        EVENT_MOUSE_DOWN = 0x010,
-        EVENT_MOUSE_UP = 0x020,
-        EVENT_MOUSE_SCROLL = 0x040,
-        EVENT_KEY_DOWN = 0x080,
-        EVENT_KEY_UP = 0x100,
-        EVENT_KEY_CHAR = 0x200
+        EVENT_UNKNOWN      = (1 <<  0),
+        EVENT_MOUSE_CLICK  = (1 <<  1),
+        EVENT_MOUSE_HOVER  = (1 <<  2),
+        EVENT_MOUSE_ENTER  = (1 <<  3),
+        EVENT_MOUSE_LEAVE  = (1 <<  4),
+        EVENT_MOUSE_DOWN   = (1 <<  5),
+        EVENT_MOUSE_UP     = (1 <<  6),
+        EVENT_MOUSE_SCROLL = (1 <<  7),
+        EVENT_KEY_DOWN     = (1 <<  8),
+        EVENT_KEY_UP       = (1 <<  9),
+        EVENT_KEY_CHAR     = (1 << 10)
     };
 
     struct Event
@@ -276,6 +293,9 @@ namespace Gui
 
     class Widget
     {
+    private:
+        bool mouseOver, wasMouseOver;
+
     protected:
         std::vector<EventCallback> m_eventCallbacks;
 
@@ -294,7 +314,8 @@ namespace Gui
             active(false),
             visible(true),
             rect(),
-            backgroundColor() {}
+            backgroundColor(),
+            mouseOver(false), wasMouseOver(false) {}
 
         void RegisterEventCallback(EVENT_TYPE eventType, void(*callback)(const Event&));
         void UnregisterEventCallback(void(*callback)(const Event&));
@@ -412,9 +433,9 @@ namespace Gui
         {
             int button = 0;
             if (uMsg == WM_LBUTTONDOWN || uMsg == WM_LBUTTONDBLCLK) { button = 0; }
-            if (uMsg == WM_RBUTTONDOWN || uMsg == WM_RBUTTONDBLCLK) { button = 1; }
-            if (uMsg == WM_MBUTTONDOWN || uMsg == WM_MBUTTONDBLCLK) { button = 2; }
-            if (uMsg == WM_XBUTTONDOWN || uMsg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
+            else if (uMsg == WM_RBUTTONDOWN || uMsg == WM_RBUTTONDBLCLK) { button = 1; }
+            else if (uMsg == WM_MBUTTONDOWN || uMsg == WM_MBUTTONDBLCLK) { button = 2; }
+            else if (uMsg == WM_XBUTTONDOWN || uMsg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
             if (!g_context.io.IsAnyMouseDown() && ::GetCapture() == NULL)
                 ::SetCapture(g_hwnd);
             g_context.io.mouseDown[button] = true;
@@ -429,10 +450,11 @@ namespace Gui
         {
             int button = 0;
             if (uMsg == WM_LBUTTONUP) { button = 0; }
-            if (uMsg == WM_RBUTTONUP) { button = 1; }
-            if (uMsg == WM_MBUTTONUP) { button = 2; }
-            if (uMsg == WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
+            else if (uMsg == WM_RBUTTONUP) { button = 1; }
+            else if (uMsg == WM_MBUTTONUP) { button = 2; }
+            else if (uMsg == WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
             g_context.io.mouseDown[button] = false;
+            g_context.io.mouseUpQueue.emplace(button, g_context.io.mousePos);
             if (!g_context.io.IsAnyMouseDown() && ::GetCapture() == g_hwnd)
                 ::ReleaseCapture();
             return 0;
@@ -1198,11 +1220,20 @@ namespace Gui
 #ifdef _WIN32
         Win32NewFrame();
 #endif
-
         g_context.drawList.vertices.clear(), g_context.drawList.indices.clear();
 
+        bool mouseUpEvent = false;
+        if (g_context.io.mouseUpQueue.size())
+        {
+            g_context.io.firstMouseUpEvent = &g_context.io.mouseUpQueue.front();
+            mouseUpEvent = true;
+        }
+        else
+            g_context.io.firstMouseUpEvent = nullptr;
         for (Layer* layer : g_context.layersStack)
             layer->Notify();
+        if (mouseUpEvent)
+            g_context.io.mouseUpQueue.pop();
 
         for (auto layer : g_context.layersStack)
         {
@@ -1230,24 +1261,42 @@ namespace Gui
 
     void Widget::Notify()
     {
-        bool mouseOverRect = IsPointInRect(rect, g_context.io.mousePos);
-        bool wasMouseOverRect = IsPointInRect(rect, g_context.io.lastMousePos);
+        wasMouseOver = mouseOver;
+        mouseOver = IsPointInRect(rect, g_context.io.mousePos);
         for (auto& eventCallback : m_eventCallbacks)
         {
             switch (eventCallback.type)
             {
             case EVENT_MOUSE_HOVER:
-                if (mouseOverRect)
+                if (mouseOver)
                     eventCallback.callback(Event(EVENT_MOUSE_HOVER, this, g_context.io.mousePos, 0));
                 break;
             case EVENT_MOUSE_ENTER:
-                if (mouseOverRect && !wasMouseOverRect)
+                if (mouseOver && !wasMouseOver)
                     eventCallback.callback(Event(EVENT_MOUSE_ENTER, this, g_context.io.mousePos, 0));
                 break;
             case EVENT_MOUSE_LEAVE:
-                if (!mouseOverRect && wasMouseOverRect)
+                if (!mouseOver && wasMouseOver)
                     eventCallback.callback(Event(EVENT_MOUSE_ENTER, this, g_context.io.mousePos, 0));
                 break;
+            case EVENT_MOUSE_DOWN:
+                for (int i = 0; i < 5; i++)
+                {
+                    if (g_context.io.mouseDown[i] && mouseOver)
+                        eventCallback.callback(Event(EVENT_MOUSE_DOWN, this, g_context.io.mousePos, i));
+                }
+                break;
+            default:
+                if (g_context.io.firstMouseUpEvent && IsPointInRect(rect, g_context.io.firstMouseUpEvent->pos))
+                {
+                    if(eventCallback.type == EVENT_MOUSE_UP)
+                        eventCallback.callback(Event(EVENT_MOUSE_UP, this, g_context.io.firstMouseUpEvent->pos, g_context.io.firstMouseUpEvent->key));
+                    if (eventCallback.type == EVENT_MOUSE_CLICK)
+                    {
+                        if (IsPointInRect(rect, g_context.io.mouseClickedPos[g_context.io.firstMouseUpEvent->key]))
+                            eventCallback.callback(Event(EVENT_MOUSE_CLICK, this, g_context.io.mousePos, 0));
+                    }
+                }
             }
         }
     }
