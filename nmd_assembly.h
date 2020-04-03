@@ -206,7 +206,7 @@ typedef struct Instruction
 //  string      [in]  A pointer to a string.
 //  instruction [out] A pointer to a variable of type 'Instruction'.
 //	mode        [in]  A member of the 'X86_MODE' enum.
-bool assemble(const char* string, Instruction* instruction, X86_MODE mode);
+//bool assemble(const char* string, Instruction* instruction, X86_MODE mode);
 
 //Disassembles an instruction from a sequence of bytes. Returns true if the instruction is valid, false otherwise.
 //Parameters:
@@ -898,9 +898,9 @@ void appendModRm32Upper(StringInfo* const si, const char* addrSpecifierReg)
 		
 	if ((si->instruction->displacement || *(si->buffer - 1) == '[') && (si->instruction->modrm.mod > 0b00 || (si->instruction->modrm.mod == 0b00 && (si->instruction->modrm.rm == 0b101 || (si->instruction->modrm.rm == 0b100 && si->instruction->sib.base == 0b101)))))
 	{
-		//if (si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101 && si->instruction->runtimeAddress != -1)
-		//	appendNumber(si, (uint64_t)((int64_t)(si->instruction->runtimeAddress + si->instruction->length) + (int64_t)si->instruction->displacement));
-		//else
+		if (si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101 && si->instruction->runtimeAddress != -1 && si->instruction->mode == X86_MODE_64)
+			appendNumber(si, (uint64_t)((int64_t)(si->instruction->runtimeAddress + si->instruction->length) + (int64_t)((int32_t)si->instruction->displacement)));
+		else
 		{
 			if(si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101 && si->instruction->mode == X86_MODE_64)
 				appendString(si,"rip");
