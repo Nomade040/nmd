@@ -1,9 +1,14 @@
+// This is a C++ memory library for Windows and hopefully Linux in the future. 
+//
 // define the 'NMD_MEMORY_IMPLEMENTATION' macro in one and only one source file.
 // Example:
 // #include <...>
 // #include <...>
 // #define NMD_MEMORY_IMPLEMENTATION
 // #include "nmd_memory.hpp"
+//
+// Features:
+//  -
 //
 // TODO:
 //  - Finish ValueScan(), implement string scan and some other functionalities.
@@ -12,6 +17,7 @@
 #ifndef NMD_MEMORY_H
 #define NMD_MEMORY_H
 
+//Include dependencies
 #include <Windows.h>
 #include <vector>
 #include <map>
@@ -1193,8 +1199,7 @@ public:
 	static inline T Read(const uintptr_t address)
 	{
 		T t;
-		Read(address, &t, sizeof(T));
-		return t;
+		return Read(address, &t, sizeof(T)) ? t : T();
 	}
 
 	//Copies 'size' bytes from 'address' to 'buffer'.
@@ -1202,7 +1207,7 @@ public:
 	//  address [in]  The address where the bytes will be copied from.
 	//  buffer  [out] The buffer where the bytes will be copied to.
 	//  size    [in]  The number of bytes to be copied.
-	static void Read(const uintptr_t address, void* const buffer, const SIZE_T size);
+	static bool Read(const uintptr_t address, void* const buffer, const SIZE_T size);
 
 	//Copies 'value' to 'address'.
 	//Parameters:
@@ -3606,7 +3611,7 @@ void MemEx::DeleteRemoteThread()
 	m_hThread = NULL;
 }
 
-//Implementation of MemIn
+//Implementation dependencies(MemIn)
 #include <cstdint>
 #include <Psapi.h>
 
@@ -3626,7 +3631,15 @@ MemIn::ProtectRegion::ProtectRegion(const uintptr_t address, const SIZE_T size, 
 
 MemIn::ProtectRegion::~ProtectRegion() { VirtualProtect(reinterpret_cast<LPVOID>(m_Address), m_Size, m_Protection, &m_Protection); }
 
-void MemIn::Read(const uintptr_t address, void* const buffer, const SIZE_T size) { memcpy(buffer, reinterpret_cast<const void*>(address), size); }
+bool MemIn::Read(const uintptr_t address, void* const buffer, const SIZE_T size)
+{
+	MEMORY_BASIC_INFORMATION mbi;
+	if (!VirtualQuery(reinterpret_cast<LPCVOID>(address), &mbi, sizeof(MEMORY_BASIC_INFORMATION)) ||
+		mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS))
+		return false;
+
+	memcpy(buffer, reinterpret_cast<const void*>(address), size);
+}
 
 bool MemIn::Write(const uintptr_t address, const void* const buffer, const SIZE_T size)
 {
