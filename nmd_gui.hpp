@@ -37,9 +37,12 @@ typedef uint16_t IndexType;
 #pragma comment(lib, "d3d9.lib")
 #endif
 
-#if GUI_D3D11
+#ifdef GUI_D3D11
 #include <d3d11.h>
 #pragma comment(lib, "d3d11.lib")
+
+#include <d3dcompiler.h>
+#pragma comment(lib, "d3dcompiler.lib")
 #endif
 
 namespace Gui
@@ -54,7 +57,8 @@ namespace Gui
     void D3D9Render();
 #endif
 
-#if GUI_D3D11
+#ifdef GUI_D3D11
+    void D3D11SetDevice(ID3D11DeviceContext* pDeviceContext);
     void D3D11Render();
 #endif
 
@@ -220,11 +224,7 @@ namespace Gui
         bool mouseDown[5];
         float mouseWheel;
         float mouseWheelH;
-        bool keyCtrl;
-        bool keyShift;
-        bool keyAlt;
-        bool keySuper;
-        bool keysDown[512];
+        bool keyStates[256];
 
         Vec2 mouseClickedPos[5]; //Mouse's position when the button was last clicked
 
@@ -410,11 +410,6 @@ namespace Gui
         RECT rect;
         GetClientRect(g_hwnd, &rect);
         g_context.io.displaySize = Vec2(static_cast<float>(rect.right - rect.left), static_cast<float>(rect.bottom - rect.top));
-
-        g_context.io.keyCtrl = (::GetKeyState(VK_CONTROL) & 0x8000) != 0;
-        g_context.io.keyShift = (::GetKeyState(VK_SHIFT) & 0x8000) != 0;
-        g_context.io.keyAlt = (::GetKeyState(VK_MENU) & 0x8000) != 0;
-        g_context.io.keySuper = false;
     }
 
     LRESULT WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -424,8 +419,7 @@ namespace Gui
         case WM_MOUSEMOVE:
             g_context.io.lastMousePos = g_context.io.mousePos;
             g_context.io.mousePos = Vec2(static_cast<float>(lParam & 0xffff), static_cast<float>(lParam >> 16));
-            return 0;
-
+            break;
         case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK:
         case WM_RBUTTONDOWN: case WM_RBUTTONDBLCLK:
         case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK:
@@ -436,12 +430,10 @@ namespace Gui
             else if (uMsg == WM_RBUTTONDOWN || uMsg == WM_RBUTTONDBLCLK) { button = 1; }
             else if (uMsg == WM_MBUTTONDOWN || uMsg == WM_MBUTTONDBLCLK) { button = 2; }
             else if (uMsg == WM_XBUTTONDOWN || uMsg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
-            if (!g_context.io.IsAnyMouseDown() && ::GetCapture() == NULL)
-                ::SetCapture(g_hwnd);
             g_context.io.mouseDown[button] = true;
 
             g_context.io.mouseClickedPos[button] = Vec2(static_cast<float>(lParam & 0xffff), static_cast<float>(lParam >> 16));
-            return 0;
+            break;
         }
         case WM_LBUTTONUP:
         case WM_RBUTTONUP:
@@ -455,29 +447,25 @@ namespace Gui
             else if (uMsg == WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
             g_context.io.mouseDown[button] = false;
             g_context.io.mouseUpQueue.emplace(button, g_context.io.mousePos);
-            if (!g_context.io.IsAnyMouseDown() && ::GetCapture() == g_hwnd)
-                ::ReleaseCapture();
-            return 0;
+            break;
         }
         case WM_MOUSEWHEEL:
             g_context.io.mouseWheel += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
-            return 0;
+            break;
         case WM_MOUSEHWHEEL:
             g_context.io.mouseWheelH += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
-            return 0;
+            break;
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
-            if (wParam < 256)
-                g_context.io.keysDown[wParam] = 1;
-            return 0;
+            g_context.io.keyStates[wParam] = true;
+            break;
         case WM_KEYUP:
         case WM_SYSKEYUP:
-            if (wParam < 256)
-                g_context.io.keysDown[wParam] = 0;
-            return 0;
+            g_context.io.keyStates[wParam] = false;
+            break;
         case WM_CHAR:
             g_context.io.AddInputCharacter(static_cast<uint16_t>(wParam));
-            return 0;
+            break;
         }
 
         return 0;
@@ -608,30 +596,149 @@ namespace Gui
     }
 
 
-#elif GUI_D3D11
-    static ID3D11Device* g_pDevice = nullptr;
-    static ID3D11DeviceContext* g_pDeviceContext = nullptr;
-    static IDXGIFactory* g_pFactory = nullptr;
-    static ID3D11Buffer* g_pVertexBuffer = nullptr;
-    static ID3D11Buffer* g_pIndexBuffer = nullptr;
-    static ID3D10Blob* g_pVertexShaderBlob = NULL;
+#elif defined(GUI_D3D11)
+    static ID3D11Device* g_pDevice = NULL;
+    static ID3D11DeviceContext* g_pDeviceContext = NULL;
+    static ID3D11Buffer* g_pVertexBuffer = NULL;
+    static ID3D11Buffer* g_pIndexBuffer = NULL;
+    static size_t g_vertexBufferSize = 0, g_indexBufferSize = 0;
+    static ID3DBlob* g_pShaderBlob = NULL;
     static ID3D11VertexShader* g_pVertexShader = NULL;
+    static ID3D11PixelShader* g_pPixelShader = NULL;
     static ID3D11InputLayout* g_pInputLayout = NULL;
     static ID3D11Buffer* g_pVertexConstantBuffer = NULL;
-    static ID3D10Blob* g_pPixelShaderBlob = NULL;
-    static ID3D11PixelShader* g_pPixelShader = NULL;
-    static ID3D11SamplerState* g_pFontSampler = NULL;
-    static ID3D11ShaderResourceView* g_pFontTextureView = NULL;
-    static ID3D11RasterizerState* g_pRasterizerState = NULL;
-    static ID3D11BlendState* g_pBlendState = NULL;
-    static ID3D11DepthStencilState* g_pDepthStencilState = nullptr;
-    static size_t g_vertexBufferSize, g_indexBufferSize;
 
-    void D3D11SetupRenderState()
+    void D3D11SetDevice(ID3D11DeviceContext* pDeviceContext)
     {
-        // Setup viewport
+        g_pDeviceContext = pDeviceContext;
+        g_pDeviceContext->GetDevice(&g_pDevice);
+    }
+
+    void D3D11Render()
+    {
+        struct VERTEX_CONSTANT_BUFFER { float mvp[4][4]; };
+
+        if (g_context.io.displaySize.x <= 0.0f || g_context.io.displaySize.y <= 0.0f)
+            return;
+
+        if (!g_pVertexShader)
+        {
+            const char* const pixelShaderCode = "\
+            struct PS_INPUT { float4 pos : SV_POSITION; float4 color : COLOR0; };\
+            float4 main(PS_INPUT ps_input) : SV_TARGET\
+            {\
+                return ps_input.color;\
+            }";
+
+            if (D3DCompile(pixelShaderCode, strlen(pixelShaderCode), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &g_pShaderBlob, NULL) != S_OK)
+                return;
+
+            if (g_pDevice->CreatePixelShader(g_pShaderBlob->GetBufferPointer(), g_pShaderBlob->GetBufferSize(), NULL, &g_pPixelShader) != S_OK)
+                return;
+
+            const char* const vertexShaderCode = "\
+            cbuffer vertexBuffer : register(b0) { float4x4 projectionMatrix; };\
+            struct VS_INPUT { float2 pos : POSITION; float4 color : COLOR0; };\
+            struct PS_INPUT { float4 pos : SV_POSITION; float4 color : COLOR0; };\
+            PS_INPUT main(VS_INPUT vs_input)\
+            {\
+                PS_INPUT ps_input;\
+                ps_input.pos = mul(projectionMatrix, float4(vs_input.pos.xy, 0.0f, 1.0f));\
+                ps_input.color = vs_input.color;\
+                return ps_input;\
+            }";
+
+            if (D3DCompile(vertexShaderCode, strlen(vertexShaderCode), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &g_pShaderBlob, NULL) != S_OK)
+                return;
+
+            if (g_pDevice->CreateVertexShader(g_pShaderBlob->GetBufferPointer(), g_pShaderBlob->GetBufferSize(), NULL, &g_pVertexShader) != S_OK)
+                return;
+
+            D3D11_INPUT_ELEMENT_DESC inputs[] = {
+                { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+                { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            };
+            if(g_pDevice->CreateInputLayout(inputs, 2, g_pShaderBlob->GetBufferPointer(), g_pShaderBlob->GetBufferSize(), &g_pInputLayout) != S_OK)
+                return;
+
+            g_pShaderBlob->Release();
+
+            D3D11_BUFFER_DESC desc;
+            desc.ByteWidth = sizeof(VERTEX_CONSTANT_BUFFER);
+            desc.Usage = D3D11_USAGE_DYNAMIC;
+            desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            desc.MiscFlags = 0;
+            g_pDevice->CreateBuffer(&desc, NULL, &g_pVertexConstantBuffer);
+        }
+
+        if (!g_pVertexBuffer || g_vertexBufferSize < g_context.drawList.vertices.size())
+        {
+            if (g_pVertexBuffer)
+                g_pVertexBuffer->Release(), g_pVertexBuffer = nullptr;
+
+            g_vertexBufferSize = g_context.drawList.vertices.size() + 5000;
+
+            D3D11_BUFFER_DESC desc;
+            desc.Usage = D3D11_USAGE_DYNAMIC;
+            desc.ByteWidth = g_vertexBufferSize * sizeof(Vertex);
+            desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            desc.MiscFlags = 0;
+
+            if (g_pDevice->CreateBuffer(&desc, NULL, &g_pVertexBuffer) != S_OK)
+                return;
+        }
+
+        if (!g_pIndexBuffer || g_indexBufferSize < g_context.drawList.indices.size())
+        {
+            if (g_pIndexBuffer)
+                g_pIndexBuffer->Release(), g_pIndexBuffer = nullptr;
+
+            g_indexBufferSize = g_context.drawList.indices.size() + 10000;
+
+            D3D11_BUFFER_DESC desc;
+            desc.Usage = D3D11_USAGE_DYNAMIC;
+            desc.ByteWidth = g_indexBufferSize * sizeof(IndexType);
+            desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            desc.MiscFlags = 0;
+
+            if (g_pDevice->CreateBuffer(&desc, NULL, &g_pIndexBuffer) != S_OK)
+                return;
+        }
+
+        D3D11_MAPPED_SUBRESOURCE mappedResource = { NULL, 0, 0 };
+        if (g_pDeviceContext->Map(g_pVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+            return;
+        size_t i = 0;
+        for (auto& vertex : g_context.drawList.vertices)
+            memcpy(reinterpret_cast<uint8_t*>(mappedResource.pData) + i * 12, &vertex, 12), i++;
+        g_pDeviceContext->Unmap(g_pVertexBuffer, 0);
+
+        if (g_pDeviceContext->Map(g_pIndexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+            return;
+        memcpy(mappedResource.pData, g_context.drawList.indices.data(), sizeof(IndexType) * g_context.drawList.indices.size());
+        g_pDeviceContext->Unmap(g_pIndexBuffer, 0);
+
+        if (g_pDeviceContext->Map(g_pVertexConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+            return;
+        VERTEX_CONSTANT_BUFFER* constant_buffer = (VERTEX_CONSTANT_BUFFER*)mappedResource.pData;
+        const float L = 0.0f;
+        const float R = 0.0 + g_context.io.displaySize.x;
+        const float T = 0.0;
+        const float B = 0.0 + g_context.io.displaySize.y;
+        const float mvp[4][4] =
+        {
+            { 2.0f / (R - L),   0.0f,           0.0f,       0.0f },
+            { 0.0f,         2.0f / (T - B),     0.0f,       0.0f },
+            { 0.0f,         0.0f,           0.5f,       0.0f },
+            { (R + L) / (L - R),  (T + B) / (B - T),    0.5f,       1.0f },
+        };
+        memcpy(&constant_buffer->mvp, mvp, sizeof(mvp));
+        g_pDeviceContext->Unmap(g_pVertexConstantBuffer, 0);
+
         D3D11_VIEWPORT vp;
-        memset(&vp, 0, sizeof(D3D11_VIEWPORT));
         vp.Width = g_context.io.displaySize.x;
         vp.Height = g_context.io.displaySize.y;
         vp.MinDepth = 0.0f;
@@ -639,64 +746,17 @@ namespace Gui
         vp.TopLeftX = vp.TopLeftY = 0;
         g_pDeviceContext->RSSetViewports(1, &vp);
 
-        // Setup shader and vertex buffers
-        unsigned int stride = sizeof(Vertex);
-        unsigned int offset = 0;
+        UINT stride = 12;
+        UINT offset = 0;
         g_pDeviceContext->IASetInputLayout(g_pInputLayout);
         g_pDeviceContext->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
         g_pDeviceContext->IASetIndexBuffer(g_pIndexBuffer, sizeof(IndexType) == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT, 0);
         g_pDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         g_pDeviceContext->VSSetShader(g_pVertexShader, NULL, 0);
-        g_pDeviceContext->VSSetConstantBuffers(0, 1, &g_pVertexConstantBuffer);
         g_pDeviceContext->PSSetShader(g_pPixelShader, NULL, 0);
-        g_pDeviceContext->PSSetSamplers(0, 1, &g_pFontSampler);
-        g_pDeviceContext->GSSetShader(NULL, NULL, 0);
-        g_pDeviceContext->HSSetShader(NULL, NULL, 0); // In theory we should backup and restore this as well.. very infrequently used..
-        g_pDeviceContext->DSSetShader(NULL, NULL, 0); // In theory we should backup and restore this as well.. very infrequently used..
-        g_pDeviceContext->CSSetShader(NULL, NULL, 0); // In theory we should backup and restore this as well.. very infrequently used..
+        g_pDeviceContext->VSSetConstantBuffers(0, 1, &g_pVertexConstantBuffer);
 
-        // Setup blend state
-        const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
-        g_pDeviceContext->OMSetBlendState(g_pBlendState, blend_factor, 0xffffffff);
-        g_pDeviceContext->OMSetDepthStencilState(g_pDepthStencilState, 0);
-        g_pDeviceContext->RSSetState(g_pRasterizerState);
-    }
-
-    void D3D11Render()
-    {
-        if (g_context.io.displaySize.x <= 0.0f || g_context.io.displaySize.y <= 0.0f)
-            return;
-
-        if (!g_pVertexBuffer || g_vertexBufferSize < g_context.drawList.vertices.size())
-        {
-            if (g_pVertexBuffer) { g_pVertexBuffer->Release(); g_pVertexBuffer = nullptr; }
-            g_vertexBufferSize = g_context.drawList.vertices.size() + 5000;
-            D3D11_BUFFER_DESC desc;
-            memset(&desc, 0, sizeof(D3D11_BUFFER_DESC));
-            desc.Usage = D3D11_USAGE_DYNAMIC;
-            desc.ByteWidth = g_vertexBufferSize * sizeof(Vertex);
-            desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-            desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            desc.MiscFlags = 0;
-            if (g_pDevice->CreateBuffer(&desc, NULL, &g_pVertexBuffer) != S_OK)
-                return;
-        }
-
-        if (!g_pIndexBuffer || g_indexBufferSize < g_context.drawList.indices.size())
-        {
-            if (g_pIndexBuffer) { g_pIndexBuffer->Release(); g_pIndexBuffer = nullptr; }
-            g_indexBufferSize = g_context.drawList.indices.size() + 10000;
-            D3D11_BUFFER_DESC desc;
-            memset(&desc, 0, sizeof(D3D11_BUFFER_DESC));
-            desc.Usage = D3D11_USAGE_DYNAMIC;
-            desc.ByteWidth = g_indexBufferSize * sizeof(IndexType);
-            desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-            desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            if (g_pDevice->CreateBuffer(&desc, NULL, &g_pIndexBuffer) != S_OK)
-                return;
-        }
-
-        D3D11SetupRenderState();
+        g_pDeviceContext->DrawIndexed(static_cast<UINT>(g_context.drawList.indices.size()), 0, 0);
     }
 #endif
 

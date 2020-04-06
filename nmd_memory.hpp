@@ -268,8 +268,11 @@ public:
 	MemEx();
 	~MemEx();
 
-	//Returns true if opened, false otherwise.
-	bool IsOpened();
+	//Returns true if a handle is opened(i.e. Open() was called and Close() was not called after that), false otherwise.
+	bool IsOpened() const;
+
+	//Returns true if the attached process is running, false otherwise.
+	bool IsRunning() const;
 
 	//Opens to a process using a handle.
 	//Parameters:
@@ -2099,7 +2102,9 @@ MemEx::MemEx()
 
 MemEx::~MemEx() { Close(); }
 
-bool MemEx::IsOpened() { return m_hProcess; }
+bool MemEx::IsOpened() const { return m_hProcess != NULL; }
+
+bool MemEx::IsRunning() const { return GetProcessVersion(m_dwProcessId) != 0; }
 
 bool MemEx::Open(const HANDLE hProcess)
 {
@@ -2138,7 +2143,7 @@ void MemEx::Close()
 	CloseHandle(m_hProcess);
 	m_hProcess = NULL;
 
-	m_dwProcessId = static_cast<DWORD>(0);
+	m_dwProcessId = 0;
 }
 
 HANDLE MemEx::GetProcess() const { return m_hProcess; }
