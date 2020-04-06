@@ -30,5 +30,8 @@ TODO:
    - Add AddText() method to DrawList.
    - Implement default widgets.
    - Add support for the remaining Rendering APIs: Direct3D 12, OpenGL and Vulkan.
+   
+ - nmd_gui_editor.html
+   - Make the whole thing(only the basic structure is done) ;P
 
 I wanted to make this reposity in the same style as https://github.com/nothings/stb/ because it seemed practical.
