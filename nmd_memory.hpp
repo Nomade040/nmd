@@ -7,9 +7,6 @@
 // #define NMD_MEMORY_IMPLEMENTATION
 // #include "nmd_memory.hpp"
 //
-// Features:
-//  -
-//
 // TODO:
 //  - Finish ValueScan(), implement string scan and some other functionalities.
 //  - Make MemEx::Call() work in a wow64 process(target) from a 64 bit process(this process)
@@ -3644,6 +3641,8 @@ bool MemIn::Read(const uintptr_t address, void* const buffer, const SIZE_T size)
 		return false;
 
 	memcpy(buffer, reinterpret_cast<const void*>(address), size);
+
+	return true;
 }
 
 bool MemIn::Write(const uintptr_t address, const void* const buffer, const SIZE_T size)
