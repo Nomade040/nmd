@@ -16,8 +16,15 @@
 //  construct_string() -> takes as input a 'Instruction' and constructs its string representation.
 //
 // TODO
-//  - assembler
-//  - implement missing instruction encodings(e.g. VEX, EVEX).
+//  - Implement Assembler(only the initial parsing is done).
+//  - implement instruction set extensions to the disassembler : VEX, EVEX, MVEX, 3DNOW, XOP.
+//  - Check for bugs using fuzzers.
+//
+// References:
+//  - Intel 64 and IA - 32 Architectures Software Developer’s Manual Combined Volumes : 1, 2A, 2B, 2C, 2D, 3A, 3B, 3C, 3D, and 4
+//  - VIA PadLock Programming Guide
+//  - Capstone Engine
+//  - Zydis Disassembler
 
 #ifndef NMD_ASSEMBLY_H
 #define NMD_ASSEMBLY_H
@@ -46,7 +53,7 @@ enum X86_FORMAT_FLAGS
 	X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC    = (1 << 12), // Same as X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
 	X86_FORMAT_FLAGS_SCALE_ONE                 = (1 << 13), // If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al.
 	X86_FORMAT_FLAGS_ALL                       = (1 << 14) - 1, // Specifies all format flags.
-	X86_FORMAT_FLAGS_DEFAULT                   = (X86_FORMAT_FLAGS_HEX | X86_FORMAT_FLAGS_H_SUFFIX | X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
+	X86_FORMAT_FLAGS_DEFAULT                   = (X86_FORMAT_FLAGS_HEX | X86_FORMAT_FLAGS_H_SUFFIX | X86_FORMAT_FLAGS_POINTER_SIZE | X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
 };
 
 enum INSTRUCTION_PREFIXES
@@ -3300,36 +3307,3 @@ void construct_string(const Instruction* const instruction, char* const buffer, 
 #endif // NMD_ASSEMBLY_IMPLEMENTATION
 
 #endif // NMD_ASSEMBLY_H
-
-/*
-References:
- - Intel 64 and IA-32 Architectures Software Developer’s Manual Combined Volumes: 1, 2A, 2B, 2C, 2D, 3A, 3B, 3C, 3D, and 4
- - VIA PadLock Programming Guide
- - Capstone Engine
- - Zydis Disassembler
-
-This is free and unencumbered software released into the public domain.
-
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
-
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
-
-For more information, please refer to <http://unlicense.org/>
-*/
