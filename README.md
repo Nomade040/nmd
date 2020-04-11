@@ -11,4 +11,9 @@ All libraries require that you define the macro NMD_{LIBRARY_NAME}_IMPLEMENTATIO
 
 The first few lines of each library are comments describing how the library works, you should read it.
 
+Showcase:
+![Image of disassembler](https://i.imgur.com/Zw2l94k.png)
+
+![Gif of an application using nmd_gui.hpp](https://media.giphy.com/media/KzoJfuFCt9vxyfYuFz/giphy.gif)
+
 I wanted to make this reposity in the same style as https://github.com/nothings/stb/ because it seemed practical.
