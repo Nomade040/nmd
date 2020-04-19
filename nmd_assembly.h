@@ -8,11 +8,12 @@
 // #include "nmd_assembly.h"
 // 
 // Enabling features(These features are DISABLED BY DEFAULT unless the macros are used):
-//  - If the 'NMD_ASSEMBLY_ENABLE_REFERENCED_CPU_STATE' macro is defined, the disassembler FILLS the 'numReadRegs', 'readRegs', ... members of the NMD_X86Instruction struct.
+//  - If the 'NMD_ASSEMBLY_ENABLE_AFFECTED_CPU_STATE' macro is defined, the disassembler FILLS the 'numReadRegs', 'readRegs', ... members of the NMD_X86Instruction struct.
 //
 // Disabling features(These features are ENABLED BY DEFAULT unless the macros are used):
-//  - If the 'NMD_ASSEMBLY_DISABLE_VEX' macro is defined, the assembler and disassembler STOPS supporting VEX instructions.
-//  - If the 'NMD_ASSEMBLY_DISABLE_EVEX' macro is defined, the assembler and disassembler STOPS supporting EVEX instructions.
+//  - If the 'NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK' macro is defined, the disassembler function does not check if the instruction is valid.
+//  - If the 'NMD_ASSEMBLY_DISABLE_VEX' macro is defined, the assembler and disassembler STOP supporting VEX instructions.
+//  - If the 'NMD_ASSEMBLY_DISABLE_EVEX' macro is defined, the assembler and disassembler STOP supporting EVEX instructions.
 //
 // Important struct:
 //  'NMD_X86Instruction': represents one x86 instruction.
@@ -24,7 +25,7 @@
 //
 // TODO
 //  - Implement x86 Assembler(only the initial parsing is done).
-//  - Implement referenced cpu states on NMD_X86Instruction.
+//  - Implement affected cpu states on NMD_X86Instruction.
 //  - implement instruction set extensions to the disassembler : VEX, EVEX, MVEX, 3DNOW, XOP.
 //  - Fix default segment override(DS,SS). Some instructions are showing the wrong one.
 //  - Check for bugs using fuzzers.
@@ -32,9 +33,9 @@
 //
 // References:
 //  - Intel 64 and IA - 32 Architectures Software Developer’s Manual Combined Volumes : 1, 2A, 2B, 2C, 2D, 3A, 3B, 3C, 3D, and 4.
-//  - VIA PadLock Programming Guide.
 //  - Capstone Engine.
 //  - Zydis Disassembler.
+//  - VIA PadLock Programming Guide.
 
 #ifndef NMD_ASSEMBLY_H
 #define NMD_ASSEMBLY_H
@@ -505,6 +506,10 @@ void nmd_asm_parseModRM(const uint8_t** b, NMD_X86Instruction* const instruction
 				instruction->dispMask = (addressPrefix && !(instruction->mode == NMD_X86_MODE_64 && instruction->prefixes & NMD_X86_ADDRESS_SIZE_OVERRIDE_PREFIX) ? NMD_X86_DISP16 : NMD_X86_DISP32);
 			else if (instruction->flags.hasSIB && instruction->sib.base == 0b101) //disp8,32 (SIB)
 				instruction->dispMask = (instruction->modrm.mod == 0b01 ? NMD_X86_DISP8 : NMD_X86_DISP32);
+
+#ifdef NMD_ASSEMBLY_ENABLE_AFFECTED_CPU_STATE
+
+#endif
 		}
 	}
 
@@ -678,21 +683,27 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 			{
 				instruction->opcodeMap = NMD_X86_OPCODE_MAP_0F_38;
 
+#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+				//Check if the instruction is invalid.
 				if (((*b == 0xf0 || *b == 0xf1) && ((instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX || !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) && modrm.mod == 0b11)) ||
 					!(*b <= 0xb || (*b >= 0x1c && *b <= 0x1e) || (*b >= 0xc8 && *b <= 0xcd) ||
 					(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x10 || *b == 0x14 || *b == 0x15 || *b == 0x17 || (*b >= 0x20 && *b <= 0x25) || (*b == 0x2a && modrm.mod != 0b11) || (*b >= 0x28 && *b <= 0x2b && *b != 0x2a) || (NMD_R(*b) == 3 && *b != 0x36) || *b == 0x40 || *b == 0x41 || ((*b >= 0x80 && *b <= 0x82) && modrm.mod != 0b11) || (*b >= 0xdb && *b <= 0xdf))) ||
 					((*b == 0xf0 || *b == 0xf1) && !(instruction->prefixes & NMD_X86_REPEAT_PREFIX)) ||
 					(*b == 0xf6 && instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX))))
 					return false;
+#endif
 			}
 			else
 			{
 				instruction->opcodeMap = NMD_X86_OPCODE_MAP_0F_3A;
 				instruction->immMask = NMD_X86_IMM8, offset++;
 
+#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+				//Check if the instruction is invalid.
 				if (!(((instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX || !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) && *b == 0xf) || *b == 0xcc ||
 					(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && ((*b >= 0x8 && *b <= 0xe) || (*b >= 0x14 && *b <= 0x17) || (*b >= 0x20 && *b <= 0x22) || (*b >= 0x40 && *b <= 0x42) || *b == 0x44 || (*b >= 0x60 && *b <= 0x63) || *b == 0xdf))))
 					return false;
+#endif
 			}
 
 			nmd_asm_parseModRM(&b, instruction);
@@ -703,6 +714,8 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 			instruction->opcodeSize = 2;
 			instruction->opcode = *b;
 
+#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+			//Check if the instruction is invalid.
 			const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
 			const uint8_t invalid2op[] = { 0x04, 0x0a, 0x0c, 0x0f, 0x7a, 0x7b };
 			if (nmd_asm_findByte(invalid2op, sizeof(invalid2op), *b) ||
@@ -731,6 +744,7 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 				(*b == 0xf0 && (!(instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX) || modrm.mod == 0b11)) ||
 				(((*b == 0xd6 && instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) || *b == 0xd7 || *b == 0xf7 || *b == 0xc5) && modrm.mod != 0b11))
 				return false;
+#endif
 
 			if (NMD_R(*b) == 8) //disp32
 				instruction->immMask = (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX ? NMD_X86_IMM16 : NMD_X86_IMM32), offset += instruction->immMask;
@@ -750,7 +764,8 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 		instruction->opcode = *b;
 		instruction->opcodeMap = NMD_X86_OPCODE_MAP_DEFAULT;
 
-		//Check for potential invalid instructions
+#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+		//Check if the instruction is invalid.
 		const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
 		if (((*b == 0xC6 || *b == 0xC7) && ((modrm.reg != 0b000 && modrm.reg != 0b111) || (modrm.reg == 0b111 && (modrm.mod != 0b11 || modrm.rm != 0b000)))) ||
 			(*b == 0x8f && modrm.reg != 0b000) ||
@@ -793,11 +808,12 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 		}
 		else if (mode == NMD_X86_MODE_64 && (*b == 0x6 || *b == 0x7 || *b == 0xe || *b == 0x16 || *b == 0x17 || *b == 0x1e || *b == 0x1f || *b == 0x27 || *b == 0x2f || *b == 0x37 || *b == 0x3f || (*b >= 0x60 && *b <= 0x62) || *b == 0x82 || *b == 0xce || (*b >= 0xd4 && *b <= 0xd6)))
 			return false;
+#endif
 		
 #ifndef NMD_ASSEMBLY_DISABLE_EVEX
 		if (*b == 0x62 && modrm.mod == 0b11)
 		{
-			instruction->encoding = INSTRUCTION_ENCODING_EVEX;
+			instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
 		}
 #endif
 
