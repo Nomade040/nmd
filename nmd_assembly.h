@@ -6,15 +6,6 @@
 // #include <...>
 // #define NMD_ASSEMBLY_IMPLEMENTATION
 // #include "nmd_assembly.h"
-// 
-// Enabling features(These features are DISABLED BY DEFAULT unless the macros are used):
-//  - If the 'NMD_ASSEMBLY_ENABLE_AFFECTED_CPU_STATE' macro is defined, the disassembler fills the 'numReadRegs', 'readRegs', ... members of the NMD_X86Instruction struct.
-//  - If the 'NMD_ASSEMBLY_ENABLE_NUM_OPERANDS' macro is defined, the disassembler, fills the 'numOperands' member of the NMD_X86Instruction struct.
-//
-// Disabling features(These features are ENABLED BY DEFAULT unless the macros are used):
-//  - If the 'NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK' macro is defined, the disassembler function does not check if the instruction is valid.
-//  - If the 'NMD_ASSEMBLY_DISABLE_VEX' macro is defined, the assembler and disassembler STOP supporting VEX instructions.
-//  - If the 'NMD_ASSEMBLY_DISABLE_EVEX' macro is defined, the assembler and disassembler STOP supporting EVEX instructions.
 //
 // Important struct:
 //  'NMD_X86Instruction': represents one x86 instruction.
@@ -24,13 +15,24 @@
 //  nmd_x86_disassemble() -> takes as input a sequence of bytes and fills a 'NMD_X86Instruction'.
 //  nmd_x86_construct_string() -> takes as input a 'NMD_X86Instruction' and constructs its string representation.
 //
+// Disabling features completely(By using the following macros code size is reduced and execution speed is increased):
+//  - 'NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK': the disassembler function does not check if the instruction is valid.
+//  - 'NMD_ASSEMBLY_DISABLE_NUM_OPERANDS': the disassembler doesn't fill the 'numOperands' member of the NMD_X86Instruction struct.
+//  - 'NMD_ASSEMBLY_DISABLE_GROUP': the disassembler doesn't fill the 'group' member of the NMD_X86Instruction struct.
+//  - 'NMD_ASSEMBLY_DISABLE_AFFECTED_CPU_STATE': the disassembler doesn't fill the following members: 'numRegsRead', 'regsRead', 'numRegsWrite' and 'regsWrite' members of the NMD_X86Instruction struct.
+//  - 'NMD_ASSEMBLY_DISABLE_VEX': the assembler and disassembler doesn't support VEX instructions.
+//  - 'NMD_ASSEMBLY_DISABLE_EVEX': the assembler and disassembler doesn't support EVEX instructions.
+//
 // TODO
-//  - Implement x86 Assembler(only the initial parsing is done).
-//  - Implement affected cpu states on NMD_X86Instruction.
-//  - implement instruction set extensions to the disassembler : VEX, EVEX, MVEX, 3DNOW, XOP.
-//  - Fix default segment override(DS,SS). Some instructions are showing the wrong one.
-//  - Check for bugs using fuzzers.
-//  - Add support for ARM.
+//  Short-Term
+//   - Implement affected cpu states on NMD_X86Instruction.
+//   - implement instruction set extensions to the disassembler : VEX, EVEX, MVEX, 3DNOW, XOP.
+//   - Fix default segment override(DS,SS). Some instructions are showing the wrong one.
+//   - Implement x86 Assembler(only the initial parsing is done).
+//  Mid-Term
+//   - Implement decompiler for x86.
+//  Long-Term 
+//   - Add support for ARM(i.e. assembler, disassembler and decompiler).
 //
 // References:
 //  - Intel 64 and IA - 32 Architectures Software Developer's Manual Combined Volumes : 1, 2A, 2B, 2C, 2D, 3A, 3B, 3C, 3D, and 4.
@@ -50,63 +52,63 @@
 //These format flags specify how a string that represents an instruction should be constructed.
 enum NMD_X86_FORMAT_FLAGS
 {
-	NMD_X86_FORMAT_FLAGS_HEX = (1 << 0), // If set, numbers are displayed in hex base, otherwise they are displayed in decimal base.
-	NMD_X86_FORMAT_FLAGS_POINTER_SIZE = (1 << 1), // Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed.
-	NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE = (1 << 2), // If set, only segment overrides using prefixes(e.g. '2EH', '64H') are displayed, otherwise a segment is always present before a memory operand.
-	NMD_X86_FORMAT_FLAGS_COMMA_SPACES = (1 << 3), // A space is placed after a comma.
-	NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES = (1 << 4), // A space is placed before and after the '+' and '-' characters.
-	NMD_X86_FORMAT_FLAGS_UPPERCASE = (1 << 5), // The string is uppercase.
-	NMD_X86_FORMAT_FLAGS_0X_PREFIX = (1 << 6), // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
-	NMD_X86_FORMAT_FLAGS_H_SUFFIX = (1 << 7), // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
-	NMD_X86_FORMAT_FLAGS_ENFORCE_HEX_ID = (1 << 8), // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
-	NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE = (1 << 9), // If the HEX flag is set and the UPPERCASE flag is not set, hexadecimal numbers are displayed in lowercase.
+	NMD_X86_FORMAT_FLAGS_HEX                       = (1 << 0),  // If set, numbers are displayed in hex base, otherwise they are displayed in decimal base.
+	NMD_X86_FORMAT_FLAGS_POINTER_SIZE              = (1 << 1),  // Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed.
+	NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE     = (1 << 2),  // If set, only segment overrides using prefixes(e.g. '2EH', '64H') are displayed, otherwise a segment is always present before a memory operand.
+	NMD_X86_FORMAT_FLAGS_COMMA_SPACES              = (1 << 3),  // A space is placed after a comma.
+	NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES           = (1 << 4),  // A space is placed before and after the '+' and '-' characters.
+	NMD_X86_FORMAT_FLAGS_UPPERCASE                 = (1 << 5),  // The string is uppercase.
+	NMD_X86_FORMAT_FLAGS_0X_PREFIX                 = (1 << 6),  // Hexadecimal numbers have the '0x'('0X' if uppercase) prefix.
+	NMD_X86_FORMAT_FLAGS_H_SUFFIX                  = (1 << 7),  // Hexadecimal numbers have the 'h'('H' if uppercase') suffix.
+	NMD_X86_FORMAT_FLAGS_ENFORCE_HEX_ID            = (1 << 8),  // If the HEX flag is set and either the prefix or suffix flag is also set, numbers less than 10 are displayed with preffix or suffix.
+	NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE             = (1 << 9),  // If the HEX flag is set and the UPPERCASE flag is not set, hexadecimal numbers are displayed in lowercase.
 	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW = (1 << 10), // If set, signed numbers are displayed as they are represented in memory(e.g. -1 = 0xFFFFFFFF).
-	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX = (1 << 11), // If set and NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW is also set, the number's hexadecimal representation is displayed in parenthesis.
-	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC = (1 << 12), // Same as NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
-	NMD_X86_FORMAT_FLAGS_SCALE_ONE = (1 << 13), // If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al.
-	NMD_X86_FORMAT_FLAGS_ALL = (1 << 14) - 1, // Specifies all format flags.
-	NMD_X86_FORMAT_FLAGS_DEFAULT = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
-	NMD_X86_FORMAT_FLAGS_CAPSTONE_ENGINE = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES) // Specifies a format similar to the default capstone engine's stlye.
+	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX    = (1 << 11), // If set and NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW is also set, the number's hexadecimal representation is displayed in parenthesis.
+	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC    = (1 << 12), // Same as NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
+	NMD_X86_FORMAT_FLAGS_SCALE_ONE                 = (1 << 13), // If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al.
+	NMD_X86_FORMAT_FLAGS_ALL                       = (1 << 14) - 1, // Specifies all format flags.
+	NMD_X86_FORMAT_FLAGS_DEFAULT                   = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
+	NMD_X86_FORMAT_FLAGS_CAPSTONE_ENGINE           = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES) // Specifies a format similar to the default capstone engine's stlye.
 };
 
 enum NMD_X86_INSTRUCTION_PREFIXES
 {
-	NMD_X86_NONE_PREFIX = 0,
-	NMD_X86_ES_SEGMENT_OVERRIDE_PREFIX = (1 << 0),
-	NMD_X86_CS_SEGMENT_OVERRIDE_PREFIX = (1 << 1),
-	NMD_X86_SS_SEGMENT_OVERRIDE_PREFIX = (1 << 2),
-	NMD_X86_DS_SEGMENT_OVERRIDE_PREFIX = (1 << 3),
-	NMD_X86_FS_SEGMENT_OVERRIDE_PREFIX = (1 << 4),
-	NMD_X86_GS_SEGMENT_OVERRIDE_PREFIX = (1 << 5),
+	NMD_X86_NONE_PREFIX                  = 0,
+	NMD_X86_ES_SEGMENT_OVERRIDE_PREFIX   = (1 << 0),
+	NMD_X86_CS_SEGMENT_OVERRIDE_PREFIX   = (1 << 1),
+	NMD_X86_SS_SEGMENT_OVERRIDE_PREFIX   = (1 << 2),
+	NMD_X86_DS_SEGMENT_OVERRIDE_PREFIX   = (1 << 3),
+	NMD_X86_FS_SEGMENT_OVERRIDE_PREFIX   = (1 << 4),
+	NMD_X86_GS_SEGMENT_OVERRIDE_PREFIX   = (1 << 5),
 	NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX = (1 << 6),
 	NMD_X86_ADDRESS_SIZE_OVERRIDE_PREFIX = (1 << 7),
-	NMD_X86_LOCK_PREFIX = (1 << 8),
-	NMD_X86_REPEAT_NOT_ZERO_PREFIX = (1 << 9),
-	NMD_X86_REPEAT_PREFIX = (1 << 10),
-	NMD_X86_REX_PREFIX = (1 << 11),
-	NMD_X86_REX_W_PREFIX = (1 << 12),
-	NMD_X86_REX_R_PREFIX = (1 << 13),
-	NMD_X86_REX_X_PREFIX = (1 << 14),
-	NMD_X86_REX_B_PREFIX = (1 << 15)
+	NMD_X86_LOCK_PREFIX                  = (1 << 8),
+	NMD_X86_REPEAT_NOT_ZERO_PREFIX       = (1 << 9),
+	NMD_X86_REPEAT_PREFIX                = (1 << 10),
+	NMD_X86_REX_PREFIX                   = (1 << 11),
+	NMD_X86_REX_W_PREFIX                 = (1 << 12),
+	NMD_X86_REX_R_PREFIX                 = (1 << 13),
+	NMD_X86_REX_X_PREFIX                 = (1 << 14),
+	NMD_X86_REX_B_PREFIX                 = (1 << 15)
 };
 
 enum NMD_X86_IMM_MASK
 {
 	NMD_X86_IMM_NONE = 0,
-	NMD_X86_IMM8 = 1,
-	NMD_X86_IMM16 = 2,
-	NMD_X86_IMM32 = 4,
-	NMD_X86_IMM48 = 6,
-	NMD_X86_IMM64 = 8,
-	ANY_NMD_X86_IMM = (NMD_X86_IMM8 | NMD_X86_IMM16 | NMD_X86_IMM32 | NMD_X86_IMM64)
+	NMD_X86_IMM8     = 1,
+	NMD_X86_IMM16    = 2,
+	NMD_X86_IMM32    = 4,
+	NMD_X86_IMM48    = 6,
+	NMD_X86_IMM64    = 8,
+	ANY_NMD_X86_IMM  = (NMD_X86_IMM8 | NMD_X86_IMM16 | NMD_X86_IMM32 | NMD_X86_IMM64)
 };
 
 enum NMD_X86_DISP_MASK
 {
-	NMD_X86_DISP_NONE = 0,
-	NMD_X86_DISP8 = (1 << 0),
-	NMD_X86_DISP16 = (1 << 1),
-	NMD_X86_DISP32 = (1 << 2),
+	NMD_X86_DISP_NONE        = 0,
+	NMD_X86_DISP8            = (1 << 0),
+	NMD_X86_DISP16           = (1 << 1),
+	NMD_X86_DISP32           = (1 << 2),
 	NMD_X86_ANY_NMD_X86_DISP = (NMD_X86_DISP8 | NMD_X86_DISP16 | NMD_X86_DISP32)
 };
 
@@ -114,7 +116,7 @@ typedef union NMD_Modrm
 {
 	struct
 	{
-		uint8_t rm : 3;
+		uint8_t rm  : 3;
 		uint8_t reg : 3;
 		uint8_t mod : 2;
 	};
@@ -125,7 +127,7 @@ typedef union NMD_SIB
 {
 	struct
 	{
-		uint8_t base : 3;
+		uint8_t base  : 3;
 		uint8_t index : 3;
 		uint8_t scale : 2;
 	};
@@ -135,13 +137,13 @@ typedef union NMD_SIB
 //You may use this enum to construct a mask and check against NMD_X86InstructionFlags::flags.
 enum NMD_X86_INSTRUCTION_FLAGS
 {
-	NMD_X86_INSTRUCTION_FLAGS_VALID = (1 << 0),
-	NMD_X86_INSTRUCTION_FLAGS_X86_64 = (1 << 1),
-	NMD_X86_INSTRUCTION_FLAGS_HAS_MODRM = (1 << 2),
-	NMD_X86_INSTRUCTION_FLAGS_HAS_SIB = (1 << 3),
-	NMD_X86_INSTRUCTION_FLAGS_IS_3OP_38H = (1 << 4),
+	NMD_X86_INSTRUCTION_FLAGS_VALID           = (1 << 0),
+	NMD_X86_INSTRUCTION_FLAGS_X86_64          = (1 << 1),
+	NMD_X86_INSTRUCTION_FLAGS_HAS_MODRM       = (1 << 2),
+	NMD_X86_INSTRUCTION_FLAGS_HAS_SIB         = (1 << 3),
+	NMD_X86_INSTRUCTION_FLAGS_IS_3OP_38H      = (1 << 4),
 	NMD_X86_INSTRUCTION_FLAGS_OPERAND_SIZE_64 = (1 << 5),
-	NMD_X86_INSTRUCTION_FLAGS_REPEAT_PREFIX = (1 << 6),
+	NMD_X86_INSTRUCTION_FLAGS_REPEAT_PREFIX   = (1 << 6),
 };
 
 //X86 mode.
@@ -387,6 +389,17 @@ typedef enum NMD_X86_REG
 	NMD_X86_REG_ZMM31,
 } NMD_X86_REG;
 
+typedef enum NMD_GROUP {
+	NMD_GROUP_INVALID         = 0,
+	NMD_GROUP_JUMP            = (1 << 0), // Conditional, direct and indirect jumps.
+	NMD_GROUP_CALL            = (1 << 1), // Call instructions
+	NMD_GROUP_RET             = (1 << 2), // Return instructions
+	NMD_GROUP_IRET            = (1 << 3), // Interrupt return instructions
+	NMD_GROUP_INT             = (1 << 4), // Interrupt instructions(int and syscall)
+	NMD_GROUP_PRIVILEGE       = (1 << 5), // Privileged instructions
+	NMD_GROUP_BRANCH_RELATIVE = (1 << 6), // Relative branching instructions
+} NMD_GROUP;
+
 typedef struct NMD_X86_REG_INFO
 {
 	uint8_t portion; // The portion of the register. A member of the 'NMD_X86_REG_PORTION'.
@@ -397,11 +410,11 @@ typedef union NMD_X86InstructionFlags
 {
 	struct
 	{
-		bool valid : 1; // If true, the instruction is valid.
-		bool hasModrm : 1; // If true, the instruction has a modrm byte.
-		bool hasSIB : 1; // If true, the instruction has an SIB byte.
+		bool valid         : 1; // If true, the instruction is valid.
+		bool hasModrm      : 1; // If true, the instruction has a modrm byte.
+		bool hasSIB        : 1; // If true, the instruction has an SIB byte.
 		bool operandSize64 : 1; // If true, a REX.W prefix is closer to the opcode than a operand size override prefix.
-		bool repeatPrefix : 1; // If true, a 'repeat'(F3h) prefix is closer to the opcode than a 'repeat not zero'(F2h) prefix.
+		bool repeatPrefix  : 1; // If true, a 'repeat'(F3h) prefix is closer to the opcode than a 'repeat not zero'(F2h) prefix.
 	};
 	uint8_t flags;
 } NMD_X86InstructionFlags;
@@ -409,12 +422,13 @@ typedef union NMD_X86InstructionFlags
 typedef struct NMD_X86Instruction
 {
 	NMD_X86InstructionFlags flags; // See the 'NMD_X86InstructionFlags' union.
-	uint8_t opcodeMap;             // The opcode map the instruction belongs to. A member of the 'OPCODE_MAP' enum.
-	uint8_t encoding;              // The instruction's encoding. A member of the 'INSTRUCTION_ENCODING' enum.
+	uint8_t opcodeMap;             // The opcode map the instruction belongs to. A member of the 'NMD_x86_OPCODE_MAP' enum.
+	uint8_t encoding;              // The instruction's encoding. A member of the 'NMD_X86_INSTRUCTION_ENCODING' enum.
 	uint8_t numPrefixes;           // Number of prefixes.
 	uint8_t length;                // The instruction's length in bytes.
 	uint8_t opcodeSize;            // The opcode's size in bytes.
 	uint8_t numOperands;           // The number of operands.
+	uint8_t group;                 // Instruction group. A member of the 'NMD_GROUP' enum.
 	uint8_t numRegsRead;           // Number of registers read from.
 	NMD_X86_REG_INFO regsRead[4];  // Registers read from.
 	uint8_t numRegsWrite;          // Numbers of registers written to.
@@ -436,6 +450,19 @@ typedef struct NMD_X86Instruction
 	uint8_t fullInstruction[15];   // Buffer containing the full instruction.
 } NMD_X86Instruction;
 
+enum NMD_X86_FEATURE_FLAGS
+{
+	NMD_X86_FEATURE_FLAGS_NONE               = 0,
+	NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK     = (1 << 0),
+	NMD_X86_FEATURE_FLAGS_NUM_OPERANDS       = (1 << 1),
+	NMD_X86_FEATURE_FLAGS_GROUP              = (1 << 2),
+	NMD_X86_FEATURE_FLAGS_AFFECTED_CPU_STATE = (1 << 3),
+	NMD_X86_FEATURE_FLAGS_VEX                = (1 << 4),
+	NMD_X86_FEATURE_FLAGS_EVEX               = (1 << 5),
+	NMD_X86_FEATURE_FLAGS_MINIMAL            = (NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK | NMD_X86_FEATURE_FLAGS_VEX | NMD_X86_FEATURE_FLAGS_EVEX),
+	NMD_X86_FEATURE_FLAGS_ALL                = (1 << 6) - 1,
+};
+
 //Assembles an instruction from a string. Returns true if the operation was successful, false otherwise.
 //Parameters:
 //  string      [in]  A pointer to a string.
@@ -450,7 +477,9 @@ bool nmd_x86_assemble(const char* string, NMD_X86Instruction* instruction, NMD_X
 //  runtimeAddress [in]  The instruction's runtime address. If this parameter 
 //                       is -1, displacements(64 bit) are prefixed with 'rip+'.
 //	mode           [in]  A member of the 'NMD_X86_MODE' enum.
-bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode);
+//  featureFlags   [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX'. You may choose
+//                       to use less features to increase execution speed.
+bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode, uint32_t featureFlags);
 
 //Constructs a string from a pointer to variable of type 'NMD_X86Instruction'.
 //This function may cause a crash if you modify 'instruction' manually.
@@ -508,10 +537,6 @@ void nmd_asm_parseModRM(const uint8_t** b, NMD_X86Instruction* const instruction
 				instruction->dispMask = (addressPrefix && !(instruction->mode == NMD_X86_MODE_64 && instruction->prefixes & NMD_X86_ADDRESS_SIZE_OVERRIDE_PREFIX) ? NMD_X86_DISP16 : NMD_X86_DISP32);
 			else if (instruction->flags.hasSIB && instruction->sib.base == 0b101) //disp8,32 (SIB)
 				instruction->dispMask = (instruction->modrm.mod == 0b01 ? NMD_X86_DISP8 : NMD_X86_DISP32);
-
-#ifdef NMD_ASSEMBLY_ENABLE_AFFECTED_CPU_STATE
-
-#endif
 		}
 	}
 
@@ -609,7 +634,7 @@ bool nmd_x86_assemble(const char* string, NMD_X86Instruction* instruction, NMD_X
 	return true;
 }
 
-bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode)
+bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode, uint32_t featureFlags)
 {
 	const uint8_t prefixes[] = { 0xF0, 0xF2, 0xF3, 0x2E, 0x36, 0x3E, 0x26, 0x64, 0x65, 0x66, 0x67 };
 	const uint8_t op1modrm[] = { 0x62, 0x63, 0x69, 0x6B, 0xC0, 0xC1, 0xC4, 0xC5, 0xC6, 0xC7, 0xD0, 0xD1, 0xD2, 0xD3, 0xF6, 0xF7, 0xFE, 0xFF };
@@ -686,17 +711,21 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 				instruction->opcodeMap = NMD_X86_OPCODE_MAP_0F_38;
 
 #ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
-				//Check if the instruction is invalid.
-				if (((*b == 0xf0 || *b == 0xf1) && ((instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX || !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) && modrm.mod == 0b11)) ||
-					!(*b <= 0xb || (*b >= 0x1c && *b <= 0x1e) || (*b >= 0xc8 && *b <= 0xcd) ||
-						(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x10 || *b == 0x14 || *b == 0x15 || *b == 0x17 || (*b >= 0x20 && *b <= 0x25) || (*b == 0x2a && modrm.mod != 0b11) || (*b >= 0x28 && *b <= 0x2b && *b != 0x2a) || (NMD_R(*b) == 3 && *b != 0x36) || *b == 0x40 || *b == 0x41 || ((*b >= 0x80 && *b <= 0x82) && modrm.mod != 0b11) || (*b >= 0xdb && *b <= 0xdf))) ||
-						((*b == 0xf0 || *b == 0xf1) && !(instruction->prefixes & NMD_X86_REPEAT_PREFIX)) ||
-						(*b == 0xf6 && instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX))))
-					return false;
+				if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
+				{
+					//Check if the instruction is invalid.
+					if (((*b == 0xf0 || *b == 0xf1) && ((instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX || !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) && modrm.mod == 0b11)) ||
+						!(*b <= 0xb || (*b >= 0x1c && *b <= 0x1e) || (*b >= 0xc8 && *b <= 0xcd) ||
+							(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x10 || *b == 0x14 || *b == 0x15 || *b == 0x17 || (*b >= 0x20 && *b <= 0x25) || (*b == 0x2a && modrm.mod != 0b11) || (*b >= 0x28 && *b <= 0x2b && *b != 0x2a) || (NMD_R(*b) == 3 && *b != 0x36) || *b == 0x40 || *b == 0x41 || ((*b >= 0x80 && *b <= 0x82) && modrm.mod != 0b11) || (*b >= 0xdb && *b <= 0xdf))) ||
+							((*b == 0xf0 || *b == 0xf1) && !(instruction->prefixes & NMD_X86_REPEAT_PREFIX)) ||
+							(*b == 0xf6 && instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX))))
+						return false;
+				}
 #endif
 
-#ifdef NMD_ASSEMBLY_ENABLE_NUM_OPERANDS
-				instruction->numOperands = 2;
+#ifndef NMD_ASSEMBLY_DISABLE_NUM_OPERANDS
+				if(featureFlags & NMD_X86_FEATURE_FLAGS_NUM_OPERANDS)
+					instruction->numOperands = 2;
 #endif
 			}
 			else
@@ -705,14 +734,18 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 				instruction->immMask = NMD_X86_IMM8, offset++;
 
 #ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
-				//Check if the instruction is invalid.
-				if (!(((instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX || !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) && *b == 0xf) || *b == 0xcc ||
-					(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && ((*b >= 0x8 && *b <= 0xe) || (*b >= 0x14 && *b <= 0x17) || (*b >= 0x20 && *b <= 0x22) || (*b >= 0x40 && *b <= 0x42) || *b == 0x44 || (*b >= 0x60 && *b <= 0x63) || *b == 0xdf))))
-					return false;
+				if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
+				{
+					//Check if the instruction is invalid.
+					if (!(((instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX || !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) && *b == 0xf) || *b == 0xcc ||
+						(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && ((*b >= 0x8 && *b <= 0xe) || (*b >= 0x14 && *b <= 0x17) || (*b >= 0x20 && *b <= 0x22) || (*b >= 0x40 && *b <= 0x42) || *b == 0x44 || (*b >= 0x60 && *b <= 0x63) || *b == 0xdf))))
+						return false;
+				}
 #endif
 
 #ifdef NMD_ASSEMBLY_ENABLE_NUM_OPERANDS
-				instruction->numOperands = 3;
+				if (featureFlags & NMD_X86_FEATURE_FLAGS_NUM_OPERANDS)
+					instruction->numOperands = 3;
 #endif
 			}
 
@@ -724,36 +757,40 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 			instruction->opcodeSize = 2;
 			instruction->opcode = *b;
 
-#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
-			//Check if the instruction is invalid.
+
 			const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
-			const uint8_t invalid2op[] = { 0x04, 0x0a, 0x0c, 0x0f, 0x7a, 0x7b };
-			if (nmd_asm_findByte(invalid2op, sizeof(invalid2op), *b) ||
-				(*b == 0xc7 && (modrm.reg == 0b000 || modrm.reg == 0b010 || (modrm.mod == 0b11 && (instruction->prefixes & NMD_X86_REPEAT_PREFIX ? modrm.reg != 0b111 : (!(instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX) ? modrm.reg <= 0b101 : true))) || (instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX) && modrm.reg >= 0b010 && modrm.reg <= 0b101))) ||
-				(*b == 0x00 && modrm.reg >= 0b110) ||
-				(*b == 0x01 && (modrm.mod == 0b11 ? ((instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX | NMD_X86_REPEAT_PREFIX) && ((modrm.modrm >= 0xc0 && modrm.modrm <= 0xc5) || (modrm.modrm >= 0xc8 && modrm.modrm <= 0xcb) || (modrm.modrm >= 0xcf && modrm.modrm <= 0xd1) || (modrm.modrm >= 0xd4 && modrm.modrm <= 0xd7) || modrm.modrm == 0xee || modrm.modrm == 0xef || modrm.modrm == 0xfa || modrm.modrm == 0xfb)) || (modrm.reg == 0b000 && modrm.rm >= 0b110) || (modrm.reg == 0b001 && modrm.rm >= 0b100 && modrm.rm <= 0b110) || (modrm.reg == 0b010 && (modrm.rm == 0b010 || modrm.rm == 0b011)) || (modrm.reg == 0b101 && modrm.rm < 0b110 && (!(instruction->prefixes & NMD_X86_REPEAT_PREFIX) || (instruction->prefixes & NMD_X86_REPEAT_PREFIX && (modrm.rm != 0b000 && modrm.rm != 0b010)))) || (modrm.reg == 0b111 && (modrm.rm > 0b101 || (!(instruction->mode == NMD_X86_MODE_64) && modrm.rm == 0b000)))) : (!(instruction->prefixes & NMD_X86_REPEAT_PREFIX) && modrm.reg == 0b101))) ||
-				(instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX) && ((*b >= 0x13 && *b <= 0x17 && !(*b == 0x16 && instruction->prefixes & NMD_X86_REPEAT_PREFIX)) || *b == 0x28 || *b == 0x29 || *b == 0x2e || *b == 0x2f || (*b <= 0x76 && *b >= 0x74))) ||
-				(modrm.mod == 0b11 && (*b == 0xb2 || *b == 0xb4 || *b == 0xb5 || *b == 0xc3 || *b == 0xe7 || *b == 0x2b || (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x12 || *b == 0x16)) || (!(instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) && (*b == 0x13 || *b == 0x17)))) ||
-				((*b == 0x1A || *b == 0x1B) && (modrm.reg >= 0b100 && modrm.mod != 0b11)) ||
-				(*b >= 0x24 && *b <= 0x27) || *b == 0x36 || *b == 0x39 || (*b >= 0x3b && *b <= 0x3f) ||
-				(NMD_R(*b) == 5 && ((*b == 0x50 && modrm.mod != 0b11) || (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x52 || *b == 0x53)) || (instruction->prefixes & NMD_X86_REPEAT_PREFIX && (*b == 0x50 || (*b >= 0x54 && *b <= 0x57))) || (instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX && (*b == 0x50 || (*b >= 0x52 && *b <= 0x57) || *b == 0x5b)))) ||
-				(NMD_R(*b) == 6 && ((!(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) && (*b == 0x6c || *b == 0x6d)) || (instruction->prefixes & NMD_X86_REPEAT_PREFIX && *b != 0x6f) || instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX)) ||
-				((*b == 0x78 || *b == 0x79) && instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) ||
-				((*b == 0x7c || *b == 0x7d) && (instruction->prefixes & NMD_X86_REPEAT_PREFIX || !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)))) ||
-				((*b == 0x7e || *b == 0x7f) && instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX) ||
-				(((*b >= 0x71 && *b <= 0x73) && (instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX) || modrm.modrm <= 0xcf || (modrm.modrm >= 0xe8 && modrm.modrm <= 0xef)))) ||
-				((*b == 0x71 || *b == 0x72 || (*b == 0x73 && !(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX))) && ((modrm.modrm >= 0xd8 && modrm.modrm <= 0xdf) || modrm.modrm >= 0xf8)) ||
-				(*b == 0x73 && (modrm.modrm >= 0xe0 && modrm.modrm <= 0xe8)) ||
-				(*b == 0xa6 && modrm.modrm != 0xc0 && modrm.modrm != 0xc8 && modrm.modrm != 0xd0) ||
-				(*b == 0xa7 && !(modrm.mod == 0b11 && modrm.reg <= 0b101 && modrm.rm == 0b000)) ||
-				(*b == 0xae && (instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX || (!(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) && modrm.modrm >= 0xc0 && modrm.modrm <= 0xe7) || (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (modrm.mod == 0b11 ? modrm.modrm != 0xf8 : modrm.reg <= 0b101)) || (instruction->prefixes & NMD_X86_REPEAT_PREFIX && (modrm.mod == 0b11 ? modrm.reg != 0b101 : (modrm.reg != 0b100 && modrm.reg != 0b110))))) ||
-				(*b == 0xb8 && !(instruction->prefixes & NMD_X86_REPEAT_PREFIX)) ||
-				(*b == 0xba && modrm.reg <= 0b011) ||
-				(*b == 0xd0 && !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) ||
-				((*b == 0xd6 || *b == 0xe6) && !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) ||
-				(*b == 0xf0 && (!(instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX) || modrm.mod == 0b11)) ||
-				(((*b == 0xd6 && instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) || *b == 0xd7 || *b == 0xf7 || *b == 0xc5) && modrm.mod != 0b11))
-				return false;
+#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+			if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
+			{
+				//Check if the instruction is invalid.
+				const uint8_t invalid2op[] = { 0x04, 0x0a, 0x0c, 0x0f, 0x7a, 0x7b };
+				if (nmd_asm_findByte(invalid2op, sizeof(invalid2op), *b) ||
+					(*b == 0xc7 && (modrm.reg == 0b000 || modrm.reg == 0b010 || (modrm.mod == 0b11 && (instruction->prefixes & NMD_X86_REPEAT_PREFIX ? modrm.reg != 0b111 : (!(instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX) ? modrm.reg <= 0b101 : true))) || (instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX) && modrm.reg >= 0b010 && modrm.reg <= 0b101))) ||
+					(*b == 0x00 && modrm.reg >= 0b110) ||
+					(*b == 0x01 && (modrm.mod == 0b11 ? ((instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX | NMD_X86_REPEAT_PREFIX) && ((modrm.modrm >= 0xc0 && modrm.modrm <= 0xc5) || (modrm.modrm >= 0xc8 && modrm.modrm <= 0xcb) || (modrm.modrm >= 0xcf && modrm.modrm <= 0xd1) || (modrm.modrm >= 0xd4 && modrm.modrm <= 0xd7) || modrm.modrm == 0xee || modrm.modrm == 0xef || modrm.modrm == 0xfa || modrm.modrm == 0xfb)) || (modrm.reg == 0b000 && modrm.rm >= 0b110) || (modrm.reg == 0b001 && modrm.rm >= 0b100 && modrm.rm <= 0b110) || (modrm.reg == 0b010 && (modrm.rm == 0b010 || modrm.rm == 0b011)) || (modrm.reg == 0b101 && modrm.rm < 0b110 && (!(instruction->prefixes & NMD_X86_REPEAT_PREFIX) || (instruction->prefixes & NMD_X86_REPEAT_PREFIX && (modrm.rm != 0b000 && modrm.rm != 0b010)))) || (modrm.reg == 0b111 && (modrm.rm > 0b101 || (!(instruction->mode == NMD_X86_MODE_64) && modrm.rm == 0b000)))) : (!(instruction->prefixes & NMD_X86_REPEAT_PREFIX) && modrm.reg == 0b101))) ||
+					(instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX) && ((*b >= 0x13 && *b <= 0x17 && !(*b == 0x16 && instruction->prefixes & NMD_X86_REPEAT_PREFIX)) || *b == 0x28 || *b == 0x29 || *b == 0x2e || *b == 0x2f || (*b <= 0x76 && *b >= 0x74))) ||
+					(modrm.mod == 0b11 && (*b == 0xb2 || *b == 0xb4 || *b == 0xb5 || *b == 0xc3 || *b == 0xe7 || *b == 0x2b || (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x12 || *b == 0x16)) || (!(instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) && (*b == 0x13 || *b == 0x17)))) ||
+					((*b == 0x1A || *b == 0x1B) && (modrm.reg >= 0b100 && modrm.mod != 0b11)) ||
+					(*b >= 0x24 && *b <= 0x27) || *b == 0x36 || *b == 0x39 || (*b >= 0x3b && *b <= 0x3f) ||
+					(NMD_R(*b) == 5 && ((*b == 0x50 && modrm.mod != 0b11) || (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (*b == 0x52 || *b == 0x53)) || (instruction->prefixes & NMD_X86_REPEAT_PREFIX && (*b == 0x50 || (*b >= 0x54 && *b <= 0x57))) || (instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX && (*b == 0x50 || (*b >= 0x52 && *b <= 0x57) || *b == 0x5b)))) ||
+					(NMD_R(*b) == 6 && ((!(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) && (*b == 0x6c || *b == 0x6d)) || (instruction->prefixes & NMD_X86_REPEAT_PREFIX && *b != 0x6f) || instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX)) ||
+					((*b == 0x78 || *b == 0x79) && instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) ||
+					((*b == 0x7c || *b == 0x7d) && (instruction->prefixes & NMD_X86_REPEAT_PREFIX || !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)))) ||
+					((*b == 0x7e || *b == 0x7f) && instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX) ||
+					(((*b >= 0x71 && *b <= 0x73) && (instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX) || modrm.modrm <= 0xcf || (modrm.modrm >= 0xe8 && modrm.modrm <= 0xef)))) ||
+					((*b == 0x71 || *b == 0x72 || (*b == 0x73 && !(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX))) && ((modrm.modrm >= 0xd8 && modrm.modrm <= 0xdf) || modrm.modrm >= 0xf8)) ||
+					(*b == 0x73 && (modrm.modrm >= 0xe0 && modrm.modrm <= 0xe8)) ||
+					(*b == 0xa6 && modrm.modrm != 0xc0 && modrm.modrm != 0xc8 && modrm.modrm != 0xd0) ||
+					(*b == 0xa7 && !(modrm.mod == 0b11 && modrm.reg <= 0b101 && modrm.rm == 0b000)) ||
+					(*b == 0xae && (instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX || (!(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) && modrm.modrm >= 0xc0 && modrm.modrm <= 0xe7) || (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && (modrm.mod == 0b11 ? modrm.modrm != 0xf8 : modrm.reg <= 0b101)) || (instruction->prefixes & NMD_X86_REPEAT_PREFIX && (modrm.mod == 0b11 ? modrm.reg != 0b101 : (modrm.reg != 0b100 && modrm.reg != 0b110))))) ||
+					(*b == 0xb8 && !(instruction->prefixes & NMD_X86_REPEAT_PREFIX)) ||
+					(*b == 0xba && modrm.reg <= 0b011) ||
+					(*b == 0xd0 && !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) ||
+					((*b == 0xd6 || *b == 0xe6) && !(instruction->prefixes & (NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX | NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX))) ||
+					(*b == 0xf0 && (!(instruction->prefixes & NMD_X86_REPEAT_NOT_ZERO_PREFIX) || modrm.mod == 0b11)) ||
+					(((*b == 0xd6 && instruction->prefixes & (NMD_X86_REPEAT_PREFIX | NMD_X86_REPEAT_NOT_ZERO_PREFIX)) || *b == 0xd7 || *b == 0xf7 || *b == 0xc5) && modrm.mod != 0b11))
+					return false;
+			}
 #endif
 
 			if (NMD_R(*b) == 8) //disp32
@@ -761,13 +798,26 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 			else if ((NMD_R(*b) == 7 && NMD_C(*b) < 4) || *b == 0xA4 || *b == 0xC2 || (*b > 0xC3 && *b <= 0xC6) || *b == 0xBA || *b == 0xAC) //imm8
 				instruction->immMask = NMD_X86_IMM8, offset++;
 
-#ifdef NMD_ASSEMBLY_ENABLE_NUM_OPERANDS
-			if (*b == 0xa4 || *b == 0xa5 || *b == 0xc2 || (*b >= 0xc4 && *b <= 0xc6))
-				instruction->numOperands = 3;
-			else if (*b == 0x2 || *b == 0x3 || (*b >= 0x10 && *b <= 0x17) || NMD_R(*b) == 2 || (NMD_R(*b) >= 4 && NMD_R(*b) <= 7) || *b == 0xa3 || *b == 0xab || *b == 0xaf || (NMD_R(*b) >= 0xc && *b != 0xc7 && *b != 0xff))
-				instruction->numOperands = 2;
-			else if (NMD_R(*b) == 8 || NMD_R(*b) == 9 || (NMD_R(*b) == 0xa && *b % 8 < 2) || *b == 0xc7)
-				instruction->numOperands = 1;
+#ifndef NMD_ASSEMBLY_DISABLE_NUM_OPERANDS
+			if (featureFlags & NMD_X86_FEATURE_FLAGS_NUM_OPERANDS)
+			{
+				if (*b == 0xa4 || *b == 0xa5 || *b == 0xc2 || (*b >= 0xc4 && *b <= 0xc6))
+					instruction->numOperands = 3;
+				else if (*b == 0x2 || *b == 0x3 || (*b >= 0x10 && *b <= 0x17) || NMD_R(*b) == 2 || (NMD_R(*b) >= 4 && NMD_R(*b) <= 7) || *b == 0xa3 || *b == 0xab || *b == 0xaf || (NMD_R(*b) >= 0xc && *b != 0xc7 && *b != 0xff))
+					instruction->numOperands = 2;
+				else if (NMD_R(*b) == 8 || NMD_R(*b) == 9 || (NMD_R(*b) == 0xa && *b % 8 < 2) || *b == 0xc7)
+					instruction->numOperands = 1;
+			}
+#endif
+
+#ifndef NMD_ASSEMBLY_DISABLE_GROUP
+			if (featureFlags & NMD_X86_FEATURE_FLAGS_GROUP)
+			{
+				if (NMD_R(*b) == 8)
+					instruction->group |= (NMD_GROUP_JUMP | NMD_GROUP_BRANCH_RELATIVE);
+				else if ((*b == 0x01 && modrm.rm == 0b111 && (modrm.mod == 0b00 || modrm.modrm == 0xf8)) || *b == 0x06 || *b == 0x08 || *b == 0x09)
+					instruction->group |= NMD_GROUP_PRIVILEGE;
+			}
 #endif
 
 			//Check for ModR/M, SIB and displacement
@@ -786,51 +836,54 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 		const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
 #ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
 		//Check if the instruction is invalid.
-		if (((*b == 0xC6 || *b == 0xC7) && ((modrm.reg != 0b000 && modrm.reg != 0b111) || (modrm.reg == 0b111 && (modrm.mod != 0b11 || modrm.rm != 0b000)))) ||
-			(*b == 0x8f && modrm.reg != 0b000) ||
-			(*b == 0xfe && modrm.reg >= 0b010) ||
-			(*b == 0xff && (modrm.reg == 0b111 || (modrm.mod == 0b11 && (modrm.reg == 0b011 || modrm.reg == 0b101)))) ||
-			((*b == 0x8c || *b == 0x8e) && modrm.reg >= 6) ||
-			(*b == 0x8e && modrm.reg == 0b001) ||
-			(modrm.mod == 0b11 && *b == 0x8d) ||
-			((*b == 0xc4 || *b == 0xc5) && mode == NMD_X86_MODE_64 && modrm.mod != 0b11))
-			return false;
-		else if (*b >= 0xd8 && *b <= 0xdf)
+		if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
 		{
-			switch (*b)
+			if (((*b == 0xC6 || *b == 0xC7) && ((modrm.reg != 0b000 && modrm.reg != 0b111) || (modrm.reg == 0b111 && (modrm.mod != 0b11 || modrm.rm != 0b000)))) ||
+				(*b == 0x8f && modrm.reg != 0b000) ||
+				(*b == 0xfe && modrm.reg >= 0b010) ||
+				(*b == 0xff && (modrm.reg == 0b111 || (modrm.mod == 0b11 && (modrm.reg == 0b011 || modrm.reg == 0b101)))) ||
+				((*b == 0x8c || *b == 0x8e) && modrm.reg >= 6) ||
+				(*b == 0x8e && modrm.reg == 0b001) ||
+				(modrm.mod == 0b11 && *b == 0x8d) ||
+				((*b == 0xc4 || *b == 0xc5) && mode == NMD_X86_MODE_64 && modrm.mod != 0b11))
+				return false;
+			else if (*b >= 0xd8 && *b <= 0xdf)
 			{
-			case 0xd9:
-				if ((modrm.reg == 0b001 && modrm.mod != 0b11) || (modrm.modrm > 0xd0 && modrm.modrm < 0xd8) || modrm.modrm == 0xe2 || modrm.modrm == 0xe3 || modrm.modrm == 0xe6 || modrm.modrm == 0xe7 || modrm.modrm == 0xef)
-					return false;
-				break;
-			case 0xda:
-				if (modrm.modrm >= 0xe0 && modrm.modrm != 0xe9)
-					return false;
-				break;
-			case 0xdb:
-				if (((modrm.reg == 0b100 || modrm.reg == 0b110) && modrm.mod != 0b11) || (modrm.modrm >= 0xe5 && modrm.modrm <= 0xe7) || modrm.modrm >= 0xf8)
-					return false;
-				break;
-			case 0xdd:
-				if ((modrm.reg == 0b101 && modrm.mod != 0b11) || NMD_R(modrm.modrm) == 0xf)
-					return false;
-				break;
-			case 0xde:
-				if (modrm.modrm == 0xd8 || (modrm.modrm >= 0xda && modrm.modrm <= 0xdf))
-					return false;
-				break;
-			case 0xdf:
-				if ((modrm.modrm >= 0xe1 && modrm.modrm <= 0xe7) || modrm.modrm >= 0xf8)
-					return false;
-				break;
+				switch (*b)
+				{
+				case 0xd9:
+					if ((modrm.reg == 0b001 && modrm.mod != 0b11) || (modrm.modrm > 0xd0 && modrm.modrm < 0xd8) || modrm.modrm == 0xe2 || modrm.modrm == 0xe3 || modrm.modrm == 0xe6 || modrm.modrm == 0xe7 || modrm.modrm == 0xef)
+						return false;
+					break;
+				case 0xda:
+					if (modrm.modrm >= 0xe0 && modrm.modrm != 0xe9)
+						return false;
+					break;
+				case 0xdb:
+					if (((modrm.reg == 0b100 || modrm.reg == 0b110) && modrm.mod != 0b11) || (modrm.modrm >= 0xe5 && modrm.modrm <= 0xe7) || modrm.modrm >= 0xf8)
+						return false;
+					break;
+				case 0xdd:
+					if ((modrm.reg == 0b101 && modrm.mod != 0b11) || NMD_R(modrm.modrm) == 0xf)
+						return false;
+					break;
+				case 0xde:
+					if (modrm.modrm == 0xd8 || (modrm.modrm >= 0xda && modrm.modrm <= 0xdf))
+						return false;
+					break;
+				case 0xdf:
+					if ((modrm.modrm >= 0xe1 && modrm.modrm <= 0xe7) || modrm.modrm >= 0xf8)
+						return false;
+					break;
+				}
 			}
+			else if (mode == NMD_X86_MODE_64 && (*b == 0x6 || *b == 0x7 || *b == 0xe || *b == 0x16 || *b == 0x17 || *b == 0x1e || *b == 0x1f || *b == 0x27 || *b == 0x2f || *b == 0x37 || *b == 0x3f || (*b >= 0x60 && *b <= 0x62) || *b == 0x82 || *b == 0xce || (*b >= 0xd4 && *b <= 0xd6)))
+				return false;
 		}
-		else if (mode == NMD_X86_MODE_64 && (*b == 0x6 || *b == 0x7 || *b == 0xe || *b == 0x16 || *b == 0x17 || *b == 0x1e || *b == 0x1f || *b == 0x27 || *b == 0x2f || *b == 0x37 || *b == 0x3f || (*b >= 0x60 && *b <= 0x62) || *b == 0x82 || *b == 0xce || (*b >= 0xd4 && *b <= 0xd6)))
-			return false;
 #endif
 
 #ifndef NMD_ASSEMBLY_DISABLE_EVEX
-		if (*b == 0x62 && modrm.mod == 0b11)
+		if (featureFlags & NMD_X86_FEATURE_FLAGS_EVEX && *b == 0x62 && modrm.mod == 0b11)
 		{
 			instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
 		}
@@ -840,70 +893,72 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 		else
 #endif
 #ifndef NMD_ASSEMBLY_DISABLE_VEX
-			if ((*b == 0xc4 || *b == 0xc5) && modrm.mod == 0b11)
+		if (featureFlags & NMD_X86_FEATURE_FLAGS_VEX && (*b == 0xc4 || *b == 0xc5) && modrm.mod == 0b11)
+		{
+			instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
+
+			instruction->vex.byte0 = *b;
+			const uint8_t byte1 = *++b;
+
+			instruction->vex.R = byte1 & 0b10000000;
+			if (instruction->vex.byte0 == 0xc4)
 			{
-				instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
+				instruction->vex.X = (byte1 & 0b01000000) == 0b01000000;
+				instruction->vex.B = (byte1 & 0b00100000) == 0b00100000;
+				instruction->vex.m_mmmm = byte1 & 0b00011111;
 
-				instruction->vex.byte0 = *b;
-				const uint8_t byte1 = *++b;
+				const uint8_t byte2 = *++b;
+				instruction->vex.W = (byte2 & 0b10000000) == 0b10000000;
+				instruction->vex.vvvv = (byte2 & 0b01111000) >> 3;
+				instruction->vex.L = (byte2 & 0b00000100) == 0b00000100;
+				instruction->vex.pp = byte2 & 0b00000011;
 
-				instruction->vex.R = byte1 & 0b10000000;
-				if (instruction->vex.byte0 == 0xc4)
-				{
-					instruction->vex.X = (byte1 & 0b01000000) == 0b01000000;
-					instruction->vex.B = (byte1 & 0b00100000) == 0b00100000;
-					instruction->vex.m_mmmm = byte1 & 0b00011111;
-
-					const uint8_t byte2 = *++b;
-					instruction->vex.W = (byte2 & 0b10000000) == 0b10000000;
-					instruction->vex.vvvv = (byte2 & 0b01111000) >> 3;
-					instruction->vex.L = (byte2 & 0b00000100) == 0b00000100;
-					instruction->vex.pp = byte2 & 0b00000011;
-
-					instruction->opcode = *++b;
-				}
-				else
-				{
-					instruction->vex.vvvv = byte1 & 0b01111000;
-					instruction->vex.L = byte1 & 0b00000100;
-					instruction->vex.pp = byte1 & 0b00000011;
-
-					b++;
-					instruction->opcode = *b;
-				}
-
-				nmd_asm_parseModRM(&b, instruction);
+				instruction->opcode = *++b;
 			}
+			else
+			{
+				instruction->vex.vvvv = byte1 & 0b01111000;
+				instruction->vex.L = byte1 & 0b00000100;
+				instruction->vex.pp = byte1 & 0b00000011;
+
+				b++;
+				instruction->opcode = *b;
+			}
+
+			nmd_asm_parseModRM(&b, instruction);
+		}
 #endif
 #if !(defined(NMD_ASSEMBLY_DISABLE_EVEX) && defined(NMD_ASSEMBLY_DISABLE_VEX))
-			else
+		else
 #endif
+		{
+			//Check for immediate field
+			if ((NMD_R(*b) == 0xE && NMD_C(*b) < 8) || (NMD_R(*b) == 0xB && NMD_C(*b) < 8) || NMD_R(*b) == 7 || (NMD_R(*b) < 4 && (NMD_C(*b) == 4 || NMD_C(*b) == 0xC)) || (*b == 0xF6 && !(*(b + 1) & 48)) || nmd_asm_findByte(op1imm8, sizeof(op1imm8), *b)) //imm8
+				instruction->immMask = NMD_X86_IMM8, offset++;
+			else if (*b == 0xC2 || *b == 0xCA) //imm16
+				instruction->immMask = NMD_X86_IMM16, offset += 2;
+			else if (*b == 0xC8) //imm16 + imm8
+				instruction->immMask = NMD_X86_IMM16 | NMD_X86_IMM8, offset += 3;
+			else if ((NMD_R(*b) < 4 && (NMD_C(*b) == 5 || NMD_C(*b) == 0xD)) || (NMD_R(*b) == 0xB && NMD_C(*b) >= 8) || (*b == 0xF7 && !(*(b + 1) & 48)) || nmd_asm_findByte(op1imm32, sizeof(op1imm32), *b)) //imm32,16
 			{
-				//Check for immediate field
-				if ((NMD_R(*b) == 0xE && NMD_C(*b) < 8) || (NMD_R(*b) == 0xB && NMD_C(*b) < 8) || NMD_R(*b) == 7 || (NMD_R(*b) < 4 && (NMD_C(*b) == 4 || NMD_C(*b) == 0xC)) || (*b == 0xF6 && !(*(b + 1) & 48)) || nmd_asm_findByte(op1imm8, sizeof(op1imm8), *b)) //imm8
-					instruction->immMask = NMD_X86_IMM8, offset++;
-				else if (*b == 0xC2 || *b == 0xCA) //imm16
-					instruction->immMask = NMD_X86_IMM16, offset += 2;
-				else if (*b == 0xC8) //imm16 + imm8
-					instruction->immMask = NMD_X86_IMM16 | NMD_X86_IMM8, offset += 3;
-				else if ((NMD_R(*b) < 4 && (NMD_C(*b) == 5 || NMD_C(*b) == 0xD)) || (NMD_R(*b) == 0xB && NMD_C(*b) >= 8) || (*b == 0xF7 && !(*(b + 1) & 48)) || nmd_asm_findByte(op1imm32, sizeof(op1imm32), *b)) //imm32,16
-				{
-					if (NMD_R(*b) == 0xB && NMD_C(*b) >= 8)
-						instruction->immMask = instruction->prefixes & NMD_X86_REX_W_PREFIX ? NMD_X86_IMM64 : (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX)) ? NMD_X86_IMM16 : NMD_X86_IMM32);
-					else
-						instruction->immMask = (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && instruction->mode == NMD_X86_MODE_32) || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX)) ? NMD_X86_IMM16 : NMD_X86_IMM32;
-					offset += instruction->immMask;
-				}
-				else if (*b == 0xEA || *b == 0x9A) //imm32,48
-				{
-					if ((instruction->mode == NMD_X86_MODE_64))
-						return false;
-					instruction->immMask = (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX ? NMD_X86_IMM32 : NMD_X86_IMM48), offset += instruction->immMask;
-				}
-				else if (NMD_R(*b) == 0xA && NMD_C(*b) < 4)
-					instruction->immMask = (instruction->mode == NMD_X86_MODE_64) ? (instruction->prefixes & NMD_X86_ADDRESS_SIZE_OVERRIDE_PREFIX ? NMD_X86_IMM32 : NMD_X86_IMM64) : (instruction->prefixes & NMD_X86_ADDRESS_SIZE_OVERRIDE_PREFIX ? NMD_X86_IMM16 : NMD_X86_IMM32), offset += instruction->immMask;
+				if (NMD_R(*b) == 0xB && NMD_C(*b) >= 8)
+					instruction->immMask = instruction->prefixes & NMD_X86_REX_W_PREFIX ? NMD_X86_IMM64 : (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX)) ? NMD_X86_IMM16 : NMD_X86_IMM32);
+				else
+					instruction->immMask = (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX && instruction->mode == NMD_X86_MODE_32) || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX)) ? NMD_X86_IMM16 : NMD_X86_IMM32;
+				offset += instruction->immMask;
+			}
+			else if (*b == 0xEA || *b == 0x9A) //imm32,48
+			{
+				if ((instruction->mode == NMD_X86_MODE_64))
+					return false;
+				instruction->immMask = (instruction->prefixes & NMD_X86_OPERAND_SIZE_OVERRIDE_PREFIX ? NMD_X86_IMM32 : NMD_X86_IMM48), offset += instruction->immMask;
+			}
+			else if (NMD_R(*b) == 0xA && NMD_C(*b) < 4)
+				instruction->immMask = (instruction->mode == NMD_X86_MODE_64) ? (instruction->prefixes & NMD_X86_ADDRESS_SIZE_OVERRIDE_PREFIX ? NMD_X86_IMM32 : NMD_X86_IMM64) : (instruction->prefixes & NMD_X86_ADDRESS_SIZE_OVERRIDE_PREFIX ? NMD_X86_IMM16 : NMD_X86_IMM32), offset += instruction->immMask;
 
-#ifdef NMD_ASSEMBLY_ENABLE_NUM_OPERANDS
+#ifndef NMD_ASSEMBLY_DISABLE_NUM_OPERANDS
+			if (featureFlags & NMD_X86_FEATURE_FLAGS_NUM_OPERANDS)
+			{
 				if (*b >= 0xd8 && *b <= 0xdf)
 				{
 					if (modrm.mod == 0b11)
@@ -924,14 +979,43 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 					instruction->numOperands = 2;
 				else if (NMD_R(*b) == 4 || NMD_R(*b) == 5 || NMD_R(*b) == 7 || (*b == 0x68 || *b == 0x6a) || *b == 0x8f || *b == 0x9a || *b == 0xc2 || *b == 0xca || *b == 0xcd || *b == 0xd4 || *b == 0xd5 || (NMD_R(*b) == 0xe && *b % 8 <= 3) || (NMD_R(*b) == 0xf && *b % 8 >= 6))
 					instruction->numOperands = 1;
+			}
 #endif
 
-				//Check for ModR/M, SIB and displacement
-				if (nmd_asm_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
-					nmd_asm_parseModRM(&b, instruction);
+#ifndef NMD_ASSEMBLY_DISABLE_GROUP
+			if (featureFlags & NMD_X86_FEATURE_FLAGS_GROUP)
+			{
+				if (NMD_R(*b) == 7 || *b == 0xe9 || *b == 0xea || *b == 0xeb || (*b == 0xff && (modrm.rm == 0b100 || modrm.rm == 0b101)))
+				{
+					instruction->group |= NMD_GROUP_JUMP;
+					if (*b != 0xff)
+						instruction->group |= NMD_GROUP_BRANCH_RELATIVE;
+				}
+				else if (*b == 0x9a || *b == 0xe8 || (*b == 0xff && (modrm.rm == 0b010 || modrm.rm == 0b011)))
+				{
+					instruction->group |= NMD_GROUP_CALL;
+					if(*b == 0xe8)
+						instruction->group |= NMD_GROUP_BRANCH_RELATIVE;
+				}
+				else if (*b == 0xc2 || *b == 0xc3 || *b == 0xca || *b == 0xcb)
+					instruction->group |= NMD_GROUP_RET;
+				else if (*b == 0xcf)
+					instruction->group |= NMD_GROUP_IRET;
+				else if ((*b >= 0xcc && *b <= 0xce) || *b == 0xf1)
+					instruction->group |= NMD_GROUP_INT;
+				else if (*b == 0xf4)
+					instruction->group |= NMD_GROUP_PRIVILEGE;
+				else if ((*b == 0xc7 && modrm.modrm == 0xf8) || (*b >= 0xe0 && *b <= 0xe3))
+					instruction->group |= NMD_GROUP_BRANCH_RELATIVE;
 			}
-	}
+#endif
 
+			//Check for ModR/M, SIB and displacement
+			if (nmd_asm_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
+				nmd_asm_parseModRM(&b, instruction);
+		}
+	}
+	
 	if (instruction->prefixes & NMD_X86_LOCK_PREFIX)
 	{
 		const uint8_t op = instruction->opcode;
@@ -957,37 +1041,37 @@ bool nmd_x86_disassemble(const void* buffer, NMD_X86Instruction* instruction, ui
 //If there's was potential for a crash because of bad logic it won't crash, just print an empty string.
 #define ASM_NULL ""
 
-static const char* const reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
-static const char* const reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };
-static const char* const reg16[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
-static const char* const reg32[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
-static const char* const reg64[] = { "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi" };
-static const char* const regrx[] = { "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15" };
+static const char* const reg8[]       = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
+static const char* const reg8_x64[]   = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };
+static const char* const reg16[]      = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
+static const char* const reg32[]      = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
+static const char* const reg64[]      = { "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi" };
+static const char* const regrx[]      = { "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15" };
 static const char* const segmentReg[] = { "es", "cs", "ss", "ds", "fs", "gs" };
 
 static const char* const conditionSuffixes[] = { "o", "no", "b", "ae", "e", "ne", "be", "a", "s", "ns", "p", "np", "l", "ge", "le", "g" };
 
-static const char* const op1OpcodeMapMnemonics[] = { "add", "adc", "and", "xor", "or", "sbb", "sub", "cmp" };
-static const char* const opcodeExtensionsGrp1[] = { "add", "or", "adc", "sbb", "and", "sub", "xor", "cmp" };
-static const char* const opcodeExtensionsGrp2[] = { "rol", "ror", "rcl", "rcr", "shl", "shr", "shl", "sar" };
-static const char* const opcodeExtensionsGrp3[] = { "test", "test", "not", "neg", "mul", "imul", "div", "idiv" };
-static const char* const opcodeExtensionsGrp5[] = { "inc", "dec", "call", "call far", "jmp", "jmp far", "push" };
-static const char* const opcodeExtensionsGrp6[] = { "sldt", "str", "lldt", "ltr", "verr", "verw" };
-static const char* const opcodeExtensionsGrp7[] = { "sgdt", "sidt", "lgdt", "lidt", "smsw", ASM_NULL, "lmsw", "invlpg" };
+static const char* const op1OpcodeMapMnemonics[]    = { "add", "adc", "and", "xor", "or", "sbb", "sub", "cmp" };
+static const char* const opcodeExtensionsGrp1[]     = { "add", "or", "adc", "sbb", "and", "sub", "xor", "cmp" };
+static const char* const opcodeExtensionsGrp2[]     = { "rol", "ror", "rcl", "rcr", "shl", "shr", "shl", "sar" };
+static const char* const opcodeExtensionsGrp3[]     = { "test", "test", "not", "neg", "mul", "imul", "div", "idiv" };
+static const char* const opcodeExtensionsGrp5[]     = { "inc", "dec", "call", "call far", "jmp", "jmp far", "push" };
+static const char* const opcodeExtensionsGrp6[]     = { "sldt", "str", "lldt", "ltr", "verr", "verw" };
+static const char* const opcodeExtensionsGrp7[]     = { "sgdt", "sidt", "lgdt", "lidt", "smsw", ASM_NULL, "lmsw", "invlpg" };
 static const char* const opcodeExtensionsGrp7reg0[] = { "enclv", "vmcall", "vmlaunch", "vmresume", "vmxoff", "pconfig" };
 static const char* const opcodeExtensionsGrp7reg1[] = { "monitor", "mwait", "clac", "stac", ASM_NULL, ASM_NULL, ASM_NULL, "encls" };
 static const char* const opcodeExtensionsGrp7reg2[] = { "xgetbv", "xsetbv", ASM_NULL, ASM_NULL, "vmfunc", "xend", "xtest", "enclu" };
 static const char* const opcodeExtensionsGrp7reg3[] = { "vmrun ", "vmmcall", "vmload ", "vmsave", "stgi", "clgi", "skinit eax", "invlpga " };
 static const char* const opcodeExtensionsGrp7reg7[] = { "swapgs", "rdtscp", "monitorx", "mwaitx", "clzero ", "rdpru" };
 
-static const char* const escapeOpcodesD8[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
-static const char* const escapeOpcodesD9[] = { "ld", ASM_NULL, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
+static const char* const escapeOpcodesD8[]    = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
+static const char* const escapeOpcodesD9[]    = { "ld", ASM_NULL, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
 static const char* const escapeOpcodesDA_DE[] = { "iadd", "imul", "icom", "icomp", "isub", "isubr", "idiv", "idivr" };
-static const char* const escapeOpcodesDB[] = { "ild", "isttp", "ist", "istp", ASM_NULL, "ld", ASM_NULL, "stp" };
-static const char* const escapeOpcodesDC[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
-static const char* const escapeOpcodesDD[] = { "ld", "isttp", "st", "stp", "rstor", ASM_NULL, "nsave", "nstsw" };
-static const char* const escapeOpcodesDF[] = { "ild", "isttp", "ist", "istp", "bld", "ild", "bstp", "istp" };
-static const char* const* escapeOpcodes[] = { escapeOpcodesD8, escapeOpcodesD9, escapeOpcodesDA_DE, escapeOpcodesDB, escapeOpcodesDC, escapeOpcodesDD, escapeOpcodesDA_DE, escapeOpcodesDF };
+static const char* const escapeOpcodesDB[]    = { "ild", "isttp", "ist", "istp", ASM_NULL, "ld", ASM_NULL, "stp" };
+static const char* const escapeOpcodesDC[]    = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
+static const char* const escapeOpcodesDD[]    = { "ld", "isttp", "st", "stp", "rstor", ASM_NULL, "nsave", "nstsw" };
+static const char* const escapeOpcodesDF[]    = { "ild", "isttp", "ist", "istp", "bld", "ild", "bstp", "istp" };
+static const char* const* escapeOpcodes[]     = { escapeOpcodesD8, escapeOpcodesD9, escapeOpcodesDA_DE, escapeOpcodesDB, escapeOpcodesDC, escapeOpcodesDD, escapeOpcodesDA_DE, escapeOpcodesDF };
 
 typedef struct StringInfo
 {
