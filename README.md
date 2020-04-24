@@ -1,7 +1,7 @@
 # nmd
 set of single-header libraries for C/C++
 
-- x86 assembler & disassembler: [nmd_assembly.h](nmd_assembly.h)
+- x86 disassembler: [nmd_assembly.h](nmd_assembly.h)
 - length disassembler: [nmd_ldisasm.h](nmd_ldisasm.h)
 - memory library for windows: [nmd_memory.hpp](nmd_memory.hpp)
 - retained mode gui: [nmd_gui.hpp](nmd_gui.hpp)
