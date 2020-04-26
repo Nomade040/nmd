@@ -3054,24 +3054,23 @@ uintptr_t MemEx::Inject(const void* dll, INJECTION_METHOD injectionMethod, bool 
 	if (injectionMethod == INJECTION_METHOD::MANUAL_MAPPING)
 	{
 		DWORD numBytesRead;
-		std::unique_ptr<char[]> rawImageUniquePtr;
-		const char* rawImage = nullptr;
+		std::unique_ptr<uint8_t[]> rawImageUniquePtr;
+		const uint8_t* rawImage = nullptr;
 
 		//Load image from disk if the user specified a path.
 		if (isPath)
 		{
 			HANDLE hFile;
 			DWORD fileSize;
-			if ((hFile = CreateFile(reinterpret_cast<const TCHAR*>(dll), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, NULL, NULL)) == INVALID_HANDLE_VALUE ||
-				!(fileSize = GetCompressedFileSize(reinterpret_cast<const TCHAR*>(dll), NULL)) ||
-				fileSize < 0x400 ||
-				!(rawImageUniquePtr = std::make_unique<char[]>(static_cast<size_t>(fileSize))) ||
+			if ((hFile = CreateFile(reinterpret_cast<const TCHAR*>(dll), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, NULL, NULL)) == INVALID_HANDLE_VALUE ||
+				((fileSize = GetFileSize(hFile, NULL)) == INVALID_FILE_SIZE) ||
+				!(rawImageUniquePtr = std::make_unique<uint8_t[]>(static_cast<size_t>(fileSize))) ||
 				!ReadFile(hFile, rawImageUniquePtr.get(), fileSize, &numBytesRead, NULL) ||
 				!CloseHandle(hFile) ||
 				!(rawImage = rawImageUniquePtr.get()))
 				return false;
 		}
-		else if (!(rawImage = reinterpret_cast<const char*>(dll)))
+		else if (!(rawImage = reinterpret_cast<const uint8_t*>(dll)))
 			return false;
 
 		//Do some checks to validate the image.
