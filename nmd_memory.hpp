@@ -3153,8 +3153,8 @@ uintptr_t MemEx::Inject(const void* dll, INJECTION_METHOD injectionMethod, bool 
 				));
 		}
 
-		bool success = isPath &&
-			(lpAddress = VirtualAllocEx(m_hProcess, NULL, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE)) &&
+		const bool success = isPath &&
+			(lpAddress = VirtualAllocEx(m_hProcess, NULL, 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE)) &&
 			WriteProcessMemory(m_hProcess, lpAddress, dll, (static_cast<size_t>(lstrlen(reinterpret_cast<const TCHAR*>(dll))) + 1) * sizeof(TCHAR), nullptr) &&
 			(hThread = CreateRemoteThread(m_hProcess, NULL, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(loadLibrary), lpAddress, NULL, NULL)) &&
 			WaitForSingleObject(hThread, INFINITE) != WAIT_FAILED &&
