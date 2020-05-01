@@ -1,6 +1,6 @@
 // This is a C library containing an x86(16, 32 and 64) assembler(todo), disassembler and decompiler(todo).
 //
-// Information about the library:
+// Features:
 // - x86 Intel syntax.
 // - No runtime initialization.
 // - Thread-safe by design.
@@ -12,27 +12,26 @@
 // - All of the code is in this single header file.
 //
 // Setup:
-// Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one and only one source file before the include statement for this header file. If the compiler generates naming
-// conflict errors caused by this header you should create a source file(e.g. "nmd_assembly.c"), define the implementation macro and include this header there. Example:
-//#define NMD_ASSEMBLY_IMPLEMENTATION
-//#include "nmd_assembly.h"
+// Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation. Example:
+// #define NMD_ASSEMBLY_IMPLEMENTATION
+// #include "nmd_assembly.h"
 //
 // The assembler is implemented by this function: [TODO assembler]
 //  nmd_x86_assemble() -> takes as input a string and fills a 'NMD_X86Instruction'.
 //
 // The disassembler is composed of a decoder and a formatter represented by these two functions respectively:
-//  nmd_x86_decode_buffer() -> takes as input a buffer and fills a 'NMD_X86Instruction'.
+//  nmd_x86_decode_buffer() -> takes as input a buffer(containing encoded instructions) and fills a 'NMD_X86Instruction'.
 //  nmd_x86_format_instruction() -> takes as input a 'NMD_X86Instruction' and constructs its string representation on an user provided buffer.
 //
 // Enabling and disabling features of the decoder:
 // To dynamically choose which features are used by the decoder, use the 'featureFlags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
-// faster the function runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) using
-// the following macros:
+// faster the function runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
+// the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
 //  - 'NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK': the decoder does not check if the instruction is valid.
 //  - 'NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID': the decoder does not fill the 'id' variable.
 //  - 'NMD_ASSEMBLY_DISABLE_NUM_OPERANDS': the decoder does not fill the 'numOperands' variable.
 //  - 'NMD_ASSEMBLY_DISABLE_GROUP': the decoder does not fill the 'group' variable.
-//  - 'NMD_ASSEMBLY_DISABLE_AFFECTED_CPU_STATE': the decoder does not fill the following variables: 'numRegsRead', 'regsRead', 'numRegsWrite' and 'regsWrite'.
+//  - 'NMD_ASSEMBLY_DISABLE_AFFECTED_CPU_STATE': the decoder does not fill the following variables: 'numRegsRead', 'regsRead', 'numRegsWrite', 'regsWrite' and 'cpuFlags'.
 //  - 'NMD_ASSEMBLY_DISABLE_VEX': the assembler and decoder do not support VEX instructions.
 //  - 'NMD_ASSEMBLY_DISABLE_EVEX': the assembler and decoder do not support EVEX instructions.
 //
@@ -2106,10 +2105,10 @@ typedef struct NMD_X86Instruction
 	uint8_t opcodeSize;            // The opcode's size in bytes.
 	uint8_t numOperands;           // The number of operands.
 	uint16_t group;                // Instruction group. A member of the 'NMD_GROUP' enum.
-	uint8_t numRegsRead;           // Number of registers read from.
-	NMD_X86RegInfo regsRead[4];    // Registers read from.
-	uint8_t numRegsWrite;          // Numbers of registers written to.
-	NMD_X86RegInfo regsWrite[4];   // Register written to.
+	uint8_t numRegsRead;           // Number of registers read from. [TODO]
+	NMD_X86RegInfo regsRead[4];    // Registers read from. [TODO]
+	uint8_t numRegsWrite;          // Numbers of registers written to. [TODO]
+	NMD_X86RegInfo regsWrite[4];   // Register written to. [TODO]
 	uint8_t mode;                  // A member of the 'NMD_X86_MODE' enum.
 	uint8_t immMask;               // A member of the 'NMD_X86_IMM_MASK' enum.
 	uint8_t dispMask;              // A member of the 'NMD_X86_DISP_MASK' enum.
@@ -2150,7 +2149,7 @@ enum NMD_X86_FEATURE_FLAGS
 //  address     [in]  The address that the assembled instruction will be placed on.
 //  instruction [out] A pointer to a variable of type 'NMD_X86Instruction'.
 //	mode        [in]  A member of the 'NMD_X86_MODE' enum.The architecture mode. A member of the 'NMD_X86_MODE' enum.
-bool nmd_x86_assemble( const char* string, uint64_t address, NMD_X86Instruction* instruction, NMD_X86_MODE mode );
+bool nmd_x86_assemble(const char* string, uint64_t address, NMD_X86Instruction* instruction, NMD_X86_MODE mode);
 
 //Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 //Parameters:
@@ -2565,13 +2564,12 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				// Check if the instruction is invalid.
 				const uint8_t invalid2op[] = { 0x04, 0x0a, 0x0c, 0x0f, 0x7a, 0x7b };
 				if (nmd_findByte(invalid2op, sizeof(invalid2op), *b) ||
-					//(*b == 0xc7 && (modrm.reg == 0b000 || modrm.reg == 0b010 || (modrm.mod == 0b11 && (instruction->prefixes & NMD_X86_PREFIXES_REPEAT ? modrm.reg != 0b111 : (!(instruction->prefixes & NMD_X86_PREFIXES_REPEAT_NOT_ZERO) ? modrm.reg <= 0b101 : true))) || (instruction->prefixes & (NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE | NMD_X86_PREFIXES_REPEAT | NMD_X86_PREFIXES_REPEAT_NOT_ZERO) && modrm.reg >= 0b010 && modrm.reg <= 0b101))) ||
 					(*b == 0xc7 && ((!instruction->simdPrefix && (modrm.mod == 0b11 ? modrm.reg <= 0b101 : modrm.reg == 0b000 || modrm.reg == 0b010)) ||(instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO && (modrm.mod == 0b11 || modrm.reg != 0b001)) || ((instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT) && (modrm.mod == 0b11 ? modrm.reg <= (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? 0b110 : 0b101) : (modrm.reg != 0b001 && modrm.reg != 0b110))))) ||
 					(*b == 0x00 && modrm.reg >= 0b110) ||
 					(*b == 0x01 && (modrm.mod == 0b11 ? ((instruction->prefixes & (NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE | NMD_X86_PREFIXES_REPEAT_NOT_ZERO | NMD_X86_PREFIXES_REPEAT) && ((modrm.modrm >= 0xc0 && modrm.modrm <= 0xc5) || (modrm.modrm >= 0xc8 && modrm.modrm <= 0xcb) || (modrm.modrm >= 0xcf && modrm.modrm <= 0xd1) || (modrm.modrm >= 0xd4 && modrm.modrm <= 0xd7) || modrm.modrm == 0xee || modrm.modrm == 0xef || modrm.modrm == 0xfa || modrm.modrm == 0xfb)) || (modrm.reg == 0b000 && modrm.rm >= 0b110) || (modrm.reg == 0b001 && modrm.rm >= 0b100 && modrm.rm <= 0b110) || (modrm.reg == 0b010 && (modrm.rm == 0b010 || modrm.rm == 0b011)) || (modrm.reg == 0b101 && modrm.rm < 0b110 && (!(instruction->prefixes & NMD_X86_PREFIXES_REPEAT) || (instruction->prefixes & NMD_X86_PREFIXES_REPEAT && (modrm.rm != 0b000 && modrm.rm != 0b010)))) || (modrm.reg == 0b111 && (modrm.rm > 0b101 || (!(instruction->mode == NMD_X86_MODE_64) && modrm.rm == 0b000)))) : (!(instruction->prefixes & NMD_X86_PREFIXES_REPEAT) && modrm.reg == 0b101))) ||
 					(instruction->prefixes & (NMD_X86_PREFIXES_REPEAT | NMD_X86_PREFIXES_REPEAT_NOT_ZERO) && ((*b >= 0x13 && *b <= 0x17 && !(*b == 0x16 && instruction->prefixes & NMD_X86_PREFIXES_REPEAT)) || *b == 0x28 || *b == 0x29 || *b == 0x2e || *b == 0x2f || (*b <= 0x76 && *b >= 0x74))) ||
 					(modrm.mod == 0b11 && (*b == 0xb2 || *b == 0xb4 || *b == 0xb5 || *b == 0xc3 || *b == 0xe7 || *b == 0x2b || (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && (*b == 0x12 || *b == 0x16)) || (!(instruction->prefixes & (NMD_X86_PREFIXES_REPEAT | NMD_X86_PREFIXES_REPEAT_NOT_ZERO)) && (*b == 0x13 || *b == 0x17)))) ||
-					((*b == 0x1A || *b == 0x1B) && (( !(instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT && *b == 0x1b) && instruction->simdPrefix && modrm.modrm >= 0xe0) || (modrm.mod != 0b11 && (modrm.reg >= 0b100 || instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE)) || (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && modrm.rm >= 0b100 && modrm.mod == 0b11))) ||
+					((*b == 0x1A || *b == 0x1B) && modrm.mod == 0b11) ||
 					((*b == 0x20 || *b == 0x22) && (modrm.reg == 0b001 || modrm.reg >= 0b101)) ||
 					(*b >= 0x24 && *b <= 0x27) || *b == 0x36 || *b == 0x39 || (*b >= 0x3b && *b <= 0x3f) ||
 					(NMD_R(*b) == 5 && ((*b == 0x50 && modrm.mod != 0b11) || (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && (*b == 0x52 || *b == 0x53)) || (instruction->prefixes & NMD_X86_PREFIXES_REPEAT && (*b == 0x50 || (*b >= 0x54 && *b <= 0x57))) || (instruction->prefixes & NMD_X86_PREFIXES_REPEAT_NOT_ZERO && (*b == 0x50 || (*b >= 0x52 && *b <= 0x57) || *b == 0x5b)))) ||
