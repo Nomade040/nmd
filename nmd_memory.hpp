@@ -2155,7 +2155,7 @@ bool MemEx::Write(uintptr_t address, const void* const buffer, const SIZE_T size
 		return false;
 
 	DWORD oldProtect = 0;
-	if (mbi.Protect & (PAGE_READONLY | PAGE_GUARD))
+	if (mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_READONLY | PAGE_GUARD))
 		VirtualProtectEx(m_hProcess, reinterpret_cast<LPVOID>(address), size, PAGE_EXECUTE_READWRITE, &oldProtect);
 
 	bool ret = static_cast<bool>(WriteProcessMemory(m_hProcess, reinterpret_cast<LPVOID>(address), buffer, size, NULL));
@@ -3650,7 +3650,7 @@ bool MemIn::Write(const uintptr_t address, const void* const buffer, const SIZE_
 	if (!VirtualQuery(reinterpret_cast<LPCVOID>(address), &mbi, sizeof(MEMORY_BASIC_INFORMATION)))
 		return false;
 
-	bool protect = (mbi.Protect & (PAGE_READONLY | PAGE_GUARD));
+	bool protect = (mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_READONLY | PAGE_GUARD));
 	ProtectRegion pr(address, size, protect);
 	if (!pr.Success())
 		return false;
