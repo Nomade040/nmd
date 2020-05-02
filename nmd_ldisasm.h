@@ -10,6 +10,7 @@
 //Dependencies
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 //X86 mode.
 typedef enum NMD_LDISASM_X86_MODE
@@ -287,7 +288,7 @@ size_t nmd_x86_ldisasm(const void* buffer, NMD_LDISASM_X86_MODE mode)
 		const uint8_t twoOpcodes[] = { 0xb0, 0xb1, 0xb3, 0xbb, 0xc0, 0xc1 };
 		if (!(hasModrm && modrm.mod != 0b11 &&
 			((opcodeSize == 1 && (op == 0x86 || op == 0x87 || (NMD_R(op) < 4 && (op % 8) < 2 && op < 0x38) || ((op >= 0x80 && op <= 0x83) && modrm.reg != 0b111) || (op >= 0xfe && modrm.reg < 2) || ((op == 0xf6 || op == 0xf7) && (modrm.reg == 0b010 || modrm.reg == 0b011)))) ||
-				(opcodeSize == 2 && (nmd_findByte(twoOpcodes, sizeof(twoOpcodes), op) || op == 0xab || (op == 0xba && modrm.reg != 0b100) || (op == 0xc7 && modrm.reg == 0b001))))))
+				(opcodeSize == 2 && (nmd_ldisasm_findByte(twoOpcodes, sizeof(twoOpcodes), op) || op == 0xab || (op == 0xba && modrm.reg != 0b100) || (op == 0xc7 && modrm.reg == 0b001))))))
 			return 0;
 	}
 
