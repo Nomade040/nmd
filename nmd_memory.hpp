@@ -3349,7 +3349,7 @@ void MemEx::PatternScanImpl(std::atomic<uintptr_t>& address, const uint8_t* cons
 					{
 						uintptr_t addressMatch = start + i; //Found match
 						if (addressMatch < address.load())
-							address = addressMatch - (isPatternBetweenPages ? (numGoodBytes + 1) : 0);
+							address = addressMatch - (isPatternBetweenPages ? (numMatchedBytes - numGoodBytes) : 0);
 						return;
 					}
 					else
@@ -4386,7 +4386,7 @@ void MemIn::PatternScanImpl(std::atomic<uintptr_t>& address, const uint8_t* cons
 				{
 					//Found match
 					if (reinterpret_cast<uintptr_t>(bytes) < address.load())
-						address = reinterpret_cast<uintptr_t>(bytes) - (isPatternBetweenRegions ? (numGoodBytes + 1) : 0);
+						address = reinterpret_cast<uintptr_t>(bytes) - (isPatternBetweenRegions ? (numMatchedBytes - numGoodBytes) : 0);
 					return;
 				}
 			byte_not_match:
