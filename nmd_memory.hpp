@@ -3321,6 +3321,8 @@ void MemEx::PatternScanImpl(std::atomic<uintptr_t>& address, const uint8_t* cons
 	uint8_t buffer[4096];
 	const size_t patternSize = strlen(mask);
 
+	size_t numMatchedBytes = 0;
+
 	while ((firstMatch ? true : address.load() == -1) && start < end && VirtualQueryEx(m_hProcess, reinterpret_cast<LPCVOID>(start), &mbi, sizeof(MEMORY_BASIC_INFORMATION)))
 	{
 		if (mbi.Protect & protect)
@@ -3332,22 +3334,29 @@ void MemEx::PatternScanImpl(std::atomic<uintptr_t>& address, const uint8_t* cons
 					break;
 
 				const uint8_t* bytes = buffer;
-				for (size_t i = 0; i < bufferSize - patternSize; i++)
+				const bool isPatternBetweenPages = numMatchedBytes != 0;
+				for (size_t i = 0; i < bufferSize; i++)
 				{
-					for (size_t j = 0; j < patternSize; j++)
+					const size_t remainingPatternSize = patternSize - numMatchedBytes;
+					const size_t numGoodBytes = i + remainingPatternSize > bufferSize ? bufferSize - i : remainingPatternSize;
+					for (size_t j = 0; j < numGoodBytes; j++, numMatchedBytes++)
 					{
-						if (!(mask[j] == '?' || bytes[j] == pattern[j]))
+						if (!(mask[numMatchedBytes] == '?' || bytes[j] == pattern[numMatchedBytes]))
 							goto byte_not_match;
 					}
 
+					if (numMatchedBytes == patternSize)
 					{
 						uintptr_t addressMatch = start + i; //Found match
 						if (addressMatch < address.load())
-							address = addressMatch;
+							address = addressMatch - (isPatternBetweenPages ? (numGoodBytes + 1) : 0);
 						return;
 					}
+					else
+						break;
 				byte_not_match:
 					bytes++;
+					numMatchedBytes = 0;
 				}
 			}
 		}
@@ -4352,28 +4361,37 @@ void MemIn::PatternScanImpl(std::atomic<uintptr_t>& address, const uint8_t* cons
 	MEMORY_BASIC_INFORMATION mbi;
 	const size_t patternSize = strlen(mask);
 
+	size_t numMatchedBytes = 0;
+
 	while ((firstMatch ? true : address.load() == -1) && start < end && VirtualQuery(reinterpret_cast<LPCVOID>(start), &mbi, sizeof(MEMORY_BASIC_INFORMATION)))
 	{
 		if (!(mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) && (mbi.Protect & protect))
 		{
 			const uint8_t* bytes = reinterpret_cast<const uint8_t*>(start);
-			while (bytes < reinterpret_cast<uint8_t*>(mbi.BaseAddress) + mbi.RegionSize - patternSize)
+			const uint8_t* regionEnd = reinterpret_cast<uint8_t*>(mbi.BaseAddress) + mbi.RegionSize;
+			const bool isPatternBetweenRegions = numMatchedBytes != 0;
+			while (bytes < regionEnd)
 			{
-				for (size_t j = 0; j < patternSize; j++)
+				const size_t remainingPatternSize = patternSize - numMatchedBytes;
+				const size_t numGoodBytes = bytes + remainingPatternSize > regionEnd ? regionEnd - bytes : remainingPatternSize;
+				for (size_t j = 0; j < numGoodBytes; j++, numMatchedBytes++)
 				{
-					if (!(mask[j] == '?' || bytes[j] == pattern[j]))
+					if (!(mask[numMatchedBytes] == '?' || bytes[j] == pattern[numMatchedBytes]))
 						goto byte_not_match;
 				}
 
+				if (numMatchedBytes != patternSize)
+					break;
 				if (bytes != pattern)
 				{
 					//Found match
 					if (reinterpret_cast<uintptr_t>(bytes) < address.load())
-						address = reinterpret_cast<uintptr_t>(bytes);
+						address = reinterpret_cast<uintptr_t>(bytes) - (isPatternBetweenRegions ? (numGoodBytes + 1) : 0);
 					return;
 				}
 			byte_not_match:
 				bytes++;
+				numMatchedBytes = 0;
 			}
 		}
 
