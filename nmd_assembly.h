@@ -23,9 +23,9 @@
 //  nmd_x86_decode_buffer() -> takes as input a buffer(containing encoded instructions) and fills a 'NMD_X86Instruction'.
 //  nmd_x86_format_instruction() -> takes as input a 'NMD_X86Instruction' and constructs its string representation on an user provided buffer.
 //
-// Using absolutely no dependecies(other headers..):
+// Using absolutely no dependecies(other headers...):
 //  Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
-//  Be careful: Using this macro when the types(i.e. uint8_t, uint16_t, etc...) are already defined may caus compiler errors.
+//  Be careful: Using this macro when the types(i.e. uint8_t, uint16_t, etc...) are already defined may cause compiler errors.
 //
 // Enabling and disabling features of the decoder:
 // To dynamically choose which features are used by the decoder, use the 'featureFlags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
