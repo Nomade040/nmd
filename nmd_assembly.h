@@ -68,8 +68,6 @@ int main()
 
 		printf("%s\n", instructionString);
 	}
-
-	return 0;
 }
 */
 //
@@ -87,7 +85,7 @@ int main()
 //   - Add support for other architectures.
 //
 // References
-//  - Intel 64 and IA-32 Architectures. Software Developer’s Manual Volume 2 (2A, 2B, 2C & 2D): Instruction Set Reference, A-Z
+//  - Intel 64 and IA-32 Architectures. Software Developer's Manual Volume 2 (2A, 2B, 2C & 2D): Instruction Set Reference, A-Z
 //    - Chapter 2 Instruction Format.
 //    - Chapter 3-5 Instruction set reference.
 //    - Appendix A Opcode Map.
