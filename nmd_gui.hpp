@@ -139,8 +139,6 @@ int main()
         pD3D9Device->EndScene();
         pD3D9Device->Present(NULL, NULL, NULL, NULL);
     }
-
-    return 0;
 }
 */
 //

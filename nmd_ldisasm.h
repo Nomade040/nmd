@@ -41,8 +41,6 @@ int main()
 		i += length;
 
 	} while (i < sizeof(code));
-
-	return 0;
 }
 */
 
