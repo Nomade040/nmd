@@ -40,7 +40,7 @@
 //  - 'NMD_ASSEMBLY_DISABLE_VEX': the assembler and decoder do not support VEX instructions.
 //  - 'NMD_ASSEMBLY_DISABLE_EVEX': the assembler and decoder do not support EVEX instructions.
 //
-/* Example:
+/* Sample program:
 //Expected output
 //xor eax, eax
 //inc eax
