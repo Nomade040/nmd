@@ -40,7 +40,7 @@
 //  - 'NMD_ASSEMBLY_DISABLE_VEX': the assembler and decoder do not support VEX instructions.
 //  - 'NMD_ASSEMBLY_DISABLE_EVEX': the assembler and decoder do not support EVEX instructions.
 //
-/* Usage demonstration:
+/* Example:
 //Expected output
 //xor eax, eax
 //inc eax
@@ -54,7 +54,7 @@
 
 int main()
 {
-	const char code[] = { 0x33, 0xC0, 0x40, 0xC3, 0x8B, 0x65, 0xE8 };
+	const uint8_t code[] = { 0x33, 0xC0, 0x40, 0xC3, 0x8B, 0x65, 0xE8 };
 
 	NMD_X86Instruction instruction;
 	char instructionString[NMD_X86_MAXIMUM_INSTRUCTION_STRING_LENGTH];
@@ -126,12 +126,10 @@ typedef unsigned long long uint64_t;
 #ifdef _WIN64
 typedef unsigned __int64 size_t;
 typedef __int64          ptrdiff_t;
-typedef __int64          intptr_t;
 #else
 typedef unsigned int     size_t;
 typedef int              ptrdiff_t;
-typedef int              intptr_t;
-#endif
+#endif // _WIN64
 
 #else
 //Dependencies

@@ -3,14 +3,78 @@
 // Define the 'NMD_LDISASM_IMPLEMENTATION' macro in one source file to instantiate the implementation. Example:
 // #define NMD_LDISASM_IMPLEMENTATION
 // #include "nmd_ldisasm.h"
+//
+// Features:
+// - No runtime initialization.
+// - Thread-safe by design.
+// - No dynamic memory allocation.
+// - No global variables.
+// - Optimized for speed and low memory usage.
+// - One single function.
+// - C99 compatible.
+// - The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_LDISASM_NO_INCLUDES' macro.
+// - All of the code is in this single header file.
+//
+// Using absolutely no dependecies(other headers...):
+//  Define the 'NMD_LDISASM_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
+//  Be careful: Using this macro when the types(i.e. uint8_t, size_t, etc...) are already defined may cause compiler errors.
+//
+/* Example:
+#define NMD_LDISASM_IMPLEMENTATION
+#include "nmd_ldisasm.h"
+
+#include <stdio.h>
+
+int main()
+{
+	const uint8_t code[] = { 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x81, 0xEC, 0x70, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x33, 0x82, 0x77, 0x33, 0xC4 };
+
+	size_t i = 0;
+	do
+	{
+		const size_t length = nmd_x86_ldisasm(code + i, NMD_LDISASM_X86_MODE_32);
+		if (!length)
+			break;
+
+		printf("%d\n", length);
+
+		i += length;
+
+	} while (i < sizeof(code));
+
+	return 0;
+}
+*/
 
 #ifndef NMD_LDISASM_H
 #define NMD_LDISASM_H
 
+#ifdef NMD_LDISASM_NO_INCLUDES
+
+#ifndef __cplusplus
+
+#define bool  _Bool
+#define false 0
+#define true  1
+
+#endif // __cplusplus
+
+typedef unsigned char    uint8_t;
+
+#ifdef _WIN64
+typedef unsigned __int64 size_t;
+typedef __int64          ptrdiff_t;
+#else
+typedef unsigned int     size_t;
+typedef int              ptrdiff_t;
+#endif // _WIN64
+
+#else
 //Dependencies
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#endif // NMD_LDISASM_NO_INCLUDES
 
 //X86 mode.
 typedef enum NMD_LDISASM_X86_MODE
@@ -30,8 +94,8 @@ size_t nmd_x86_ldisasm(const void* buffer, NMD_LDISASM_X86_MODE mode);
 
 #ifdef NMD_LDISASM_IMPLEMENTATION
 
-#define NMD_R(b) (b >> 4) // Four high-order bits of an opcode to index a row of the opcode table
-#define NMD_C(b) (b & 0xF) // Four low-order bits to index a column of the table
+#define NMD_R(b) ((b) >> 4) // Four high-order bits of an opcode to index a row of the opcode table
+#define NMD_C(b) ((b) & 0xF) // Four low-order bits to index a column of the table
 
 bool nmd_ldisasm_findByte(const uint8_t* arr, const size_t N, const uint8_t x) { for (size_t i = 0; i < N; i++) { if (arr[i] == x) { return true; } }; return 0; }
 

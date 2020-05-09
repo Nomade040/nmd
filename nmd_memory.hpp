@@ -1,11 +1,26 @@
 // This is a C++ memory library for Windows and hopefully Linux in the future. 
 //
-// define the 'NMD_MEMORY_IMPLEMENTATION' macro in one and only one source file.
+// define the 'NMD_MEMORY_IMPLEMENTATION' macro in one source file.
 // Example:
-// #include <...>
-// #include <...>
 // #define NMD_MEMORY_IMPLEMENTATION
 // #include "nmd_memory.hpp"
+//
+/* Example:
+#define NMD_MEMORY_IMPLEMENTATION
+#include "nmd_memory.hpp"
+
+int main()
+{
+	// Instantiates a 'MemEx' object that represents an external process.
+	MemEx m;
+
+	// Waits until a 'dummy.exe.' proccess is running and then opens a handle to it.
+	m.WaitOpen(TEXT("target.exe"));
+
+	// Injects a DLL using manual mapping to 'dummy.exe'.
+	m.Inject(TEXT("dummy.dll"));
+}
+*/
 //
 // TODO:
 //  - Finish ValueScan(), implement string scan and some other functionalities.
@@ -178,8 +193,8 @@ typedef struct ArgPtr
 {
 	const void* const data;
 	const size_t size;
-	const bool constant, immediate, isString;
 	void* volatileBuffer;
+	const bool constant, immediate, isString;
 
 #ifdef _WIN64
 	bool isFloat = false;
@@ -2374,13 +2389,13 @@ uintptr_t MemEx::PatternScan(const char* const pattern, const char* const mask, 
 		{
 			const char* const pattern, * const mask;
 			const MemEx* mem;
-			DWORD protect;
 			size_t numThreads;
-			bool firstMatch;
 			uintptr_t address;
+			DWORD protect;
+			bool firstMatch;
 		};
 
-		PatternInfo pi = { pattern, mask, this, protect, numThreads, firstMatch, 0 };
+		PatternInfo pi = { pattern, mask, this, numThreads, 0, protect, firstMatch };
 
 		EnumModules(m_dwProcessId,
 			[](MODULEENTRY32& me, void* param)
@@ -2693,13 +2708,13 @@ uintptr_t MemEx::FindCodeCave(const size_t size, const uint32_t nullByte, const 
 				size_t size;
 				size_t* const codeCaveSize;
 				const MemEx* memex;
-				DWORD protect;
 				size_t numThreads;
-				bool firstMatch;
 				uintptr_t address;
+				DWORD protect;
+				bool firstMatch;
 			};
 
-			CodeCaveInfo cci = { size, codeCaveSize, this, protection, numThreads, firstMatch, 0 };
+			CodeCaveInfo cci = { size, codeCaveSize, this, numThreads, 0, protection, firstMatch };
 
 			EnumModules(GetCurrentProcessId(),
 				[](MODULEENTRY32& me, void* param)
@@ -3159,7 +3174,7 @@ uintptr_t MemEx::Inject(const void* dll, INJECTION_METHOD injectionMethod, bool 
 
 		//Do some checks to validate the image.
 		const IMAGE_DOS_HEADER* idh = reinterpret_cast<const IMAGE_DOS_HEADER*>(rawImage);
-		if (!idh || (isPath ? static_cast<DWORD>(idh->e_lfanew) > numBytesRead : false) || idh->e_magic != 0x5A4D)
+		if ((isPath ? static_cast<DWORD>(idh->e_lfanew) > numBytesRead : false) || idh->e_magic != 0x5A4D)
 			return false;
 
 		const IMAGE_NT_HEADERS* inth = reinterpret_cast<const IMAGE_NT_HEADERS*>(rawImage + idh->e_lfanew);
@@ -3409,7 +3424,7 @@ void* MemEx::CallImpl(const CConv cConv, const bool isReturnFloat, const bool is
 	size_t returnOffset = 0;
 #ifdef _WIN64
 	uint8_t* buffer = m_thisMappedView + 35;
-	size_t offset = static_cast<size_t>(62) + (isReturnFloat || isReturnDouble) ? 6 : 4 + returnSize > 8 ? 4 : 0;
+	size_t offset = static_cast<size_t>(62) + (isReturnFloat || isReturnDouble ? 6 : 4) + (returnSize > 8 ? 4 : 0);
 
 	//Calculate offset(arguments)
 	size_t paramCount = 0;
@@ -3874,13 +3889,13 @@ uintptr_t MemIn::PatternScan(const char* const pattern, const char* const mask, 
 		struct PatternInfo
 		{
 			const char* const pattern, * const mask;
-			DWORD protect;
 			size_t numThreads;
-			bool firstMatch;
 			uintptr_t address;
+			DWORD protect;
+			bool firstMatch;
 		};
 
-		PatternInfo pi = { pattern, mask, protect, numThreads, firstMatch, 0 };
+		PatternInfo pi = { pattern, mask, numThreads, 0, protect, firstMatch };
 
 		EnumModules(GetCurrentProcessId(),
 			[](MODULEENTRY32& me, void* param)
@@ -4180,13 +4195,13 @@ uintptr_t MemIn::FindCodeCave(const size_t size, const uint32_t nullByte, const 
 			{
 				size_t size;
 				size_t* const codeCaveSize;
-				DWORD protect;
 				size_t numThreads;
-				bool firstMatch;
 				uintptr_t address;
+				DWORD protect;
+				bool firstMatch;
 			};
 
-			CodeCaveInfo cci = { size, codeCaveSize, protection, numThreads, firstMatch, 0 };
+			CodeCaveInfo cci = { size, codeCaveSize, numThreads, 0, protection, firstMatch};
 
 			EnumModules(GetCurrentProcessId(),
 				[](MODULEENTRY32& me, void* param)
