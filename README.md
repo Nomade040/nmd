@@ -1,3 +1,5 @@
+[![buddy pipeline](https://app.buddy.works/nomade040/nmd/pipelines/pipeline/255609/badge.svg?token=2fb17a3ff8ce8e4793c03168be95a073eb3a1be6606e720a560806ca0bf9ce8a "buddy pipeline")](https://app.buddy.works/nomade040/nmd/pipelines/pipeline/255609)
+
 # nmd
 set of single-header libraries for C/C++
 
