@@ -5,6 +5,7 @@
 // - No runtime initialization.
 // - Thread-safe by design.
 // - No dynamic memory allocation.
+// - No global variables.
 // - Optimized for speed and low memory usage.
 // - Three high-level functions.
 // - C99 compatible.
@@ -159,7 +160,8 @@ enum NMD_X86_FORMAT_FLAGS
 	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX    = (1 << 11), // If set and NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW is also set, the number's hexadecimal representation is displayed in parenthesis.
 	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC    = (1 << 12), // Same as NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
 	NMD_X86_FORMAT_FLAGS_SCALE_ONE                 = (1 << 13), // If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al.
-	NMD_X86_FORMAT_FLAGS_ALL                       = (1 << 14) - 1, // Specifies all format flags.
+	NND_X86_FORMAT_FLAGS_BYTES                     = (1 << 14), // The instruction's bytes are displayed before the instructions.
+	NMD_X86_FORMAT_FLAGS_ALL                       = (1 << 15) - 1, // Specifies all format flags.
 	NMD_X86_FORMAT_FLAGS_DEFAULT                   = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
 	NMD_X86_FORMAT_FLAGS_ZYDIS                     = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_SCALE_ONE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE), // Specifies a format similar to the default Zydis's stlye.
 	NMD_X86_FORMAT_FLAGS_CAPSTONE                  = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES) // Specifies a format similar to the default capstone's stlye.
@@ -3483,7 +3485,7 @@ void appendNumber(StringInfo* const si, uint64_t n)
 		const uint8_t baseChar = si->formatFlags & NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE ? 0x57 : 0x37;
 		do {
 			size_t num = n % 16;
-			*(si->buffer + numDigits--) = (char)(num > 9 ? baseChar + num : 0x30 + num);
+			*(si->buffer + numDigits--) = (char)((num > 9 ? baseChar : 0x30) + num);
 		} while ((n /= 16) > 0);
 
 		if (si->formatFlags & NMD_X86_FORMAT_FLAGS_H_SUFFIX && condition)
@@ -3912,6 +3914,21 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 
 	if (!instruction->flags.valid)
 		return;
+
+	if (formatFlags & NND_X86_FORMAT_FLAGS_BYTES)
+	{
+		for (size_t i = 0; i < instruction->length; i++)
+		{
+			uint8_t num = instruction->fullInstruction[i] >> 4;
+			*si.buffer++ = (char)((num > 9 ? 0x37 : 0x30) + num);
+			num = instruction->fullInstruction[i] & 0xf;
+			*si.buffer++ = (char)((num > 9 ? 0x37 : 0x30) + num);
+			*si.buffer++ = ' ';
+		}
+
+		for (int i = 0; i < 30 - instruction->length*3; i++)
+			*si.buffer++ = ' ';
+	}
 
 	const uint8_t op = instruction->opcode;
 
