@@ -19,7 +19,7 @@
 //  Define the 'NMD_LDISASM_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
 //  Be careful: Using this macro when the types(i.e. uint8_t, size_t, etc...) are already defined may cause compiler errors.
 //
-/* Example:
+/* Sample program:
 #define NMD_LDISASM_IMPLEMENTATION
 #include "nmd_ldisasm.h"
 

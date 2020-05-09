@@ -41,7 +41,7 @@
 //     - Call Gui::D3D11SetDeviceContext() on initialization.
 //     - Call Gui::D3D11Render() once per frame before IDXGISwapChain::Present() to actually render(draw) the scene.
 //
-/* Full working sample for Windows using Direct3D 9:
+/* Sample program for Windows using Direct3D 9:
 #define NMD_GUI_IMPLEMENTATION
 #define NMD_GUI_D3D9
 #include "nmd_gui.hpp"

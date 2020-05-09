@@ -5,7 +5,7 @@
 // #define NMD_MEMORY_IMPLEMENTATION
 // #include "nmd_memory.hpp"
 //
-/* Example:
+/* Sample program:
 #define NMD_MEMORY_IMPLEMENTATION
 #include "nmd_memory.hpp"
 
