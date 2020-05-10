@@ -25,7 +25,7 @@
 //  nmd_x86_decode_buffer() -> takes as input a buffer(containing encoded instructions) and fills a 'NMD_X86Instruction'.
 //  nmd_x86_format_instruction() -> takes as input a 'NMD_X86Instruction' and constructs its string representation on an user provided buffer.
 //
-// Using absolutely no dependecies(other headers...):
+// Using absolutely no dependencies(other headers...):
 //  Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
 //  Be careful: Using this macro when the types(i.e. uint8_t, uint16_t, etc...) are already defined may cause compiler errors.
 //
@@ -74,7 +74,7 @@ int main()
 //
 // TODO:
 //  Short-Term
-//   - Implement archirecture specific groups.
+//   - Implement architecture specific groups.
 //   - Add a 'bufferSize' parameter to nmd_x86_decode_buffer(). 
 //   - Add a variable that stores operand data.
 //   - Implement affected cpu states on NMD_X86Instruction(read/written read/cpu flags).
@@ -97,7 +97,7 @@ int main()
 //  - VIA PadLock Programming Guide.
 //
 // Contributors(This may not be a complete list):
-//  - Nomade: Founder and mantainer.
+//  - Nomade: Founder and maintainer.
 //  - Darkratos: Bug reporting and feature suggesting.
 
 #ifndef NMD_ASSEMBLY_H
