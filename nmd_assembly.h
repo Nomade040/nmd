@@ -9,6 +9,7 @@
 // - Optimized for speed and low memory usage.
 // - Three high-level functions.
 // - C99 compatible.
+// - Platform independent.
 // - The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_ASSEMBLY_NO_INCLUDES' macro.
 // - All of the code is in this single header file.
 //
@@ -163,6 +164,22 @@ enum NMD_X86_FORMAT_FLAGS
 	NMD_X86_FORMAT_FLAGS_CAPSTONE                  = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES) // Specifies a format similar to the default capstone's stlye.
 };
 
+enum NMD_X86_FEATURE_FLAGS
+{
+	NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK = (1 << 0), // The decoder checks if the instruction is valid.
+	NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID = (1 << 1), // The decoder fills the 'id' variable.
+	NMD_X86_FEATURE_FLAGS_OPERANDS       = (1 << 2), // The decoder fills the 'numOperands' and 'operands' variable.
+	NMD_X86_FEATURE_FLAGS_GROUP          = (1 << 3), // The decoder fills 'group' variable.
+	NMD_X86_FEATURE_FLAGS_CPU_FLAGS      = (1 << 4), // The decoder does not fill the 'cpuFlags' variable.
+	NMD_X86_FEATURE_FLAGS_VEX            = (1 << 5), // VEX instructions are parsed.
+	NMD_X86_FEATURE_FLAGS_EVEX           = (1 << 6), // EVEX instructions are parsed.
+
+	//These are not actual features, but rather masks of features.
+	NMD_X86_FEATURE_FLAGS_NONE = 0,
+	NMD_X86_FEATURE_FLAGS_MINIMAL = (NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK | NMD_X86_FEATURE_FLAGS_VEX | NMD_X86_FEATURE_FLAGS_EVEX), // Mask that specifies minimal features to provide acurate results in any environment.
+	NMD_X86_FEATURE_FLAGS_ALL     = (1 << 7) - 1, // Mask that specifies all features.
+};
+
 typedef enum NMD_X86_PREFIXES
 {
 	NMD_X86_PREFIXES_NONE                  = 0,
@@ -177,11 +194,10 @@ typedef enum NMD_X86_PREFIXES
 	NMD_X86_PREFIXES_LOCK                  = (1 << 8),
 	NMD_X86_PREFIXES_REPEAT_NOT_ZERO       = (1 << 9),
 	NMD_X86_PREFIXES_REPEAT                = (1 << 10),
-	NMD_X86_PREFIXES_REX                   = (1 << 11),
-	NMD_X86_PREFIXES_REX_W                 = (1 << 12),
-	NMD_X86_PREFIXES_REX_R                 = (1 << 13),
-	NMD_X86_PREFIXES_REX_X                 = (1 << 14),
-	NMD_X86_PREFIXES_REX_B                 = (1 << 15)
+	NMD_X86_PREFIXES_REX_W                 = (1 << 11),
+	NMD_X86_PREFIXES_REX_R                 = (1 << 12),
+	NMD_X86_PREFIXES_REX_X                 = (1 << 13),
+	NMD_X86_PREFIXES_REX_B                 = (1 << 14)
 } NMD_X86_PREFIXES;
 
 typedef enum NMD_X86_IMM_MASK
@@ -2147,12 +2163,12 @@ typedef struct NMD_X86_OPERAND_MEM
 	NMD_X86_REG segment;
 	NMD_X86_REG base;
 	NMD_X86_REG index;
-	uint8_t scale;
-	int64_t disp;
+	uint8_t scale;       // scale(1, 2, 4 or 8)
+	int64_t disp;        // displacement
 } NMD_X86_OPERAND_MEM;
 
 typedef struct NMD_X86Operand
-{
+{	
 	NMD_X86_OPERAND_TYPE type; // The operand's type.
 	uint8_t size;              // The operand's size in bytes.
 	bool read;                 // The operand is read from.
@@ -2171,6 +2187,7 @@ typedef union NMD_X86InstructionFlags
 		bool valid         : 1; // If true, the instruction is valid.
 		bool hasModrm      : 1; // If true, the instruction has a modrm byte.
 		bool hasSIB        : 1; // If true, the instruction has an SIB byte.
+		bool hasRex        : 1; // If true, the instruction has a REX prefix
 		bool operandSize64 : 1; // If true, a REX.W prefix is closer to the opcode than a operand size override prefix.
 		bool repeatPrefix  : 1; // If true, a 'repeat'(F3h) prefix is closer to the opcode than a 'repeat not zero'(F2h) prefix.
 	};
@@ -2181,47 +2198,31 @@ typedef struct NMD_X86Instruction
 {
 	NMD_X86InstructionFlags flags;         // The instruction's flags. See the 'NMD_X86InstructionFlags' union.
 	uint8_t fullInstruction[15];           // Buffer containing the full instruction.
+	NMD_X86Operand operands[4];            // Operands. [TODO]
 	NMD_X86_INSTRUCTION id;                // A member of 'NMD_X86_INSTRUCTION' enum that identifies which instruction this is.
 	NMD_X86_OPCODE_MAP opcodeMap;          // The opcode map the instruction belongs to.
 	NMD_X86_INSTRUCTION_ENCODING encoding; // The instruction's encoding.
-	uint8_t numPrefixes;                   // Number of prefixes.
 	NMD_X86_PREFIXES prefixes;             // A mask of prefixes.
+	uint8_t numPrefixes;                   // Number of prefixes.
 	uint8_t length;                        // The instruction's length in bytes.
 	uint8_t opcode;                        // Opcode byte.
 	uint8_t opcodeSize;                    // The opcode's size in bytes.
 	uint8_t numOperands;                   // The number of operands.
-	NMD_X86Operand operands[4];            // Operands. [TODO]
-	NMD_GROUP group;                       // The instruction's group(e.g. jmp, prvileged...).
-	NMD_X86_MODE mode;                     // The mode the instruction was parsed.
+	uint8_t rex;                           // REX prefix
 	NMD_Modrm modrm;                       // The modrm byte. Check 'flags.hasModrm'.
 	NMD_SIB sib;                           // The SIB byte. Check 'flags.hasSIB'.
+	NMD_GROUP group;                       // The instruction's group(e.g. jmp, prvileged...).
+	NMD_X86_MODE mode;                     // The mode the instruction was parsed.
 	NMD_X86_PREFIXES segmentOverride;      // One segment override prefix in the 'NMD_X86_INSTRUCTION_PREFIXES' enum that is the closest to the opcode.
 	NMD_X86_PREFIXES simdPrefix;           // Either one of these prefixes that is the closest to the opcode: 66h, F0h, F2h, F3h, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum.
 	NMD_X86_IMM_MASK immMask;              // A mask of one or more members of the 'NMD_X86_IMM_MASK' enum.
-	uint64_t immediate;                    // Immediate. Check 'immMask'.
 	NMD_X86_DISP_MASK dispMask;            // A mask of one or more members of the 'NMD_X86_DISP_MASK' enum.
+	uint64_t immediate;                    // Immediate. Check 'immMask'.
 	uint32_t displacement;                 // Displacement. Check 'dispMask'.
 	NMD_X86Vex vex;                        // VEX prefix.
 	uint64_t cpuFlags;                     // The cpu flags(eflags, rflags, fpu flags) affected by the instruction.
 	uint64_t runtimeAddress;               // Runtime address provided by the user.
 } NMD_X86Instruction;
-
-enum NMD_X86_FEATURE_FLAGS
-{
-	NMD_X86_FEATURE_FLAGS_NONE = 0,
-
-	NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK = (1 << 0), // The decoder checks if the instruction is valid.
-	NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID = (1 << 1), // The decoder fills the 'id' variable.
-	NMD_X86_FEATURE_FLAGS_OPERANDS       = (1 << 2), // The decoder fills the 'numOperands' and 'operands' variable.
-	NMD_X86_FEATURE_FLAGS_GROUP          = (1 << 3), // The decoder fills 'group' variable.
-	NMD_X86_FEATURE_FLAGS_CPU_FLAGS      = (1 << 4), // The decoder does not fill the 'cpuFlags' variable.
-	NMD_X86_FEATURE_FLAGS_VEX            = (1 << 5), // VEX instructions are parsed.
-	NMD_X86_FEATURE_FLAGS_EVEX           = (1 << 6), // EVEX instructions are parsed.
-
-	//These are not actual features, but rather masks of features.
-	NMD_X86_FEATURE_FLAGS_MINIMAL = (NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK | NMD_X86_FEATURE_FLAGS_VEX | NMD_X86_FEATURE_FLAGS_EVEX), // Mask that specifies minimal features to provide acurate results in any environment.
-	NMD_X86_FEATURE_FLAGS_ALL     = (1 << 7) - 1, // Mask that specifies all features.
-};
 
 //Assembles an instruction from a string. Returns true if the operation was successful, false otherwise.
 //Parameters:
@@ -2561,7 +2562,8 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 		default:
 			if ((instruction->mode == NMD_X86_MODE_64) && NMD_R(*b) == 4) // 0x40
 			{
-				instruction->prefixes = (NMD_X86_PREFIXES)(instruction->prefixes | NMD_X86_PREFIXES_REX);
+				instruction->flags.hasRex = true;
+				instruction->rex = *b;
 				instruction->prefixes = (NMD_X86_PREFIXES)(instruction->prefixes & ~(NMD_X86_PREFIXES_REX_B | NMD_X86_PREFIXES_REX_X | NMD_X86_PREFIXES_REX_R | NMD_X86_PREFIXES_REX_W));
 
 				if (*b & 0b0001) // bit position 0
@@ -3312,7 +3314,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 			{
 				
 			}
-#endif //NMD_ASSEMBLY_DISABLE_CPU_STATE
+#endif //NMD_ASSEMBLY_DISABLE_CPU_FLAGS
 
 			// Check for ModR/M, SIB and displacement.
 			if (nmd_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
@@ -3356,10 +3358,43 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 					instruction->operands[0].type = NMD_X86_OPERAND_TYPE_REGISTER;
 					instruction->operands[0].reg = (NMD_X86_REG)((instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : (instruction->mode == NMD_X86_MODE_64 ? NMD_X86_REG_RAX : NMD_X86_REG_EAX)) + (instruction->opcode % 8));
 				}
-				else if (NMD_R(instruction->opcode) == 7)
+				else if (instruction->opcode == 0x62)
+				{
+					parseOperandGv(instruction, &instruction->operands[0]);
+					parseModrmUpper32(instruction, &instruction->operands[1]);
+				}
+				else if (instruction->opcode == 0x63)
+				{
+					if (instruction->mode == NMD_X86_MODE_64)
+					{
+						parseOperandGv(instruction, &instruction->operands[0]);
+						parseOperandEv(instruction, &instruction->operands[1]);
+					}
+					else
+					{
+						if (instruction->modrm.mod == 0b11)
+						{
+							instruction->operands[0].type = NMD_X86_OPERAND_TYPE_REGISTER;
+							instruction->operands[0].reg = (NMD_X86_REG)(NMD_X86_REG_AX + instruction->modrm.rm);
+						}
+						else
+							parseModrmUpper32(instruction, &instruction->operands[0]);
+
+						instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
+						instruction->operands[1].reg = (NMD_X86_REG)(NMD_X86_REG_AX + instruction->modrm.reg);
+					}
+				}
+				else if (instruction->opcode == 0x68 || instruction->opcode == 0x6a || NMD_R(instruction->opcode) == 7)
 				{
 					instruction->operands[0].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 					instruction->operands[0].imm = instruction->immediate;
+				}
+				else if (instruction->opcode == 0x69 || instruction->opcode == 0x6b)
+				{
+					parseOperandGv(instruction, &instruction->operands[0]);
+					parseOperandEv(instruction, &instruction->operands[1]);
+					instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+					instruction->operands[2].imm = instruction->immediate;
 				}
 				else if (instruction->opcode >= 0x80 && instruction->opcode <= 0x83)
 				{
@@ -3823,7 +3858,7 @@ void appendEb(StringInfo* const si)
 		if (si->instruction->prefixes & NMD_X86_PREFIXES_REX_B)
 			appendString(si, regrx[si->instruction->modrm.rm]), * si->buffer++ = 'b';
 		else
-			appendString(si, (si->instruction->prefixes & NMD_X86_PREFIXES_REX ? reg8_x64 : reg8)[si->instruction->modrm.rm]);
+			appendString(si, (si->instruction->flags.hasRex ? reg8_x64 : reg8)[si->instruction->modrm.rm]);
 	}
 	else
 		appendModRmUpper(si, "byte");
@@ -3880,7 +3915,7 @@ void appendGb(StringInfo* const si)
 	if (si->instruction->prefixes & NMD_X86_PREFIXES_REX_R)
 		appendString(si, regrx[si->instruction->modrm.reg]), * si->buffer++ = 'b';
 	else
-		appendString(si, (si->instruction->prefixes & NMD_X86_PREFIXES_REX ? reg8_x64 : reg8)[si->instruction->modrm.reg]);
+		appendString(si, (si->instruction->flags.hasRex ? reg8_x64 : reg8)[si->instruction->modrm.reg]);
 }
 
 void appendGw(StringInfo* const si)
@@ -4280,7 +4315,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					if (instruction->prefixes & NMD_X86_PREFIXES_REX_B)
 						appendString(&si, regrx[op % 8]), * si.buffer++ = NMD_C(op) < 8 ? 'b' : 'd';
 					else
-						appendString(&si, (NMD_C(op) < 8 ? (instruction->prefixes & NMD_X86_PREFIXES_REX ? reg8_x64 : reg8) : (instruction->flags.operandSize64 ? reg64 : (operandSize ? reg16 : reg32)))[op % 8]);
+						appendString(&si, (NMD_C(op) < 8 ? (instruction->flags.hasRex ? reg8_x64 : reg8) : (instruction->flags.operandSize64 ? reg64 : (operandSize ? reg16 : reg32)))[op % 8]);
 					*si.buffer++ = ',';
 					appendNumber(&si, instruction->immediate);
 				}
