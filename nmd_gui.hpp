@@ -56,7 +56,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 int main()
 {
     // Register class.
-    WNDCLASSEX wc = { sizeof(wc), NULL, WindowProc, 0, 0, NULL, NULL, NULL, NULL, NULL, "randomclassname", NULL };
+    WNDCLASSEX wc = { sizeof(wc), NULL, WindowProc, 0, 0, NULL, NULL, NULL, NULL, NULL, TEXT("randomclassname"), NULL };
     if (!RegisterClassEx(&wc))
         return 0;
 
