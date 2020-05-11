@@ -352,6 +352,13 @@ typedef enum NMD_X86_REG
 	NMD_X86_REG_R14D,
 	NMD_X86_REG_R15D,
 
+	NMD_X86_REG_ES,
+	NMD_X86_REG_CS,
+	NMD_X86_REG_SS,
+	NMD_X86_REG_DS,
+	NMD_X86_REG_FS,
+	NMD_X86_REG_GS,
+
 	NMD_X86_REG_CR0,
 	NMD_X86_REG_CR1,
 	NMD_X86_REG_CR2,
@@ -2493,6 +2500,17 @@ void parseOperandEb(const NMD_X86Instruction* instruction, NMD_X86Operand* opera
 		parseModrmUpper32(instruction, operand);
 }
 
+void parseOperandEw(const NMD_X86Instruction* instruction, NMD_X86Operand* operand)
+{
+	if (instruction->modrm.mod == 0b11)
+	{
+		operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
+		operand->reg = (NMD_X86_REG)(NMD_X86_REG_AX + instruction->modrm.rm);
+	}
+	else
+		parseModrmUpper32(instruction, operand);
+}
+
 void parseOperandEv(const NMD_X86Instruction* instruction, NMD_X86Operand* operand)
 {
 	if (instruction->modrm.mod == 0b11)
@@ -3418,6 +3436,39 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 						parseOperandGv(instruction, &instruction->operands[instruction->opcode == 0x8b ? 0 : 1]);
 					}
 				}
+				else if (instruction->opcode == 0x8c)
+				{
+					parseOperandEv(instruction, &instruction->operands[0]);
+					instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
+					instruction->operands[1].reg = (NMD_X86_REG)(NMD_X86_REG_ES + instruction->modrm.reg);
+				}
+				else if (instruction->opcode == 0xed)
+				{
+					parseOperandGv(instruction, &instruction->operands[0]);
+				}
+				else if (instruction->opcode == 0x8e)
+				{
+					instruction->operands[0].type = NMD_X86_OPERAND_TYPE_REGISTER;
+					instruction->operands[0].reg = (NMD_X86_REG)(NMD_X86_REG_ES + instruction->modrm.reg);
+					parseOperandEw(instruction, &instruction->operands[1]);
+				}
+				else if (instruction->opcode == 0x8f)
+				{
+					parseOperandEv(instruction, &instruction->operands[0]);
+				}
+				else if (instruction->opcode == 0x90 && instruction->prefixes & NMD_X86_PREFIXES_REX_B)
+				{
+					instruction->operands[0].type = instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
+					instruction->operands[0].reg = instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_REG_R8 : NMD_X86_REG_R8D;
+					instruction->operands[1].reg = instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_REG_RAX : NMD_X86_REG_EAX;
+				}
+				else if (instruction->opcode >= 0x91 && instruction->opcode <= 0x97)
+				{
+					instruction->operands[0].type = instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
+					instruction->operands[0].reg = (NMD_X86_REG)(NMD_X86_REG_EAX + NMD_C(instruction->opcode));
+					instruction->operands[1].reg = NMD_X86_REG_EAX;
+				}
+				//else if(instruction->opcode)
 			}
 #endif // NMD_ASSEMBLY_DISABLE_OPERANDS
 		}
