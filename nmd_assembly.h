@@ -3324,6 +3324,8 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 					instruction->group = (NMD_GROUP)(NMD_GROUP_UNCONDITIONAL_BRANCH | NMD_GROUP_RELATIVE_ADDRESSING);
 				else if (*b >= 0xe0 && *b <= 0xe2)
 					instruction->group = (NMD_GROUP)(NMD_GROUP_CONDITIONAL_BRANCH | NMD_GROUP_RELATIVE_ADDRESSING);
+				else if (*b == 0x8d && instruction->mode == NMD_X86_MODE_64)
+					instruction->group = NMD_GROUP_RELATIVE_ADDRESSING;
 			}
 #endif // NMD_ASSEMBLY_DISABLE_GROUP
 
