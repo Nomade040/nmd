@@ -27,7 +27,7 @@
 //
 // Using absolutely no dependencies(other headers...):
 //  Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
-//  Be careful: Using this macro when the types(i.e. uint8_t, uint16_t, etc...) are already defined may cause compiler errors.
+//  Be aware: Using this macro when the types(i.e. uint8_t, uint16_t, etc...) are already defined may cause compiler errors.
 //
 // Enabling and disabling features of the decoder:
 // To dynamically choose which features are used by the decoder, use the 'featureFlags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
@@ -77,9 +77,8 @@ int main()
 //   - Implement architecture specific groups.
 //   - Add a 'bufferSize' parameter to nmd_x86_decode_buffer(). 
 //   - Add a variable that stores operand data.
-//   - Implement affected cpu states on NMD_X86Instruction(read/written read/cpu flags).
+//   - Implement affected cpu flags.
 //   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
-//   - Fix default segment override(DS,SS). Some instructions are showing the wrong one.
 //   - Implement x86 Assembler(only the initial parsing is done).
 //  Long-Term 
 //   - Implement decompiler for x86.
@@ -158,9 +157,10 @@ enum NMD_X86_FORMAT_FLAGS
 	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC    = (1 << 12), // Same as NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
 	NMD_X86_FORMAT_FLAGS_SCALE_ONE                 = (1 << 13), // If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al.
 	NND_X86_FORMAT_FLAGS_BYTES                     = (1 << 14), // The instruction's bytes are displayed before the instructions.
-	NMD_X86_FORMAT_FLAGS_ALL                       = (1 << 15) - 1, // Specifies all format flags.
+	NMD_X86_FORMAT_FLAGS_ATT_SYNTAX                = (1 << 15), // AT&T syntax is used instead of Intel's.
+	NMD_X86_FORMAT_FLAGS_ALL                       = (1 << 16) - 1, // Specifies all format flags.
 	NMD_X86_FORMAT_FLAGS_DEFAULT                   = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
-	NMD_X86_FORMAT_FLAGS_ZYDIS                     = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_SCALE_ONE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE), // Specifies a format similar to the default Zydis's stlye.
+	NMD_X86_FORMAT_FLAGS_ZYDIS                     = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_SCALE_ONE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW), // Specifies a format similar to the default Zydis's stlye.
 	NMD_X86_FORMAT_FLAGS_CAPSTONE                  = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES) // Specifies a format similar to the default capstone's stlye.
 };
 
@@ -2309,21 +2309,43 @@ void parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction)
 		((uint8_t*)(&instruction->displacement))[i] = *(*b + 1);
 };
 
-const char* nmd_strstr(const char* buffer, const char* string)
+// Returns a pointer to the first occurrence of 'c' in 's', or a null pointer if 'c' is not present.
+const char* nmd_strchr(const char* s, char c)
 {
-	const char* begin = buffer;
-	const char* b = buffer;
-	const char* s = string;
-	for (; *b; b++, s++)
+	for (; *s; s++)
 	{
-		if (*s == '\0')
-			return begin;
-
-		if (*b != *s)
-			s = string, begin = b;
+		if (*s == c)
+			return s;
 	}
 
-	return b;
+	return 0;
+}
+
+// Returns a pointer to the first occurrence of 's2' in 's', or a null pointer if 's2' is not present.
+const char* nmd_strstr(const char* s, const char* s2)
+{
+	for (size_t i = 0; *s; s++)
+	{
+		if (s2[i] == '\0')
+			return s - i;
+
+		if (*s != s2[i])
+			i = 0;
+
+		if (*s == s2[i])
+			i++;
+	}
+
+	return 0;
+}
+
+// Inserts 'c' at 's'.
+void nmd_insert_char(const char* s, char* s_end, char c)
+{
+	for(; s_end > s; s_end--)
+		*s_end = *(s_end - 1);
+
+	*s_end = c;
 }
 
 //Assembles an instruction from a string. Returns true if the operation was successful, false otherwise.
@@ -3672,7 +3694,7 @@ void appendModRmMemoryPrefix(StringInfo* const si, const char* addrSpecifierReg)
 				i++;
 		}
 
-		appendString(si, si->instruction->segmentOverride ? segmentReg[i] : ((si->instruction->modrm.mod == 0b01 || si->instruction->modrm.mod == 0b10) && si->instruction->modrm.rm == 0b101) ? "ss" : "ds");
+		appendString(si, si->instruction->segmentOverride ? segmentReg[i] : (!(si->instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (si->instruction->modrm.rm == 0b100 || si->instruction->modrm.rm == 0b101) ? "ss" : "ds"));
 		*si->buffer++ = ':';
 	}
 }
@@ -3745,7 +3767,7 @@ void appendModRm32Upper(StringInfo* const si)
 	else if (!(si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101))
 	{
 		if ((si->instruction->prefixes & (NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE | NMD_X86_PREFIXES_REX_B)) == (NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE | NMD_X86_PREFIXES_REX_B) && si->instruction->mode == NMD_X86_MODE_64)
-			appendString(si, regrx[si->instruction->modrm.rm]), * si->buffer++ = 'd';
+			appendString(si, regrx[si->instruction->modrm.rm]), *si->buffer++ = 'd';
 		else
 			appendString(si, (si->instruction->mode == NMD_X86_MODE_64 && !(si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE) ? (si->instruction->prefixes & NMD_X86_PREFIXES_REX_B ? regrx : reg64) : reg32)[si->instruction->modrm.rm]);
 	}
@@ -3984,6 +4006,27 @@ void appendW(StringInfo* const si)
 		appendModRmUpper(si, "xmmword");
 }
 
+void formatOperandToAtt(char* operand, StringInfo* si)
+{
+	const char* nextOperand = nmd_strchr(operand, ',');
+
+	const char* memoryOperand = nmd_strchr(operand, '[');
+	if (memoryOperand && (!nextOperand || memoryOperand < nextOperand))
+	{
+		*operand = '(';
+	}
+	//if (si->instruction->immMask)
+	//{
+	//	nmd_insert_char(operand, si.buffer, '$');
+	//	si.buffer++;
+	//}
+	//else
+	//{
+	//	nmd_insert_char(operands, si.buffer, '%');
+	//	si.buffer++;
+	//}
+}
+
 //Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 //Parameters:
 //	instruction [in]  A pointer to a variable of type 'NMD_X86Instruction' that will be used by the formatter.
@@ -4025,7 +4068,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 		appendString(&si, "lock ");
 
 	//const bool operandSize = (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && instruction->mode != NMD_X86_MODE_32) || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE));
-	const bool operandSize = (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE));
+	const bool operandSize = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || instruction->mode == NMD_X86_MODE_16;
 
 	if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_DEFAULT)
 	{
@@ -6261,6 +6304,25 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 	}
 
 	size_t stringLength = si.buffer - buffer;
+	if (formatFlags & NMD_X86_FORMAT_FLAGS_ATT_SYNTAX)
+	{
+		*si.buffer = '\0';
+		char* operand = (char*)nmd_strchr(buffer, ' ');
+		if (operand)
+		{
+			do
+			{
+				operand++;
+				formatOperandToAtt(operand, &si);
+			} while ((operand = (char*)nmd_strchr(operand, ',')));
+
+			//if (!nmd_strchr(operands, ',')) // one operand
+			//{
+			//	
+			//}
+		}
+	}
+
 	if (formatFlags & NMD_X86_FORMAT_FLAGS_UPPERCASE)
 	{
 		for (size_t i = 0; i < stringLength; i++)
