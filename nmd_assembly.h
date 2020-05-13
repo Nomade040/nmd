@@ -33,13 +33,24 @@
 // To dynamically choose which features are used by the decoder, use the 'featureFlags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
 // faster the function runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
 // the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
-//  - 'NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK': the decoder does not check if the instruction is valid.
-//  - 'NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID': the decoder does not fill the 'id' variable.
-//  - 'NMD_ASSEMBLY_DISABLE_OPERANDS': the decoder does not fill the 'numOperands' and 'operands' variable.
-//  - 'NMD_ASSEMBLY_DISABLE_GROUP': the decoder does not fill the 'group' variable.
-//  - 'NMD_ASSEMBLY_DISABLE_CPU_FLAGS': the decoder does not fill the 'cpuFlags' variable.
-//  - 'NMD_ASSEMBLY_DISABLE_VEX': the assembler and decoder do not support VEX instructions.
-//  - 'NMD_ASSEMBLY_DISABLE_EVEX': the assembler and decoder do not support EVEX instructions.
+//  - 'NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK': the decoder does not check if the instruction is valid.
+//  - 'NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID': the decoder does not fill the 'id' variable.
+//  - 'NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS': the decoder does not fill the 'numOperands' and 'operands' variable.
+//  - 'NMD_ASSEMBLY_DISABLE_DECODER_GROUP': the decoder does not fill the 'group' variable.
+//  - 'NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS': the decoder does not fill the 'cpuFlags' variable.
+//  - 'NMD_ASSEMBLY_DISABLE_DECODER_VEX': the assembler and decoder do not support VEX instructions.
+//  - 'NMD_ASSEMBLY_DISABLE_DECODER_EVEX': the assembler and decoder do not support EVEX instructions.
+//
+// Enabling and disabling features of the formatter:
+// To dynamically choose which features are used by the formatter, use the 'formatFlags' parameter of nmd_x86_format_instruction(). The less features specified in the mask, the
+// faster the function runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
+// the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
+//  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE': the formatter does not support pointer size.
+//  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES: the formatter does not support instruction bytes.
+//  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX: the formatter does not support AT&T syntax.
+//  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_UPPERCASE: the formatter does not support uppercase.
+//  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES: the formatter does not support comma spaces.
+//  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_OPERATOR_SPACES: the formatter does not support operator spaces.
 //
 /* Sample program:
 //Expected output
@@ -2642,7 +2653,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 			{
 				instruction->opcodeMap = NMD_X86_OPCODE_MAP_0F_38;
 
-#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
 				{
 					// Check if the instruction is invalid.
@@ -2652,9 +2663,9 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 							((*b == 0xf0 || *b == 0xf1) && !(instruction->prefixes & NMD_X86_PREFIXES_REPEAT)) || (*b == 0xf6 && !(instruction->prefixes & NMD_X86_PREFIXES_REPEAT_NOT_ZERO) && !(!instruction->simdPrefix && modrm.mod == 0b11)) || (*b == 0xf5 && instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && modrm.mod != 0b11) || (*b == 0xf8 && modrm.mod != 0b11 && instruction->simdPrefix != 0x00) || (*b == 0xf9 && !instruction->simdPrefix && modrm.mod != 0b11)))
 						return false;
 				}
-#endif // NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 
-#ifndef NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
 				{
 					if (NMD_R(*b) == 0x00)
@@ -2686,20 +2697,20 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 						}
 					}
 				}
-#endif // NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 
-#ifndef NMD_ASSEMBLY_DISABLE_OPERANDS
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 				// Parse the instruction's number of operands.
 				if(featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
 					instruction->numOperands = 2;
-#endif // NMD_ASSEMBLY_DISABLE_OPERANDS
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 			}
 			else
 			{
 				instruction->opcodeMap = NMD_X86_OPCODE_MAP_0F_3A;
 				instruction->immMask = NMD_X86_IMM8, offset++;
 
-#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
 				{
 					// Check if the instruction is invalid.
@@ -2707,9 +2718,9 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 						(instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && ((*b >= 0x8 && *b <= 0xe) || (*b >= 0x14 && *b <= 0x17) || (*b >= 0x20 && *b <= 0x22) || (*b >= 0x40 && *b <= 0x42) || *b == 0x44 || (*b >= 0x60 && *b <= 0x63) || *b == 0xdf || *b == 0xce || *b == 0xcf))))
 						return false;
 				}
-#endif // NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 
-#ifndef NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
 				{
 					if (NMD_R(*b) == 0)
@@ -2734,13 +2745,13 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 						}
 					}
 				}
-#endif // NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 
-#ifndef NMD_ASSEMBLY_DISABLE_OPERANDS
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 				// Parse the instruction's number of operands.
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
 					instruction->numOperands = 3;
-#endif // NMD_ASSEMBLY_DISABLE_NUM_OPERANDS
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_NUM_OPERANDS
 			}
 
 			parseModrm(&b, instruction);
@@ -2752,7 +2763,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 			instruction->opcode = *b;
 
 			const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
-#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
 			{
 				// Check if the instruction is invalid.
@@ -2786,9 +2797,9 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 					(NMD_R(*b) >= 0xd && NMD_C(*b) != 0 && *b != 0xff && ((NMD_C(*b) == 6 && NMD_R(*b) != 0xf) ? (!instruction->simdPrefix || (NMD_R(*b) == 0xD && (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT || instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO) ? modrm.mod != 0b11 : false)) : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT || instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO || ((NMD_C(*b) == 7 && NMD_R(*b) != 0xe) ? modrm.mod != 0b11 : false)))))
 					return false;
 			}
-#endif // NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 
-#ifndef NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
 			{
 				if (*b == 0x00)
@@ -2935,7 +2946,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 					}
 				}
 			}
-#endif // NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 
 			if (NMD_R(*b) == 8) // imm32
 				instruction->immMask = (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_IMM16 : NMD_X86_IMM32), offset += instruction->immMask;
@@ -2944,7 +2955,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 			else if ((NMD_R(*b) == 7 && NMD_C(*b) < 4) || *b == 0xA4 || *b == 0xC2 || (*b > 0xC3 && *b <= 0xC6) || *b == 0xBA || *b == 0xAC) //imm8
 				instruction->immMask = NMD_X86_IMM8, offset++;
 
-#ifndef NMD_ASSEMBLY_DISABLE_OPERANDS
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 			// Parse the instruction's number of operands.
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
 			{
@@ -2955,9 +2966,9 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				else if (NMD_R(*b) == 8 || NMD_R(*b) == 9 || (NMD_R(*b) == 0xa && *b % 8 < 2) || *b == 0xc7)
 					instruction->numOperands = 1;
 			}
-#endif // NMD_ASSEMBLY_DISABLE_OPERANDS
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 
-#ifndef NMD_ASSEMBLY_DISABLE_GROUP
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_GROUP
 			// Parse the instruction's group.
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_GROUP)
 			{
@@ -2968,7 +2979,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				else if (*b == 0x05)
 					instruction->group = NMD_GROUP_INT;
 			}
-#endif // NMD_ASSEMBLY_DISABLE_GROUP
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_GROUP
 
 			// Check for ModR/M, SIB and displacement.
 			if (*b >= 0x20 && *b <= 0x23)
@@ -2984,7 +2995,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 		instruction->opcodeMap = NMD_X86_OPCODE_MAP_DEFAULT;
 
 		const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
-#ifndef NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 		// Check if the instruction is invalid.
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
 		{
@@ -3029,9 +3040,9 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				}
 			}
 		}
-#endif // NMD_ASSEMBLY_DISABLE_VALIDITY_CHECK
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 
-#ifndef NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
 		{
 			const bool operandSize = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE;
@@ -3219,20 +3230,20 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				}
 			}
 		}
-#endif // NMD_ASSEMBLY_DISABLE_INSTRUCTION_ID
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 
-#ifndef NMD_ASSEMBLY_DISABLE_EVEX
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_EVEX
 		// Check if instruction is EVEX.
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_EVEX && *b == 0x62 && modrm.mod == 0b11)
 		{
 			instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
 		}
-#endif // NMD_ASSEMBLY_DISABLE_EVEX
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_EVEX
 
-#if !defined(NMD_ASSEMBLY_DISABLE_EVEX) && !defined(NMD_ASSEMBLY_DISABLE_VEX)
+#if !defined(NMD_ASSEMBLY_DISABLE_DECODER_EVEX) && !defined(NMD_ASSEMBLY_DISABLE_DECODER_VEX)
 		else
 #endif
-#ifndef NMD_ASSEMBLY_DISABLE_VEX
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_VEX
 		// Check if instruction is VEX.
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_VEX && (*b == 0xc4 || *b == 0xc5) && modrm.mod == 0b11)
 		{
@@ -3268,8 +3279,8 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 
 			parseModrm(&b, instruction);
 		}
-#endif // NMD_ASSEMBLY_DISABLE_VEX
-#if !(defined(NMD_ASSEMBLY_DISABLE_EVEX) && defined(NMD_ASSEMBLY_DISABLE_VEX))
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_VEX
+#if !(defined(NMD_ASSEMBLY_DISABLE_DECODER_EVEX) && defined(NMD_ASSEMBLY_DISABLE_DECODER_VEX))
 		else
 #endif
 		{
@@ -3297,7 +3308,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 			else if (NMD_R(*b) == 0xA && NMD_C(*b) < 4)
 				instruction->immMask = (instruction->mode == NMD_X86_MODE_64) ? (instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE ? NMD_X86_IMM32 : NMD_X86_IMM64) : (instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE ? NMD_X86_IMM16 : NMD_X86_IMM32), offset += instruction->immMask;
 
-#ifndef NMD_ASSEMBLY_DISABLE_OPERANDS
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 			// Parse the instruction's number of operands.
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
 			{
@@ -3322,9 +3333,9 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				else if (NMD_R(*b) == 4 || NMD_R(*b) == 5 || NMD_R(*b) == 7 || (*b == 0x68 || *b == 0x6a) || *b == 0x8f || *b == 0x9a || *b == 0xc2 || *b == 0xca || *b == 0xcd || *b == 0xd4 || *b == 0xd5 || (NMD_R(*b) == 0xe && *b % 8 <= 3) || (NMD_R(*b) == 0xf && *b % 8 >= 6))
 					instruction->numOperands = 1;
 			}
-#endif // NMD_ASSEMBLY_DISABLE_OPERANDS
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 
-#ifndef NMD_ASSEMBLY_DISABLE_GROUP
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_GROUP
 			// Parse the instruction's group.
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_GROUP)
 			{
@@ -3349,20 +3360,20 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				else if (*b == 0x8d && instruction->mode == NMD_X86_MODE_64)
 					instruction->group = NMD_GROUP_RELATIVE_ADDRESSING;
 			}
-#endif // NMD_ASSEMBLY_DISABLE_GROUP
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_GROUP
 
-#ifndef NMD_ASSEMBLY_DISABLE_CPU_FLAGS
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
 			{
 				
 			}
-#endif //NMD_ASSEMBLY_DISABLE_CPU_FLAGS
+#endif //NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
 
 			// Check for ModR/M, SIB and displacement.
 			if (nmd_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
 				parseModrm(&b, instruction);
 
-#ifndef NMD_ASSEMBLY_DISABLE_OPERANDS
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
 			{
 				if (NMD_R(instruction->opcode) < 4)
@@ -3494,7 +3505,7 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				}
 				//else if(instruction->opcode)
 			}
-#endif // NMD_ASSEMBLY_DISABLE_OPERANDS
+#endif // NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 		}
 	}
 	
@@ -3591,7 +3602,7 @@ void appendNumber(StringInfo* const si, uint64_t n)
 		const uint8_t baseChar = si->formatFlags & NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE ? 0x57 : 0x37;
 		do {
 			size_t num = n % 16;
-			*(si->buffer + numDigits--) = (char)((num > 9 ? baseChar : 0x30) + num);
+			*(si->buffer + numDigits--) = (char)((num > 9 ? baseChar : '0') + num);
 		} while ((n /= 16) > 0);
 
 		if (si->formatFlags & NMD_X86_FORMAT_FLAGS_H_SUFFIX && condition)
@@ -3600,7 +3611,7 @@ void appendNumber(StringInfo* const si, uint64_t n)
 	else
 	{
 		do {
-			*(si->buffer + numDigits--) = (char)(0x30 + n % 10);
+			*(si->buffer + numDigits--) = (char)('0' + n % 10);
 		} while ((n /= 10) > 0);
 	}
 
@@ -3679,11 +3690,13 @@ void appendRelativeAddress16_32(StringInfo* const si)
 
 void appendModRmMemoryPrefix(StringInfo* const si, const char* addrSpecifierReg)
 {
+#ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE
 	if (si->formatFlags & NMD_X86_FORMAT_FLAGS_POINTER_SIZE)
 	{
 		appendString(si, addrSpecifierReg);
 		appendString(si, " ptr ");
 	}
+#endif // NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE
 
 	if (!(si->formatFlags & NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE && !si->instruction->segmentOverride))
 	{
@@ -3752,7 +3765,7 @@ void appendModRm32Upper(StringInfo* const si)
 				*si->buffer++ = '+';
 			appendString(si, (si->instruction->mode == NMD_X86_MODE_64 && !(si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE) ? (si->instruction->prefixes & NMD_X86_PREFIXES_REX_X ? regrx : reg64) : reg32)[si->instruction->sib.index]);
 			if (!(si->instruction->sib.scale == 0b00 && !(si->formatFlags & NMD_X86_FORMAT_FLAGS_SCALE_ONE)))
-				*si->buffer++ = '*', * si->buffer++ = (char)('0' + (1 << si->instruction->sib.scale));
+				*si->buffer++ = '*', *si->buffer++ = (char)('0' + (1 << si->instruction->sib.scale));
 		}
 
 		if (si->instruction->prefixes & NMD_X86_PREFIXES_REX_X && si->instruction->sib.index == 0b100)
@@ -3761,7 +3774,7 @@ void appendModRm32Upper(StringInfo* const si)
 				*si->buffer++ = '+';
 			appendString(si, "r12");
 			if (!(si->instruction->sib.scale == 0b00 && !(si->formatFlags & NMD_X86_FORMAT_FLAGS_SCALE_ONE)))
-				*si->buffer++ = '*', * si->buffer++ = (char)('0' + (1 << si->instruction->sib.scale));
+				*si->buffer++ = '*', *si->buffer++ = (char)('0' + (1 << si->instruction->sib.scale));
 		}
 	}
 	else if (!(si->instruction->modrm.mod == 0b00 && si->instruction->modrm.rm == 0b101))
@@ -3828,13 +3841,13 @@ void appendModRmUpperWithoutAddressSpecifier(StringInfo* const si)
 void appendNq(StringInfo* const si)
 {
 	*si->buffer++ = 'm', * si->buffer++ = 'm';
-	*si->buffer++ = (char)(0x30 + si->instruction->modrm.rm);
+	*si->buffer++ = (char)('0' + si->instruction->modrm.rm);
 }
 
 void appendPq(StringInfo* const si)
 {
 	*si->buffer++ = 'm', * si->buffer++ = 'm';
-	*si->buffer++ = (char)(0x30 + si->instruction->modrm.reg);
+	*si->buffer++ = (char)('0' + si->instruction->modrm.reg);
 }
 
 void appendAvxRegisterReg(StringInfo* const si)
@@ -3850,7 +3863,7 @@ void appendAvxVvvvRegister(StringInfo* const si)
 	if ((15 - si->instruction->vex.vvvv) > 9)
 		*si->buffer++ = '1', * si->buffer++ = (char)(0x26 + (15 - si->instruction->vex.vvvv));
 	else
-		*si->buffer++ = (char)(0x30 + (15 - si->instruction->vex.vvvv));
+		*si->buffer++ = (char)('0' + (15 - si->instruction->vex.vvvv));
 }
 
 void appendVdq(StringInfo* const si)
@@ -4001,30 +4014,39 @@ void appendGw(StringInfo* const si)
 void appendW(StringInfo* const si)
 {
 	if (si->instruction->modrm.mod == 0b11)
-		appendString(si, "xmm"), * si->buffer++ = (char)(0x30 + si->instruction->modrm.rm);
+		appendString(si, "xmm"), * si->buffer++ = (char)('0' + si->instruction->modrm.rm);
 	else
 		appendModRmUpper(si, "xmmword");
 }
 
 void formatOperandToAtt(char* operand, StringInfo* si)
 {
-	const char* nextOperand = nmd_strchr(operand, ',');
+	char* nextOperand = (char*)nmd_strchr(operand, ',');
 
 	const char* memoryOperand = nmd_strchr(operand, '[');
 	if (memoryOperand && (!nextOperand || memoryOperand < nextOperand))
 	{
 		*operand = '(';
 	}
-	//if (si->instruction->immMask)
-	//{
-	//	nmd_insert_char(operand, si.buffer, '$');
-	//	si.buffer++;
-	//}
-	//else
-	//{
-	//	nmd_insert_char(operands, si.buffer, '%');
-	//	si.buffer++;
-	//}
+	else
+	{
+		if (!nextOperand)
+			nextOperand = si->buffer;
+		bool isNumber = true;
+		for (char* i = operand; i < nextOperand; i++)
+		{
+			if (!(*i >= '0' && *i <= '9') && !(*i >= 'a' && *i <= 'f') && !(*i >= 'A' && *i <= 'F'))
+			{
+				if ((i == operand + 1 && *operand == '0' && (*i == 'x' || *i == 'X')) || (i == nextOperand - 1 && (*i == 'h' || *i == 'H')))
+					continue;
+				isNumber = false;
+				break;
+			}
+		}
+
+		nmd_insert_char(operand, nextOperand, isNumber ? '$' : '%');
+		si->buffer++;
+	}
 }
 
 //Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
@@ -4042,20 +4064,22 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 	if (!instruction->flags.valid)
 		return;
 
+#ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES
 	if (formatFlags & NND_X86_FORMAT_FLAGS_BYTES)
 	{
 		for (size_t i = 0; i < instruction->length; i++)
 		{
 			uint8_t num = instruction->fullInstruction[i] >> 4;
-			*si.buffer++ = (char)((num > 9 ? 0x37 : 0x30) + num);
+			*si.buffer++ = (char)((num > 9 ? 0x37 : '0') + num);
 			num = instruction->fullInstruction[i] & 0xf;
-			*si.buffer++ = (char)((num > 9 ? 0x37 : 0x30) + num);
+			*si.buffer++ = (char)((num > 9 ? 0x37 : '0') + num);
 			*si.buffer++ = ' ';
 		}
 
 		for (int i = 0; i < 30 - instruction->length*3; i++)
 			*si.buffer++ = ' ';
 	}
+#endif // NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES
 
 	const uint8_t op = instruction->opcode;
 
@@ -4072,17 +4096,17 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 
 	if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_DEFAULT)
 	{
-#ifndef NMD_ASSEMBLY_DISABLE_EVEX
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_EVEX
 		if (instruction->encoding == NMD_X86_INSTRUCTION_ENCODING_EVEX)
 		{
 
 		}
 #endif
 
-#if !defined(NMD_ASSEMBLY_DISABLE_EVEX) && !defined(NMD_ASSEMBLY_DISABLE_VEX)
+#if !defined(NMD_ASSEMBLY_DISABLE_DECODER_EVEX) && !defined(NMD_ASSEMBLY_DISABLE_DECODER_VEX)
 		else
 #endif
-#ifndef NMD_ASSEMBLY_DISABLE_VEX
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_VEX
 			if (instruction->encoding == NMD_X86_INSTRUCTION_ENCODING_VEX)
 			{
 				if (instruction->vex.byte0 == 0xc4)
@@ -4106,7 +4130,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 			}
 #endif
 
-#if !(defined(NMD_ASSEMBLY_DISABLE_EVEX) && defined(NMD_ASSEMBLY_DISABLE_VEX))
+#if !(defined(NMD_ASSEMBLY_DISABLE_DECODER_EVEX) && defined(NMD_ASSEMBLY_DISABLE_DECODER_VEX))
 			else //if (instruction->encoding == INSTRUCTION_ENCODING_LEGACY)
 #endif
 			{
@@ -4520,19 +4544,19 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 						case 0xd8:
 							appendString(&si, escapeOpcodesD8[(NMD_R(instruction->modrm.modrm) - 0xc) * 2 + (NMD_C(instruction->modrm.modrm) > 7 ? 1 : 0)]);
 							appendString(&si, " st(0),st(");
-							*si.buffer++ = (char)(0x30 + instruction->modrm.modrm % 8), * si.buffer++ = ')';
+							*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8), * si.buffer++ = ')';
 							break;
 						case 0xd9:
 							if (NMD_R(instruction->modrm.modrm) == 0xc)
 							{
 								appendString(&si, NMD_C(instruction->modrm.modrm) < 8 ? "ld" : "xch");
 								appendString(&si, " st(0),st(");
-								*si.buffer++ = (char)(0x30 + instruction->modrm.modrm % 8), * si.buffer++ = ')';
+								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8), * si.buffer++ = ')';
 							}
 							else if (instruction->modrm.modrm >= 0xd8 && instruction->modrm.modrm <= 0xdf)
 							{
 								appendString(&si, "stpnce st(");
-								*si.buffer++ = (char)(0x30 + instruction->modrm.modrm % 8);
+								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 								appendString(&si, "),st(0)");
 							}
 							else
@@ -4580,14 +4604,14 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 								const char* mnemonics[4] = { "cmovb", "cmovbe", "cmove", "cmovu" };
 								appendString(&si, mnemonics[(NMD_R(instruction->modrm.modrm) - 0xc) + (NMD_C(instruction->modrm.modrm) > 7 ? 2 : 0)]);
 								appendString(&si, " st(0),st(");
-								*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 								*si.buffer++ = ')';
 							}
 							break;
 						case 0xdb:
 							if (NMD_R(instruction->modrm.modrm) == 0xe && NMD_C(instruction->modrm.modrm) < 8)
 							{
-								const char* mnemonics[] = { "eni8087_nop", "disi8087_nop","nclex","ninit","setpm287_nop" };
+								const char* mnemonics[] = { "eni8087_nop", "disi8087_nop", "nclex","ninit", "setpm287_nop" };
 								appendString(&si, mnemonics[NMD_C(instruction->modrm.modrm)]);
 							}
 							else
@@ -4607,7 +4631,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 										appendString(&si, "be");
 								}
 								appendString(&si, " st(0),st(");
-								*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 								*si.buffer++ = ')';
 							}
 							break;
@@ -4632,13 +4656,13 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 							if (NMD_R(instruction->modrm.modrm) == 0xd)
 							{
 								appendString(&si, " st(0),st(");
-								*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 								*si.buffer++ = ')';
 							}
 							else
 							{
 								appendString(&si, " st(");
-								*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 								appendString(&si, "),st(0)");
 							}
 							break;
@@ -4653,7 +4677,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 							}
 
 							appendString(&si, " st(");
-							*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+							*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 							*si.buffer++ = ')';
 
 							break;
@@ -4665,7 +4689,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 								if (instruction->modrm.modrm >= 0xd0 && instruction->modrm.modrm <= 0xd7)
 								{
 									appendString(&si, "comp st(0),st(");
-									*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+									*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 									*si.buffer++ = ')';
 								}
 								else
@@ -4679,7 +4703,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 											*si.buffer++ = 'r';
 									}
 									appendString(&si, "p st(");
-									*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+									*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 									appendString(&si, "),st(0)");
 								}
 							}
@@ -4695,14 +4719,14 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 										*si.buffer++ = 'u';
 									appendString(&si, "comip");
 									appendString(&si, " st(0),st(");
-									*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+									*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 									*si.buffer++ = ')';
 								}
 								else
 								{
 									appendString(&si, instruction->modrm.modrm < 0xc8 ? "freep" : (instruction->modrm.modrm >= 0xd0 ? "stp" : "xch"));
 									appendString(&si, " st(");
-									*si.buffer++ = (char)(0x30 + NMD_C(instruction->modrm.modrm) % 8);
+									*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 									*si.buffer++ = ')';
 								}
 							}
@@ -4973,7 +4997,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendVdq(&si);
 					*si.buffer++ = ',';
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "qword");
 					break;
@@ -4994,13 +5018,13 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendVdq(&si);
 					*si.buffer++ = ',';
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), *si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "dword");
 					break;
 				case 1:
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "dword");
 					*si.buffer++ = ',';
@@ -5028,13 +5052,13 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendVdq(&si);
 					*si.buffer++ = ',';
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "qword");
 					break;
 				case 1:
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "qword");
 					*si.buffer++ = ',';
@@ -5071,7 +5095,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendVdq(&si);
 					*si.buffer++ = ',';
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), *si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), *si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "qword");
 					break;
@@ -5086,7 +5110,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 			case 3:
 			case 7:
 				if (si.instruction->modrm.mod == 0b11)
-					appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 				else
 					appendModRmUpper(&si, "qword");
 				*si.buffer++ = ',';
@@ -5114,7 +5138,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 				else
 				{
 					appendString(&si, "prefetcht");
-					*si.buffer++ = (char)(0x30 + (instruction->modrm.reg - 1));
+					*si.buffer++ = (char)('0' + (instruction->modrm.reg - 1));
 				}
 				*si.buffer++ = ' ';
 
@@ -5149,7 +5173,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendString(&si, "bndldx");
 
 				appendString(&si, " bnd");
-				*si.buffer++ = (char)(0x30 + instruction->modrm.reg);
+				*si.buffer++ = (char)('0' + instruction->modrm.reg);
 				*si.buffer++ = ',';
 				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 					*si.buffer++ = 'q';
@@ -5180,7 +5204,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 				appendEv(&si);
 				*si.buffer++ = ',';
 				appendString(&si, "bnd");
-				*si.buffer++ = (char)(0x30 + instruction->modrm.reg);
+				*si.buffer++ = (char)('0' + instruction->modrm.reg);
 			}
 		}
 		else if (op >= 0x1c && op <= 0x1f)
@@ -5197,12 +5221,12 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 			{
 				appendString(&si, (instruction->mode == NMD_X86_MODE_64 ? reg64 : reg32)[instruction->modrm.rm]);
 				appendString(&si, op == 0x20 ? ",cr" : ",dr");
-				*si.buffer++ = (char)(0x30 + instruction->modrm.reg);
+				*si.buffer++ = (char)('0' + instruction->modrm.reg);
 			}
 			else
 			{
 				appendString(&si, op == 0x22 ? "cr" : "dr");
-				*si.buffer++ = (char)(0x30 + instruction->modrm.reg);
+				*si.buffer++ = (char)('0' + instruction->modrm.reg);
 				*si.buffer++ = ',';
 				appendString(&si, (instruction->mode == NMD_X86_MODE_64 ? reg64 : reg32)[instruction->modrm.rm]);
 			}
@@ -5243,7 +5267,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendVdq(&si);
 					*si.buffer++ = ',';
 					if (instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "qword");
 					break;
@@ -5251,7 +5275,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendVdq(&si);
 					*si.buffer++ = ',';
 					if (instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "qword");
 				default:
@@ -5313,7 +5337,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendGv(&si);
 					*si.buffer++ = ',';
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "qword");
 					break;
@@ -5343,7 +5367,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendPq(&si);
 					*si.buffer++ = ',';
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "qword");
 					break;
@@ -5357,7 +5381,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendVdq(&si);
 					*si.buffer++ = ',';
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), *si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), *si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, "dword");
 					break;
@@ -5407,7 +5431,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 				appendVdq(&si);
 				*si.buffer++ = ',';
 				if (si.instruction->modrm.mod == 0b11)
-					appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 				else
 					appendModRmUpper(&si, op == 0x5b ? "xmmword" : "dword");
 			}
@@ -5420,7 +5444,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 				appendVdq(&si);
 				*si.buffer++ = ',';
 				if (si.instruction->modrm.mod == 0b11)
-					appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+					appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 				else
 					appendModRmUpper(&si, "qword");
 			}
@@ -5441,7 +5465,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					appendVdq(&si);
 					*si.buffer++ = ',';
 					if (si.instruction->modrm.mod == 0b11)
-						appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + si.instruction->modrm.rm);
+						appendString(&si, "xmm"), * si.buffer++ = (char)('0' + si.instruction->modrm.rm);
 					else
 						appendModRmUpper(&si, op == 0x5a ? "qword" : "xmmword");
 				}
@@ -6294,7 +6318,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 				appendVdq(&si);
 				*si.buffer++ = ',';
 				if (instruction->modrm.mod == 0b11)
-					appendString(&si, "xmm"), * si.buffer++ = (char)(0x30 + instruction->modrm.rm);
+					appendString(&si, "xmm"), * si.buffer++ = (char)('0' + instruction->modrm.rm);
 				else
 					appendModRmUpper(&si, op == 0xa ? "dword" : (op == 0xb ? "qword" : "xmmword"));
 			}
@@ -6303,41 +6327,62 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 		appendNumber(&si, instruction->immediate);
 	}
 
-	size_t stringLength = si.buffer - buffer;
+#ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX
 	if (formatFlags & NMD_X86_FORMAT_FLAGS_ATT_SYNTAX)
 	{
 		*si.buffer = '\0';
 		char* operand = (char*)nmd_strchr(buffer, ' ');
+		char* firstOperand = operand;
 		if (operand)
 		{
+			// Convert each operand to AT&T syntax.
 			do
 			{
 				operand++;
 				formatOperandToAtt(operand, &si);
 			} while ((operand = (char*)nmd_strchr(operand, ',')));
 
-			//if (!nmd_strchr(operands, ',')) // one operand
-			//{
-			//	
-			//}
+			// Swap operands.
+			char* nextOperand = (char*)nmd_strchr(buffer, ',');
+			if (nextOperand) // At least two operands.
+			{
+				// Copy first operand to 'tmpBuffer'.
+				char tmpBuffer[64];
+				for (char* i = tmpBuffer, *j = firstOperand; j < nextOperand; i++, j++)
+					*i = *j;
+
+				// Copy second operand to first operand.
+				for (char* i = nextOperand; i < si.buffer; firstOperand++, i++)
+					*firstOperand = *i;
+
+				// Copy 'tmpBuffer' to second operand.
+				for (char* i = tmpBuffer; nextOperand < si.buffer; i++, nextOperand++)
+					*nextOperand = *i;
+			}
 		}
 	}
+#endif // NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX
 
+	size_t stringLength = si.buffer - buffer;
+#ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_UPPERCASE
 	if (formatFlags & NMD_X86_FORMAT_FLAGS_UPPERCASE)
 	{
 		for (size_t i = 0; i < stringLength; i++)
 		{
-			const char c = buffer[i];
-			buffer[i] = (c > 0x60 && c <= 0x7A) ? c - 0x20 : c;
+			if (buffer[i] >= 'a' && buffer[i] <= 'z')
+				buffer[i] -= 0x20; // Capitalize letter.
 		}
 	}
+#endif // NMD_ASSEMBLY_DISABLE_FORMATTER_UPPERCASE
 
+#ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES
 	if (formatFlags & NMD_X86_FORMAT_FLAGS_COMMA_SPACES)
 	{
 		for (size_t i = 0; i < stringLength; i++)
 		{
 			if (buffer[i] == ',')
 			{
+				// Move all characters after the comma one position to the right.
 				for (size_t j = stringLength; j > i; j--)
 					buffer[j] = buffer[j - 1];
 
@@ -6346,13 +6391,16 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 			}
 		}
 	}
+#endif // NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES
 
+#ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_OPERATOR_SPACES
 	if (formatFlags & NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES)
 	{
 		for (size_t i = 0; i < stringLength; i++)
 		{
 			if (buffer[i] == '+' || (buffer[i] == '-' && buffer[i - 1] != ' ' && buffer[i - 1] != '('))
 			{
+				// Move all characters after the operator two positions to the right.
 				for (size_t j = stringLength + 1; j > i; j--)
 					buffer[j] = buffer[j - 2];
 
@@ -6364,6 +6412,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 			}
 		}
 	}
+#endif // NMD_ASSEMBLY_DISABLE_FORMATTER_OPERATOR_SPACES
 
 	*si.buffer = '\0';
 }
