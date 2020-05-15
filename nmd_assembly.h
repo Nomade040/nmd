@@ -1,7 +1,7 @@
 // This is a C library containing an x86(16, 32 and 64) assembler(todo), disassembler and decompiler(todo).
 //
 // Features:
-// - x86 Intel syntax.
+// - x86 Intel and AT&T syntax.
 // - No runtime initialization.
 // - Thread-safe by design.
 // - No dynamic memory allocation.
@@ -167,7 +167,7 @@ enum NMD_X86_FORMAT_FLAGS
 	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX    = (1 << 11), // If set and NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW is also set, the number's hexadecimal representation is displayed in parenthesis.
 	NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC    = (1 << 12), // Same as NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX, but the number is displayed in decimal base.
 	NMD_X86_FORMAT_FLAGS_SCALE_ONE                 = (1 << 13), // If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al.
-	NND_X86_FORMAT_FLAGS_BYTES                     = (1 << 14), // The instruction's bytes are displayed before the instructions.
+	NMD_X86_FORMAT_FLAGS_BYTES                     = (1 << 14), // The instruction's bytes are displayed before the instructions.
 	NMD_X86_FORMAT_FLAGS_ATT_SYNTAX                = (1 << 15), // AT&T syntax is used instead of Intel's.
 	NMD_X86_FORMAT_FLAGS_ALL                       = (1 << 16) - 1, // Specifies all format flags.
 	NMD_X86_FORMAT_FLAGS_DEFAULT                   = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
@@ -2332,6 +2332,22 @@ const char* nmd_strchr(const char* s, char c)
 	return 0;
 }
 
+// Returns a pointer to the last occurrence of 'c' in 's', or a null pointer if 'c' is not present.
+const char* nmd_reverse_strchr(const char* s, char c)
+{
+	const char* end = s;
+	while (*end)
+		end++;
+
+	for (; end > s; end--)
+	{
+		if (*end == c)
+			return end;
+	}
+
+	return 0;
+}
+
 // Returns a pointer to the first occurrence of 's2' in 's', or a null pointer if 's2' is not present.
 const char* nmd_strstr(const char* s, const char* s2)
 {
@@ -2351,12 +2367,47 @@ const char* nmd_strstr(const char* s, const char* s2)
 }
 
 // Inserts 'c' at 's'.
-void nmd_insert_char(const char* s, char* s_end, char c)
+void nmd_insert_char(const char* s, char c)
 {
-	for(; s_end > s; s_end--)
-		*s_end = *(s_end - 1);
+	char* end = (char*)s;
+	while (*end)
+		end++;
 
-	*s_end = c;
+	*(end + 1) = '\0';
+
+	for(; end > s; end--)
+		*end = *(end - 1);
+
+	*end = c;
+}
+
+// Returns true if there is only a number between 's1' and 's2', false otherwise.
+bool nmd_is_number(const char* s1, const char* s2)
+{
+	for (const char* s = s1; s < s2; s++)
+	{
+		if (!(*s >= '0' && *s <= '9') && !(*s >= 'a' && *s <= 'f') && !(*s >= 'A' && *s <= 'F'))
+		{
+			if ((s == s1 + 1 && *s1 == '0' && (*s == 'x' || *s == 'X')) || (s == s2 - 1 && (*s == 'h' || *s == 'H')))
+				continue;
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
+// Returns true if there is a number between 's1' and 's2', zero otherwise.
+const char* nmd_find_number(const char* s1, const char* s2)
+{
+	for (const char* s = s1; s < s2; s++)
+	{
+		if ((*s >= '0' && *s <= '9') || (*s >= 'a' && *s <= 'f') || (*s >= 'A' && *s <= 'F'))
+			return s;
+	}
+
+	return 0;
 }
 
 //Assembles an instruction from a string. Returns true if the operation was successful, false otherwise.
@@ -4019,33 +4070,120 @@ void appendW(StringInfo* const si)
 		appendModRmUpper(si, "xmmword");
 }
 
-void formatOperandToAtt(char* operand, StringInfo* si)
+char* formatOperandToAtt(char* operand, StringInfo* si)
 {
 	char* nextOperand = (char*)nmd_strchr(operand, ',');
+	const char* operandEnd = nextOperand ? nextOperand : si->buffer;
 
+	// Memory operand.
 	const char* memoryOperand = nmd_strchr(operand, '[');
-	if (memoryOperand && (!nextOperand || memoryOperand < nextOperand))
+	if (memoryOperand && memoryOperand < operandEnd)
 	{
-		*operand = '(';
-	}
-	else
-	{
-		if (!nextOperand)
-			nextOperand = si->buffer;
-		bool isNumber = true;
-		for (char* i = operand; i < nextOperand; i++)
+		memoryOperand++;
+		const char* segmentReg = nmd_strchr(operand, ':');
+		if (segmentReg)
 		{
-			if (!(*i >= '0' && *i <= '9') && !(*i >= 'a' && *i <= 'f') && !(*i >= 'A' && *i <= 'F'))
+			if (segmentReg == operand + 2)
+				nmd_insert_char(operand, '%'), si->buffer++, operand += 4;
+			else
 			{
-				if ((i == operand + 1 && *operand == '0' && (*i == 'x' || *i == 'X')) || (i == nextOperand - 1 && (*i == 'h' || *i == 'H')))
-					continue;
-				isNumber = false;
-				break;
+				*operand++ = '%';
+				*operand++ = *(segmentReg - 2);
+				*operand++ = 's';
+				*operand++ = ':';
 			}
 		}
 
-		nmd_insert_char(operand, nextOperand, isNumber ? '$' : '%');
+		// Handle displacement.
+		char* displacement = operand;
+		do
+		{
+			displacement++;
+			displacement = (char*)nmd_find_number(displacement, operandEnd);
+		} while (displacement && ((*(displacement - 1) != '+' && *(displacement - 1) != '-' && *(displacement - 1) != '[') || !nmd_is_number(displacement, operandEnd - 2)));
+		
+		bool isThereBaseOrIndex = true;
+		char memoryOperandBuffer[96];
+
+		if (displacement)
+		{
+			if (*(displacement - 1) != '[')
+				displacement--;
+			else
+				isThereBaseOrIndex = false;
+
+			char* j = memoryOperandBuffer;
+			for (char* i = (char*)memoryOperand; i < displacement; i++, j++)
+				*j = *i;
+			*j = '\0';
+
+			if (*displacement == '+')
+				displacement++;
+
+			for (; *displacement != ']'; displacement++, operand++)
+				*operand = *displacement;
+		}
+
+		// Handle base, index and scale.
+		if (isThereBaseOrIndex)
+		{
+			*operand++ = '(';
+
+			char* baseOrIndex = operand;
+			if (displacement)
+			{
+				for (char* s = memoryOperandBuffer; *s; s++, operand++)
+					*operand = *s;
+			}
+			else
+			{
+				for (; *memoryOperand != ']'; operand++, memoryOperand++)
+					*operand = *memoryOperand;
+			}
+
+			nmd_insert_char(baseOrIndex, '%');
+			operand++;
+			*operand++ = ')';
+
+			for (; *baseOrIndex != ')'; baseOrIndex++)
+			{
+				if (*baseOrIndex == '+' || *baseOrIndex == '*')
+				{
+					if (*baseOrIndex == '+')
+						nmd_insert_char(baseOrIndex + 1, '%'), operand++;
+					*baseOrIndex = ',';
+				}
+			}
+
+			operand = baseOrIndex;
+			operand++;
+		}
+
+		if (nextOperand)
+		{
+			// Move second operand to the left until the comma.
+			operandEnd = nmd_strchr(operand, ',');
+			for (; *operandEnd != '\0'; operand++, operandEnd++)
+				*operand = *operandEnd;
+
+			*operand = '\0';
+
+			operandEnd = operand;
+			while (*operandEnd != ',')
+				operandEnd--;
+		}
+		else
+			*operand = '\0', operandEnd = operand;
+
+		si->buffer = operand;
+
+		return (char*)operandEnd;
+	}
+	else // Immediate or register operand
+	{
+		nmd_insert_char(operand, nmd_is_number(operand, operandEnd) ? '$' : '%');
 		si->buffer++;
+		return (char*)operandEnd + 1;
 	}
 }
 
@@ -4065,7 +4203,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 		return;
 
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES
-	if (formatFlags & NND_X86_FORMAT_FLAGS_BYTES)
+	if (formatFlags & NMD_X86_FORMAT_FLAGS_BYTES)
 	{
 		for (size_t i = 0; i < instruction->length; i++)
 		{
@@ -6331,33 +6469,66 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 	if (formatFlags & NMD_X86_FORMAT_FLAGS_ATT_SYNTAX)
 	{
 		*si.buffer = '\0';
-		char* operand = (char*)nmd_strchr(buffer, ' ');
-		char* firstOperand = operand;
-		if (operand)
+		char* operand = (char*)nmd_reverse_strchr(buffer, ' ');
+		if (operand && *(operand - 1) != ' ') // if the instruction has a ' '(space character) and the left character of 'operand' is not ' '(space) the instruction has operands.
 		{
+			// If there is a memory operand.
+			const char* memoryOperand = nmd_strchr(buffer, '[');
+			if (memoryOperand)
+			{
+				// If the memory operand has pointer size.
+				char* tmp2 = (char*)memoryOperand - (*(memoryOperand - 1) == ':' ? 7 : 4);
+				if (nmd_strstr(tmp2, "ptr") == tmp2)
+				{
+					// Find the ' '(space) that is after two ' '(spaces).
+					tmp2 -= 2;
+					while (*tmp2 != ' ')
+						tmp2--;
+					operand = tmp2;
+				}
+			}
+
+			const char* const firstOperandConst = operand;
+			char* firstOperand = operand + 1;
+			char* secondOperand = 0;
 			// Convert each operand to AT&T syntax.
 			do
 			{
 				operand++;
-				formatOperandToAtt(operand, &si);
-			} while ((operand = (char*)nmd_strchr(operand, ',')));
+				operand = formatOperandToAtt(operand, &si);
+				if (*operand == ',')
+					secondOperand = operand;
+			} while (*operand);
 
 			// Swap operands.
-			char* nextOperand = (char*)nmd_strchr(buffer, ',');
-			if (nextOperand) // At least two operands.
+			if (secondOperand) // At least two operands.
 			{
 				// Copy first operand to 'tmpBuffer'.
 				char tmpBuffer[64];
-				for (char* i = tmpBuffer, *j = firstOperand; j < nextOperand; i++, j++)
+				char* i = tmpBuffer;
+				for (char* j = firstOperand; j < secondOperand; i++, j++)
 					*i = *j;
 
+				*i = '\0';
+
 				// Copy second operand to first operand.
-				for (char* i = nextOperand; i < si.buffer; firstOperand++, i++)
+				for (i = secondOperand + 1; *i; firstOperand++, i++)
 					*firstOperand = *i;
 
+				*firstOperand++ = ',';
+
+				// 'firstOperand' is now the second operand.
 				// Copy 'tmpBuffer' to second operand.
-				for (char* i = tmpBuffer; nextOperand < si.buffer; i++, nextOperand++)
-					*nextOperand = *i;
+				for (i = tmpBuffer; *firstOperand; i++, firstOperand++)
+					*firstOperand = *i;
+			}
+
+			if (memoryOperand && !(*(firstOperandConst - 3) == 'l' && *(firstOperandConst - 2) == 'e' && *(firstOperandConst - 1) == 'a'))
+			{
+				const char* r_char = nmd_strchr(firstOperandConst, 'r');
+				const char* e_char = nmd_strchr(firstOperandConst, 'e');
+				nmd_insert_char(firstOperandConst, (r_char && *(r_char - 1) == '%') ? 'q' : ((e_char && *(e_char - 1) == '%') ? 'l' : 'b'));
+				si.buffer++;
 			}
 		}
 	}
