@@ -6,12 +6,10 @@ set of single-header libraries for C/C++
 - x86 disassembler: [nmd_assembly.h](nmd_assembly.h)
 - length disassembler: [nmd_ldisasm.h](nmd_ldisasm.h)
 - memory library for windows: [nmd_memory.hpp](nmd_memory.hpp)
-- retained mode gui: [nmd_gui.hpp](nmd_gui.hpp)
-- web gui editor: [nmd_gui_editor.html](nmd_gui_editor.html)
+- retained mode gui: [nmd_gui.hpp](nmd_gui.hpp) [not under heavy development]
+- web gui editor: [nmd_gui_editor.html](nmd_gui_editor.html) [not under heavy development]
 
-All libraries require that you define the macro NMD_{LIBRARY_NAME}_IMPLEMENTATION in one source file.
-
-The first few lines of each library are comments describing how the library works, you should read it.
+**The documentation is at the start of each library(i.e. header file).**
 
 Showcase:
 ![Image of disassembler](https://i.imgur.com/Zw2l94k.png)
