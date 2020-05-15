@@ -6523,11 +6523,13 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					*firstOperand = *i;
 			}
 
-			if (memoryOperand && !(*(firstOperandConst - 3) == 'l' && *(firstOperandConst - 2) == 'e' && *(firstOperandConst - 1) == 'a'))
+			if (memoryOperand && !nmd_strstr(firstOperandConst - 4, "lea"))
 			{
 				const char* r_char = nmd_strchr(firstOperandConst, 'r');
 				const char* e_char = nmd_strchr(firstOperandConst, 'e');
-				nmd_insert_char(firstOperandConst, (r_char && *(r_char - 1) == '%') ? 'q' : ((e_char && *(e_char - 1) == '%') ? 'l' : 'b'));
+				const char* call_str = nmd_strstr(firstOperandConst - 5, "call");
+				const char* jmp_str = nmd_strstr(firstOperandConst - 4, "jmp");
+				nmd_insert_char(firstOperandConst, (instruction->mode == NMD_X86_MODE_64 && ((r_char && *(r_char - 1) == '%') || call_str || jmp_str)) ? 'q' : (instruction->mode == NMD_X86_MODE_32 && ((e_char && *(e_char - 1) == '%') || call_str || jmp_str) ? 'l' : 'b'));
 				si.buffer++;
 			}
 		}
