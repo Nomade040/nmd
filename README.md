@@ -12,7 +12,7 @@ set of single-header libraries for C/C++
 **The documentation is at the start of each library(i.e. header file).**
 
 Showcase:
-![Image of disassembler](https://i.imgur.com/Zw2l94k.png)
+![Image of disassembler](https://i.imgur.com/M4L6DTd.png)
 
 Currently there's no gui, it can only draw basic shapes :/
 
