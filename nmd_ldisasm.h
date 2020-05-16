@@ -101,7 +101,7 @@ size_t nmd_x86_ldisasm(const void* buffer, NMD_LDISASM_X86_MODE mode);
 /* Four low-order bits to index a column of the table */
 #define NMD_C(b) ((b) & 0xF)
 
-bool nmd_ldisasm_findByte(const uint8_t* arr, const size_t N, const uint8_t x) { for (size_t i = 0; i < N; i++) { if (arr[i] == x) { return true; } }; return 0; }
+bool nmd_ldisasm_findByte(const uint8_t* arr, const size_t N, const uint8_t x) { size_t i = 0; for (; i < N; i++) { if (arr[i] == x) { return true; } }; return 0; }
 
 typedef union NMD_ldisasm_Modrm
 {
@@ -177,7 +177,8 @@ size_t nmd_x86_ldisasm(const void* buffer, NMD_LDISASM_X86_MODE mode)
 	size_t opcodeSize;
 
 	/* Parse legacy prefixes & REX prefixes */
-	for (int i = 0; i < 14 && nmd_ldisasm_findByte(prefixes, sizeof(prefixes), *b) || (mode == NMD_LDISASM_X86_MODE_64 ? (NMD_R(*b) == 4) : false); i++, b++)
+	size_t i = 0;
+	for (; i < 14 && nmd_ldisasm_findByte(prefixes, sizeof(prefixes), *b) || (mode == NMD_LDISASM_X86_MODE_64 ? (NMD_R(*b) == 4) : false); i++, b++)
 	{
 		if (*b == 0x66)
 			operandPrefix = true, simdPrefix = *b;
