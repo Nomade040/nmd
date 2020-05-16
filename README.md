@@ -3,10 +3,10 @@
 # nmd
 set of single-header libraries for C/C++
 
-- x86 disassembler: [nmd_assembly.h](nmd_assembly.h)
-- length disassembler: [nmd_ldisasm.h](nmd_ldisasm.h)
-- memory library for windows: [nmd_memory.hpp](nmd_memory.hpp)
-- retained mode gui: [nmd_gui.hpp](nmd_gui.hpp) [not under heavy development]
+- C89 x86 disassembler: [nmd_assembly.h](nmd_assembly.h)
+- C89 length disassembler: [nmd_ldisasm.h](nmd_ldisasm.h)
+- C++ memory library for windows: [nmd_memory.hpp](nmd_memory.hpp)
+- C++ retained mode gui: [nmd_gui.hpp](nmd_gui.hpp) [not under heavy development]
 - web gui editor: [nmd_gui_editor.html](nmd_gui_editor.html) [not under heavy development]
 
 **The documentation is at the start of each library(i.e. header file).**
