@@ -3250,9 +3250,6 @@ break;
 				else if (NMD_R(instruction->opcode) == 8 || NMD_R(instruction->opcode) == 9 || (NMD_R(instruction->opcode) == 0xa && instruction->opcode % 8 < 2) || instruction->opcode == 0xc7)
 					instruction->numOperands = 1;
 
-				//instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
-				//instruction->operands[1].action = instruction->operands[2].action = NMD_X86_OPERAND_ACTION_READ;
-
 				if (instruction->opcode == 0x00)
 				{
 					if (instruction->modrm.fields.reg >= 0b010)
