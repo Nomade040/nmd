@@ -1,17 +1,14 @@
-/* This is a C89 library containing an x86(16, 32 and 64) assembler(todo), disassembler(almost done) and decompiler(todo).
+/* This is a platform independent C89 x86 assembler(todo), disassembler(almost done) and decompiler(todo) library.
 
 Features:
-- Intel and AT&T syntax.
-- C89 compliant.
-- Platform independent.
-- No dynamic memory allocation.
-- No runtime initialization.
-- No global variables/state.
-- Thread-safe by design.
-- The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_ASSEMBLY_NO_INCLUDES' macro.
-- Optimized for speed and low memory usage.
-- Two high-level functions.
-- All of the code is in this single header file.
+ - Intel and AT&T syntax.
+ - x86 support for all three modes: 16, 32, 64.
+ - No dynamic memory allocation.
+ - No runtime initialization.
+ - No global variables/state.
+ - Thread-safe by design.
+ - The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_ASSEMBLY_NO_INCLUDES' macro.
+ - Optimized for speed and low memory usage.
 
 Setup:
 Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation. Example:
@@ -2206,10 +2203,12 @@ typedef enum NMD_X86_OPERAND_ACTION
 
 	NMD_X86_OPERAND_ACTION_READ              = (1 << 0), /* The operand is read. */
 	NMD_X86_OPERAND_ACTION_WRITE             = (1 << 1), /* The operand is modified. */
-	NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE = (1 << 2), /* The operand may be modified depending on some condition. */
+	NMD_X86_OPERAND_ACTION_CONDITIONAL_READ  = (1 << 2), /* The operand may be read depending on some condition. */
+	NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE = (1 << 3), /* The operand may be modified depending on some condition. */
 
 	/* These are not actual actions, but rather masks of actions. */
 	NMD_X86_OPERAND_ACTION_READ_WRITE = (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_WRITE),
+	NMD_X86_OPERAND_ACTION_ANY_READ = (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_CONDITIONAL_READ),
 	NMD_X86_OPERAND_ACTION_ANY_WRITE = (NMD_X86_OPERAND_ACTION_WRITE | NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE)
 } NMD_X86_OPERAND_ACTION;
 
@@ -2451,7 +2450,7 @@ bool nmd_is_number(const char* s1, const char* s2)
 	return true;
 }
 
-/* Returns true if there is a number between 's1' and 's2', zero otherwise. */
+/* Returns a pointer to the first occurence of a number between 's1' and 's2', zero otherwise. */
 const char* nmd_find_number(const char* s1, const char* s2)
 {
 	const char* s = s1;
@@ -2487,7 +2486,7 @@ bool nmd_x86_assemble(const char* string, uint64_t runtimeAddress, NMD_X86Instru
 
 	char buffer[NMD_X86_MAXIMUM_INSTRUCTION_STRING_LENGTH];
 
-	/* Copy 'string' to 'buffer' converting it to lowercase. If the character ';' is found, stop. */
+	/* Copy 'string' to 'buffer' converting it to lowercase. If the character ';'(comment) is found, stop. */
 	size_t length = 0;
 	for (; string[length]; length++)
 	{
@@ -3222,19 +3221,6 @@ break;
 			else if ((NMD_R(*b) == 7 && NMD_C(*b) < 4) || *b == 0xA4 || *b == 0xC2 || (*b > 0xC3 && *b <= 0xC6) || *b == 0xBA || *b == 0xAC) /* imm8 */
 				instruction->immMask = NMD_X86_IMM8, offset++;
 
-#ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
-			/* Parse the instruction's number of operands. */
-			if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
-			{
-				if (*b == 0xa4 || *b == 0xa5 || *b == 0xc2 || (*b >= 0xc4 && *b <= 0xc6))
-					instruction->numOperands = 3;
-				else if (*b == 0x2 || *b == 0x3 || (*b >= 0x10 && *b <= 0x17) || NMD_R(*b) == 2 || (NMD_R(*b) >= 4 && NMD_R(*b) <= 7) || *b == 0xa3 || *b == 0xab || *b == 0xaf || (NMD_R(*b) >= 0xc && *b != 0xc7 && *b != 0xff))
-					instruction->numOperands = 2;
-				else if (NMD_R(*b) == 8 || NMD_R(*b) == 9 || (NMD_R(*b) == 0xa && *b % 8 < 2) || *b == 0xc7)
-					instruction->numOperands = 1;
-			}
-#endif /* NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS */
-
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_GROUP
 			/* Parse the instruction's group. */
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_GROUP)
@@ -3257,13 +3243,55 @@ break;
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
 			{
-				if (instruction->opcode == 0x02 || instruction->opcode == 0x03)
+				if (instruction->opcode == 0xa4 || instruction->opcode == 0xa5 || instruction->opcode == 0xc2 || (instruction->opcode >= 0xc4 && instruction->opcode <= 0xc6))
+					instruction->numOperands = 3;
+				else if (instruction->opcode == 0x2 || instruction->opcode == 0x3 || (instruction->opcode >= 0x10 && instruction->opcode <= 0x17) || NMD_R(instruction->opcode) == 2 || (NMD_R(instruction->opcode) >= 4 && NMD_R(instruction->opcode) <= 7) || instruction->opcode == 0xa3 || instruction->opcode == 0xab || instruction->opcode == 0xaf || (NMD_R(instruction->opcode) >= 0xc && instruction->opcode != 0xc7 && instruction->opcode != 0xff))
+					instruction->numOperands = 2;
+				else if (NMD_R(instruction->opcode) == 8 || NMD_R(instruction->opcode) == 9 || (NMD_R(instruction->opcode) == 0xa && instruction->opcode % 8 < 2) || instruction->opcode == 0xc7)
+					instruction->numOperands = 1;
+
+				//instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
+				//instruction->operands[1].action = instruction->operands[2].action = NMD_X86_OPERAND_ACTION_READ;
+
+				if (instruction->opcode == 0x00)
+				{
+					if (instruction->modrm.fields.reg >= 0b010)
+						parseOperandEw(instruction, &instruction->operands[0]);
+					else
+						parseOperandEv(instruction, &instruction->operands[0]);
+
+					instruction->operands[0].action = instruction->modrm.fields.reg >= 0b010 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_WRITE;
+				}
+				else if (instruction->opcode == 0x01)
+				{
+					if (instruction->modrm.fields.mod != 0b11)
+					{
+						parseModrmUpper32(instruction, &instruction->operands[0]);
+						instruction->operands[0].action = instruction->modrm.fields.reg >= 0b010 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_WRITE;
+					}
+					else if (instruction->modrm.fields.reg == 0b100)
+					{
+						parseOperandGv(instruction, &instruction->operands[0]);
+						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					}
+					else if (instruction->modrm.fields.reg == 0b110)
+					{
+						parseOperandGw(instruction, &instruction->operands[0]);
+						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ;
+					}
+				}
+				else if (instruction->opcode == 0x02 || instruction->opcode == 0x03)
 				{
 					parseOperandGv(instruction, &instruction->operands[0]);
 					parseOperandEw(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 				}
 				else if (instruction->opcode == 0x0d)
+				{
 					parseOperandEv(instruction, &instruction->operands[0]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ;
+				}
 				else if (NMD_R(instruction->opcode) == 0x4 || NMD_R(instruction->opcode) == 0x8 || NMD_R(instruction->opcode) == 0x9)
 				{
 					instruction->operands[0].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
@@ -3274,7 +3302,277 @@ break;
 					instruction->operands[0].type = instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
 					instruction->operands[instruction->opcode < 0x22 ? 0 : 1].fields.reg = (NMD_X86_REG)(NMD_X86_REG_EAX + instruction->modrm.fields.rm);
 					instruction->operands[instruction->opcode < 0x22 ? 1 : 0].fields.reg = (NMD_X86_REG)((instruction->opcode % 2 == 0 ? NMD_X86_REG_CR0 : NMD_X86_REG_DR0) + instruction->modrm.fields.reg);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 				}
+				else if (instruction->opcode == 0x29 || instruction->opcode == 0x2b)
+				{
+					parseOperandWdq(instruction, &instruction->operands[0]);
+					parseOperandVdq(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (NMD_R(instruction->opcode) == 4)
+				{
+					parseOperandGv(instruction, &instruction->operands[0]);
+					parseOperandEv(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_CONDITIONAL_READ;
+				}
+				else if (instruction->opcode == 0x50)
+				{
+					parseOperandGy(instruction, &instruction->operands[0]);
+					parseOperandUdq(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (NMD_R(instruction->opcode) == 5 || (instruction->opcode >= 0x10 && instruction->opcode <= 0x16) || instruction->opcode == 0x28 || instruction->opcode == 0x2e || instruction->opcode == 0x2f)
+				{
+					parseOperandVdq(instruction, &instruction->operands[0]);
+					parseOperandWdq(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_R(instruction->opcode) == 1 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (NMD_R(instruction->opcode) == 6 || instruction->opcode == 0x70 || (instruction->opcode >= 0x74 && instruction->opcode <= 0x76) || (instruction->opcode >= 0x7c && instruction->opcode <= 0x7f))
+				{
+					if (!instruction->simdPrefix)
+					{
+						if (instruction->opcode == 0x7e)
+							parseOperandEy(instruction, &instruction->operands[0]);
+						else
+							parseOperandPq(instruction, &instruction->operands[0]);
+
+						if(instruction->opcode == 0x6e)
+							parseOperandEy(instruction, &instruction->operands[1]);
+						else
+							parseOperandQq(instruction, &instruction->operands[1]);
+					}
+					else
+					{
+						if (instruction->opcode == 0x7e)
+							parseOperandEy(instruction, &instruction->operands[0]);
+						else
+							parseOperandVdq(instruction, &instruction->operands[0]);
+						if (instruction->opcode == 0x6e)
+							parseOperandEy(instruction, &instruction->operands[1]);
+						else
+							parseOperandWdq(instruction, &instruction->operands[1]);
+					}
+
+					if (instruction->opcode == 0x70)
+					{
+						instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+						instruction->operands[2].fields.imm = instruction->immediate;
+						instruction->operands[2].size = (uint8_t)instruction->immMask;
+					}
+
+					instruction->operands[0].action = ((instruction->opcode >= 0x60 && instruction->opcode <= 0x6d) || (instruction->opcode >= 0x74 && instruction->opcode <= 0x76)) ? NMD_X86_OPERAND_ACTION_READ_WRITE : NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (instruction->opcode == 0x78 || instruction->opcode == 0x79)
+				{
+					parseOperandEy(instruction, &instruction->operands[instruction->opcode == 0x78 ? 0 : 1]);
+					parseOperandGy(instruction, &instruction->operands[instruction->opcode == 0x78 ? 1 : 0]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (NMD_R(instruction->opcode) == 8 || NMD_R(instruction->opcode) == 9)
+				{
+					instruction->operands[0].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+					instruction->operands[0].fields.imm = instruction->immediate;
+					instruction->operands[0].size = (uint8_t)instruction->immMask;
+				}
+				else if (NMD_R(instruction->opcode) == 0xa && (instruction->opcode % 8) < 2)
+				{
+					instruction->operands[0].type = NMD_X86_OPERAND_TYPE_REGISTER;
+					instruction->operands[0].fields.reg = instruction->opcode > 0xa8 ? NMD_X86_REG_GS : NMD_X86_REG_FS;
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if ((NMD_R(instruction->opcode) == 0xa && ((instruction->opcode % 8) >= 3 && (instruction->opcode % 8) <= 5)) || instruction->opcode == 0xb3 || instruction->opcode == 0xbb)
+				{
+					parseOperandEv(instruction, &instruction->operands[0]);
+					parseOperandGv(instruction, &instruction->operands[1]);
+
+					if (NMD_R(instruction->opcode) == 0xa && ((instruction->opcode % 8) == 4 || (instruction->opcode % 8) == 5))
+					{
+						instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+						instruction->operands[2].fields.imm = instruction->immediate;
+						instruction->operands[2].size = 1;
+					}
+
+					instruction->operands[0].action = NMD_R(instruction->opcode) == 0xa && instruction->opcode % 8 == 3 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_READ_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (instruction->opcode == 0xaf || instruction->opcode == 0xb8)
+				{
+					parseOperandGv(instruction, &instruction->operands[0]);
+					parseOperandEv(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = instruction->opcode == 0xaf ? NMD_X86_OPERAND_ACTION_READ_WRITE : NMD_X86_OPERAND_ACTION_READ;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (instruction->opcode == 0xba)
+				{
+					parseOperandEv(instruction, &instruction->operands[0]);
+					instruction->operands[0].action = instruction->modrm.fields.reg <= 0b101 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_READ_WRITE;
+					instruction->operands[1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+					instruction->operands[1].fields.imm = instruction->immediate;
+					instruction->operands[1].size = 1;
+				}
+				else if (NMD_R(instruction->opcode) == 0xb && (instruction->opcode % 8) >= 6)
+				{
+					parseOperandGv(instruction, &instruction->operands[0]);
+					if ((instruction->opcode % 8) == 6)
+						parseOperandEb(instruction, &instruction->operands[1]);
+					else
+						parseOperandEw(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (NMD_R(instruction->opcode) == 0xb && ((instruction->opcode % 8) == 0x4 || (instruction->opcode % 8) == 0x5))
+				{
+					parseOperandGv(instruction, &instruction->operands[0]);
+					parseOperandEv(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if ((NMD_R(instruction->opcode) == 0xb || NMD_R(instruction->opcode) == 0xc) && NMD_C(instruction->opcode) < 2)
+				{
+					if (NMD_C(instruction->opcode) == 0)
+					{
+						parseOperandEb(instruction, &instruction->operands[0]);
+						parseOperandGb(instruction, &instruction->operands[1]);
+					}
+					else
+					{
+						parseOperandEv(instruction, &instruction->operands[0]);
+						parseOperandGv(instruction, &instruction->operands[1]);
+					}
+
+					if(NMD_R(instruction->opcode) == 0xb)
+					{
+						instruction->operands[0].action = (NMD_X86_OPERAND_ACTION)(NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE);
+						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+					}
+					else
+						instruction->operands[0].action = instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
+				}
+				else if (instruction->opcode == 0xb2)
+				{
+					parseOperandGv(instruction, &instruction->operands[0]);
+					parseModrmUpper32(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (instruction->opcode == 0xc3)
+				{
+					parseModrmUpper32(instruction, &instruction->operands[0]);
+					parseOperandGy(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				else if (instruction->opcode == 0xc2 || instruction->opcode == 0xc6)
+				{
+					parseOperandVdq(instruction, &instruction->operands[0]);
+					parseOperandWdq(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+					instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+					instruction->operands[2].fields.imm = instruction->immediate;
+					instruction->operands[2].size = 1;
+				}
+				else if (instruction->opcode == 0xc4)
+				{
+					if (instruction->prefixes == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+						parseOperandVdq(instruction, &instruction->operands[0]);
+					else
+						parseOperandPq(instruction, &instruction->operands[0]);
+					parseOperandEy(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+					instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+					instruction->operands[2].fields.imm = instruction->immediate;
+					instruction->operands[2].size = 1;
+				}
+				else if (instruction->opcode == 0xc5)
+				{
+					parseOperandGd(instruction, &instruction->operands[0]);
+					if (instruction->prefixes == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+						parseOperandPq(instruction, &instruction->operands[1]);
+					else
+						parseOperandUdq(instruction, &instruction->operands[1]);
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+					instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+					instruction->operands[2].fields.imm = instruction->immediate;
+					instruction->operands[2].size = 1;
+				}
+				else if (instruction->opcode == 0xc7)
+				{
+					if (instruction->modrm.fields.mod == 0b11)
+						parseOperandEv(instruction, &instruction->operands[0]);
+					else
+						parseModrmUpper32(instruction, &instruction->operands[0]);
+					instruction->operands[0].action = instruction->modrm.fields.reg == 0b001 ? (NMD_X86_OPERAND_ACTION)(NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE) : (instruction->modrm.fields.mod == 0b11 || !instruction->simdPrefix ? NMD_X86_OPERAND_ACTION_WRITE : NMD_X86_OPERAND_ACTION_READ);
+				}
+				else if (instruction->opcode >= 0xc8 && instruction->opcode <= 0xcf)
+				{
+					instruction->operands[0].type = NMD_X86_OPERAND_TYPE_REGISTER;
+					instruction->operands[0].fields.reg = (NMD_X86_REG)(instruction->prefixes & (NMD_X86_PREFIXES_REX_W & NMD_X86_PREFIXES_REX_B) == (NMD_X86_PREFIXES_REX_W & NMD_X86_PREFIXES_REX_B) ? NMD_X86_REG_R8 : (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_REG_RAX : (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? NMD_X86_REG_R8D : NMD_X86_REG_EAX)) + (instruction->opcode % 8));
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
+				}
+				else if (NMD_R(instruction->opcode) >= 0xd)
+				{
+					if (instruction->opcode == 0xff)
+					{
+						parseOperandGd(instruction, &instruction->operands[0]);
+						parseMemoryOperand(instruction, &instruction->operands[1], NMD_X86_REG_EAX);
+					}
+					else if (instruction->opcode == 0xd6 && instruction->simdPrefix != NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+					{
+						if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+						{
+							parseOperandVdq(instruction, &instruction->operands[0]);
+							parseOperandQq(instruction, &instruction->operands[1]);
+						}
+						else
+						{
+							parseOperandPq(instruction, &instruction->operands[0]);
+							parseOperandWdq(instruction, &instruction->operands[1]);
+						}
+					}
+					else
+					{
+						const size_t opIndex1 = instruction->opcode == 0xe7 || instruction->opcode == 0xd6 ? 1 : 0;
+						const size_t opIndex2 = instruction->opcode == 0xe7 || instruction->opcode == 0xd6 ? 0 : 1;
+
+						if (!instruction->simdPrefix)
+						{
+							if (instruction->opcode == 0xd7)
+								parseOperandGd(instruction, &instruction->operands[0]);
+							else
+								parseOperandPq(instruction, &instruction->operands[opIndex1]);
+							parseOperandQq(instruction, &instruction->operands[opIndex2]);
+						}
+						else
+						{
+							if (instruction->opcode == 0xd7)
+								parseOperandGd(instruction, &instruction->operands[0]);
+							else
+								parseOperandVdq(instruction, &instruction->operands[opIndex1]);
+							parseOperandWdq(instruction, &instruction->operands[opIndex2]);
+						}
+					}
+					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+
+				size_t i = 0;
+				for (; i < 3; i++)
+				{
+					if (instruction->operands[i].type == NMD_X86_OPERAND_TYPE_IMMEDIATE)
+						instruction->operands[i].action = NMD_X86_OPERAND_ACTION_READ;
+				}
+				
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS */
 		}
@@ -3939,7 +4237,7 @@ break;
 	return true;
 }
 
-/* If there's was potential for a crash because of bad logic it won't crash, just print an empty string. */
+/* If there was potential for a crash because of bad logic it won't crash now, rather it'll just print an empty string. */
 #define NMD_NULL ""
 
 static const char* const reg8[]       = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
