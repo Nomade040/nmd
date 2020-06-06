@@ -1,14 +1,13 @@
 // This is a C++ memory library for Windows and hopefully Linux in the future. 
 //
-// define the 'NMD_MEMORY_IMPLEMENTATION' macro in one source file.
-// Example:
+// Setup:
+// Define the 'NMD_MEMORY_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation. Example:
 // #define NMD_MEMORY_IMPLEMENTATION
 // #include "nmd_memory.hpp"
 //
 /* Sample program:
 #define NMD_MEMORY_IMPLEMENTATION
 #include "nmd_memory.hpp"
-
 int main()
 {
 	// Instantiates a 'MemEx' object that represents an external process.
@@ -21,7 +20,44 @@ int main()
 	m.Inject(TEXT("dummy.dll"));
 }
 */
-//
+
+/* Hook example:
+If you try this code in debug mode, it's possible that it won't work
+because some compilers(like visual studio) create jump tables to functions,
+so you wouldn't be passing the actual address of the function to Hook().
+Try release mode. If it doesn't work in release mode, disable optimizations.
+
+#define NMD_MEMORY_IMPLEMENTATION
+#include "nmd_memory.hpp"
+int (*oAdd)(int, int);
+int Add(int a, int b)
+{
+	return a + b;
+}
+int OurAdd(int a, int b)
+{
+	return oAdd(0xDEADBEEF, 0);
+}
+int main()
+{
+	//Returns 50
+	Add(10, 40);
+
+	//Hooks Add(), so it always returns 0xDEADBEEF
+	if (!MemIn::Hook(reinterpret_cast<uintptr_t>(Add), OurAdd, reinterpret_cast<uintptr_t*>(&oAdd)))
+		return 0;
+
+	//Returns 0xDEADBEEF
+	Add(10, 40);
+
+	//Unhooks Add().
+	MemIn::Unhook(reinterpret_cast<uintptr_t>(Add));
+
+	//Returns 50
+	Add(10, 40);
+}
+*/
+
 // TODO:
 //  - Finish ValueScan(), implement string scan and some other functionalities.
 //  - Make MemEx::Call() work in a wow64 process(target) from a 64 bit process(this process)
@@ -3249,7 +3285,7 @@ uintptr_t MemEx::Inject(const void* dll, INJECTION_METHOD injectionMethod, bool 
 #else
 				"LoadLibraryA"
 #endif
-				));
+			));
 		}
 
 		const bool success = isPath &&
@@ -4201,7 +4237,7 @@ uintptr_t MemIn::FindCodeCave(const size_t size, const uint32_t nullByte, const 
 				bool firstMatch;
 			};
 
-			CodeCaveInfo cci = { size, codeCaveSize, numThreads, 0, protection, firstMatch};
+			CodeCaveInfo cci = { size, codeCaveSize, numThreads, 0, protection, firstMatch };
 
 			EnumModules(GetCurrentProcessId(),
 				[](MODULEENTRY32& me, void* param)
