@@ -13,10 +13,10 @@ int main()
 	// Instantiates a 'MemEx' object that represents an external process.
 	MemEx m;
 
-	// Waits until a 'dummy.exe.' proccess is running and then opens a handle to it.
+	// Waits until a 'target.exe.' proccess is running and then opens a handle to it.
 	m.WaitOpen(TEXT("target.exe"));
 
-	// Injects a DLL using manual mapping to 'dummy.exe'.
+	// Injects a DLL using manual mapping to 'target.exe'.
 	m.Inject(TEXT("dummy.dll"));
 }
 */
