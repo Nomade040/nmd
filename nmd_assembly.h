@@ -2621,7 +2621,7 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, NMD_X86_MODE m
 		}
 	}
 	
-	struct NMD_StringBytePair { const char* s; uint8_t b; };
+	typedef struct NMD_StringBytePair { const char* s; uint8_t b; } NMD_StringBytePair;
 
 	const NMD_StringBytePair op1SingleByteMap[] = {
 		{ "int3", 0xcc },
