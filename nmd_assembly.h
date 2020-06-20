@@ -2538,12 +2538,12 @@ static const char* const escapeOpcodesDD[] = { "ld", "isttp", "st", "stp", "rsto
 static const char* const escapeOpcodesDF[] = { "ild", "isttp", "ist", "istp", "bld", "ild", "bstp", "istp" };
 static const char* const* escapeOpcodes[] = { escapeOpcodesD8, escapeOpcodesD9, escapeOpcodesDA_DE, escapeOpcodesDB, escapeOpcodesDC, escapeOpcodesDD, escapeOpcodesDA_DE, escapeOpcodesDF };
 
-struct AssembleInfo
+typedef struct AssembleInfo
 {
 	const char* string;
 	uint8_t* instruction;
 	NMD_X86_MODE mode;
-};
+} AssembleInfo;
 
 size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 {
