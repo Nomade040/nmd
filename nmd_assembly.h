@@ -81,7 +81,7 @@ TODO:
  Short-Term
   - Add a 'bufferSize' parameter to nmd_x86_decode_buffer().
   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
-  - Implement x86 Assembler(only the initial parsing is done).
+  - Implement x86 Assembler.
  Long-Term
   - Implement decompiler for x86.
   - Add support for other architectures(ARM, MIPS and PowerPC ?).
@@ -2277,11 +2277,12 @@ typedef struct NMD_X86Instruction
 
 /*
 Assembles an instruction from its string representation. Returns the length of the assembled instruction on success, zero otherwise.
-  string      [in]  A pointer to a string that represents a instruction in assembly language.
-  instruction [out] A pointer to a buffer capable of holding 15 bytes that receives the encoded instruction.
-  mode        [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
+  string         [in]  A pointer to a string that represents a instruction in assembly language.
+  instruction    [out] A pointer to a buffer capable of holding 15 bytes that receives the encoded instruction.
+  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+  mode           [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
 */
-size_t nmd_x86_assemble(const char* string, uint8_t* instruction, NMD_X86_MODE mode);
+size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode);
 
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
@@ -2419,6 +2420,29 @@ const char* nmd_strstr(const char* s, const char* s2)
 	return 0;
 }
 
+/* Returns a pointer to the first occurrence of 's2' in 's', or a null pointer if 's2' is not present. If 's3_opt' is not null it receives the address of the next byte in 's'. */
+const char* nmd_strstr_ex(const char* s, const char* s2, const char** s3_opt)
+{
+	size_t i = 0;
+	for (; *s; s++)
+	{
+		if (s2[i] == '\0')
+		{
+			if (s3_opt)
+				*s3_opt = s;
+			return s - i;
+		}
+
+		if (*s != s2[i])
+			i = 0;
+
+		if (*s == s2[i])
+			i++;
+	}
+
+	return 0;
+}
+
 /* Inserts 'c' at 's'. */
 void nmd_insert_char(const char* s, char c)
 {
@@ -2477,13 +2501,199 @@ bool nmd_strcmp(const char* s1, const char* s2)
 	return !*s1 && !*s2;
 }
 
+#define NMD_NUM_ELEMENTS(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+/* If there was potential for a crash because of bad logic it won't crash now, rather it'll just print an empty string. */
+#define NMD_NULL ""
+
+static const char* const reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
+static const char* const reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };
+static const char* const reg16[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
+static const char* const reg32[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
+static const char* const reg64[] = { "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi" };
+static const char* const regrx[] = { "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15" };
+static const char* const segmentReg[] = { "es", "cs", "ss", "ds", "fs", "gs" };
+
+static const char* const conditionSuffixes[] = { "o", "no", "b", "ae", "e", "ne", "be", "a", "s", "ns", "p", "np", "l", "ge", "le", "g" };
+
+static const char* const op1OpcodeMapMnemonics[] = { "add", "adc", "and", "xor", "or", "sbb", "sub", "cmp" };
+static const char* const opcodeExtensionsGrp1[] = { "add", "or", "adc", "sbb", "and", "sub", "xor", "cmp" };
+static const char* const opcodeExtensionsGrp2[] = { "rol", "ror", "rcl", "rcr", "shl", "shr", "shl", "sar" };
+static const char* const opcodeExtensionsGrp3[] = { "test", "test", "not", "neg", "mul", "imul", "div", "idiv" };
+static const char* const opcodeExtensionsGrp5[] = { "inc", "dec", "call", "call far", "jmp", "jmp far", "push" };
+static const char* const opcodeExtensionsGrp6[] = { "sldt", "str", "lldt", "ltr", "verr", "verw" };
+static const char* const opcodeExtensionsGrp7[] = { "sgdt", "sidt", "lgdt", "lidt", "smsw", NMD_NULL, "lmsw", "invlpg" };
+static const char* const opcodeExtensionsGrp7reg0[] = { "enclv", "vmcall", "vmlaunch", "vmresume", "vmxoff", "pconfig" };
+static const char* const opcodeExtensionsGrp7reg1[] = { "monitor", "mwait", "clac", "stac", NMD_NULL, NMD_NULL, NMD_NULL, "encls" };
+static const char* const opcodeExtensionsGrp7reg2[] = { "xgetbv", "xsetbv", NMD_NULL, NMD_NULL, "vmfunc", "xend", "xtest", "enclu" };
+static const char* const opcodeExtensionsGrp7reg3[] = { "vmrun ", "vmmcall", "vmload ", "vmsave", "stgi", "clgi", "skinit eax", "invlpga " };
+static const char* const opcodeExtensionsGrp7reg7[] = { "swapgs", "rdtscp", "monitorx", "mwaitx", "clzero ", "rdpru" };
+
+static const char* const escapeOpcodesD8[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
+static const char* const escapeOpcodesD9[] = { "ld", NMD_NULL, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
+static const char* const escapeOpcodesDA_DE[] = { "iadd", "imul", "icom", "icomp", "isub", "isubr", "idiv", "idivr" };
+static const char* const escapeOpcodesDB[] = { "ild", "isttp", "ist", "istp", NMD_NULL, "ld", NMD_NULL, "stp" };
+static const char* const escapeOpcodesDC[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
+static const char* const escapeOpcodesDD[] = { "ld", "isttp", "st", "stp", "rstor", NMD_NULL, "nsave", "nstsw" };
+static const char* const escapeOpcodesDF[] = { "ild", "isttp", "ist", "istp", "bld", "ild", "bstp", "istp" };
+static const char* const* escapeOpcodes[] = { escapeOpcodesD8, escapeOpcodesD9, escapeOpcodesDA_DE, escapeOpcodesDB, escapeOpcodesDC, escapeOpcodesDD, escapeOpcodesDA_DE, escapeOpcodesDF };
+
+struct AssembleInfo
+{
+	const char* string;
+	uint8_t* instruction;
+	NMD_X86_MODE mode;
+};
+
+size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
+{
+	size_t i = 0;
+	if (ai->mode == NMD_X86_MODE_64)
+	{
+		for (i = 0; i < NMD_NUM_ELEMENTS(reg64); i++)
+		{
+			if (nmd_strcmp(ai->string, reg64[i]))
+			{
+				ai->instruction[0] = baseByte + i;
+				return 1;
+			}
+		}
+
+		for (i = 0; i < NMD_NUM_ELEMENTS(regrx); i++)
+		{
+			if (nmd_strcmp(ai->string, regrx[i]))
+			{
+				ai->instruction[0] = 0x41;
+				ai->instruction[1] = baseByte + i;
+				return 2;
+			}
+		}
+	}
+	else if (ai->mode == NMD_X86_MODE_32)
+	{
+		for (i = 0; i < NMD_NUM_ELEMENTS(reg32); i++)
+		{
+			if (nmd_strcmp(ai->string, reg32[i]))
+			{
+				ai->instruction[0] = baseByte + i;
+				return 1;
+			}
+		}
+	}	
+
+	for (i = 0; i < NMD_NUM_ELEMENTS(reg16); i++)
+	{
+		if (nmd_strcmp(ai->string, reg16[i]))
+		{
+			ai->instruction[0] = 0x66;
+			ai->instruction[1] = baseByte + i;
+			return 2;
+		}
+	}
+
+	return 0;
+}
+
+enum NMD_NUMBER_BASE
+{
+	NMD_NUMBER_BASE_NONE        = 0,
+	NMD_NUMBER_BASE_DECIMAL     = 10,
+	NMD_NUMBER_BASE_HEXADECIMAL = 16,
+	NMD_NUMBER_BASE_BINARY      = 2
+};
+
+bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
+{
+	/* Assume decimal base. */
+	uint8_t base = NMD_NUMBER_BASE_DECIMAL;
+	size_t i;
+	const char* s = ai->string;
+	bool isNegative = false;
+
+	if (s[0] == '-')
+	{
+		isNegative = true;
+		s++;
+	}
+
+	if (s[0] == '0')
+	{
+		if (s[1] == 'x')
+		{
+			s += 2;
+			base = NMD_NUMBER_BASE_HEXADECIMAL;
+		}
+		else if (s[1] == 'b')
+		{
+			s += 2;
+			base = NMD_NUMBER_BASE_BINARY;
+		}
+	}
+
+	for (i = 0; s[i]; i++)
+	{
+		const char c = s[i];
+
+		if (base == NMD_NUMBER_BASE_DECIMAL)
+		{
+			if (c >= 'a' && c <= 'f')
+			{
+				base = NMD_NUMBER_BASE_HEXADECIMAL;
+				continue;
+			}
+			else if(!(c >= '0' && c <= '9'))
+				break;
+		}
+		else if (base == NMD_NUMBER_BASE_HEXADECIMAL)
+		{
+			if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+				break;
+		}
+		else if (c != '0' && c != '1') /* NMD_NUMBER_BASE_BINARY */
+			break;
+	}
+
+	*numDigits = i;
+
+	int64_t numTemp = 0;
+	for (i = 0; i < *numDigits; i++)
+	{
+		const char c = s[i];
+		numTemp += (c <= '9') ? (c - '0') : (10 + c - 'a');
+		if (i < *numDigits - 1)
+		{
+			if (*numDigits > 16 && i >= 15)
+			{
+				if ((base == NMD_NUMBER_BASE_DECIMAL && numTemp >= 1844674407370955162) || /* ceiling((2^64-1) / 10) */
+					(base == NMD_NUMBER_BASE_HEXADECIMAL && numTemp >= 1152921504606846976) || /* *ceiling((2^64-1) / 16) */
+					(base == NMD_NUMBER_BASE_BINARY && numTemp >= 9223372036854775808)) /* ceiling((2^64-1) / 2) */
+				{
+					return false;
+				}
+
+			}
+			numTemp *= base;
+		}
+	}
+
+	if (s != ai->string) /* There's either a "0x" or "0b" prefix. */
+		*numDigits = (size_t)((ptrdiff_t)(s + i) - (ptrdiff_t)ai->string);
+	
+	if (isNegative)
+		numTemp *= -1;
+
+	*num = numTemp;
+
+	return true;
+}
+
 /*
 Assembles an instruction from its string representation. Returns the length of the assembled instruction on success, zero otherwise.
   string      [in]  A pointer to a string that represents a instruction in assembly language.
   instruction [out] A pointer to a buffer capable of holding 15 bytes that receives the encoded instruction.
   mode        [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
 */
-size_t nmd_x86_assemble(const char* string, uint8_t* instruction, NMD_X86_MODE mode)
+size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode)
 {
 	if (*string == '\0')
 		return false;
@@ -2528,20 +2738,22 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, NMD_X86_MODE m
 	/* After all the string manipulation, place the null character. */
 	buffer[length] = '\0';
 
-	/* "index" */
-	const char* b = buffer;
+	AssembleInfo ai;
+	ai.string = buffer;
+	ai.instruction = instruction;
+	ai.mode = mode;
 
 	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false, repeatNotZeroPrefix = false;
 
 	/* Parse prefixes */
 	if (nmd_strstr(buffer, "lock ") == buffer)
-		lockPrefix = NMD_X86_PREFIXES_LOCK, b += 5;
+		lockPrefix = NMD_X86_PREFIXES_LOCK, ai.string += 5;
 	else if (nmd_strstr(buffer, "rep ") == buffer)
-		repeatPrefix = NMD_X86_PREFIXES_REPEAT, b += 4;
+		repeatPrefix = NMD_X86_PREFIXES_REPEAT, ai.string += 4;
 	else if (nmd_strstr(buffer, "repe ") == buffer || nmd_strstr(buffer, "repz ") == buffer)
-		repeatZeroPrefix = NMD_X86_PREFIXES_REPEAT, b += 5;
+		repeatZeroPrefix = NMD_X86_PREFIXES_REPEAT, ai.string += 5;
 	else if (nmd_strstr(buffer, "repne ") == buffer || nmd_strstr(buffer, "repnz ") == buffer)
-		repeatNotZeroPrefix = NMD_X86_PREFIXES_REPEAT_NOT_ZERO, b += 6;
+		repeatNotZeroPrefix = NMD_X86_PREFIXES_REPEAT_NOT_ZERO, ai.string += 6;
 
 	if (nmd_strstr(buffer, "xacquire ") == buffer)
 	{
@@ -2553,77 +2765,108 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, NMD_X86_MODE m
 	/* Parse opcode */
 	if (mode == NMD_X86_MODE_64) /* Only x86-64. */
 	{
-		if (nmd_strcmp(b, "xchg r8, rax") || nmd_strcmp(b, "xchg rax, r8"))
+		if (nmd_strcmp(ai.string, "xchg r8,rax") || nmd_strcmp(ai.string, "xchg rax,r8"))
 		{
 			instruction[0] = 0x49;
 			instruction[1] = 0x90;
 			return 2;
 		}
-		else if (nmd_strcmp(b, "xchg r8d, eax") || nmd_strcmp(b, "xchg eax, r8d"))
+		else if (nmd_strcmp(ai.string, "xchg r8d,eax") || nmd_strcmp(ai.string, "xchg eax,r8d"))
 		{
 			instruction[0] = 0x41;
 			instruction[1] = 0x90;
 			return 2;
 		}
-		else if (nmd_strcmp(b, "pushfq"))
+		else if (nmd_strcmp(ai.string, "pushfq"))
 		{
 			instruction[0] = 0x9c;
 			return 1;
 		}
-		else if (nmd_strcmp(b, "popfq"))
+		else if (nmd_strcmp(ai.string, "popfq"))
 		{
 			instruction[0] = 0x9d;
 			return 1;
 		}
-		
-	}
-	else /* Only x86-16 or x86-32. */
-	{
-		if (nmd_strcmp(b, "pushad"))
-		{
-			instruction[0] = 0x60;
-			return 1;
-		}
-		else if (nmd_strcmp(b, "pusha"))
-		{
-			instruction[0] = 0x66;
-			instruction[1] = 0x60;
-			return 2;
-		}
-		else if (nmd_strcmp(b, "popad"))
-		{
-			instruction[0] = 0x61;
-			return 1;
-		}
-		else if (nmd_strcmp(b, "popa"))
-		{
-			instruction[0] = 0x66;
-			instruction[1] = 0x62;
-			return 2;
-		}
-		else if (nmd_strcmp(b, "iretq"))
+		else if (nmd_strcmp(ai.string, "iretq"))
 		{
 			instruction[0] = 0x48;
 			instruction[1] = 0xcf;
 			return 2;
 		}
-		else if (nmd_strcmp(b, "cdqe"))
+		else if (nmd_strcmp(ai.string, "cdqe"))
 		{
 			instruction[0] = 0x48;
 			instruction[1] = 0x98;
 			return 2;
 		}
-		else if (nmd_strcmp(b, "cqo"))
+		else if (nmd_strcmp(ai.string, "cqo"))
 		{
 			instruction[0] = 0x48;
 			instruction[1] = 0x99;
 			return 2;
 		}
 	}
+	else /* Only x86-16 or x86-32. */
+	{
+		if (nmd_strcmp(ai.string, "pushad"))
+		{
+			instruction[0] = 0x60;
+			return 1;
+		}
+		else if (nmd_strcmp(ai.string, "pusha"))
+		{
+			instruction[0] = 0x66;
+			instruction[1] = 0x60;
+			return 2;
+		}
+		else if (nmd_strcmp(ai.string, "popad"))
+		{
+			instruction[0] = 0x61;
+			return 1;
+		}
+		else if (nmd_strcmp(ai.string, "popa"))
+		{
+			instruction[0] = 0x66;
+			instruction[1] = 0x62;
+			return 2;
+		}
+		else if (nmd_strcmp(ai.string, "pushfd"))
+		{
+			instruction[0] = 0x9c;
+			return 1;
+		}
+		else if (nmd_strcmp(ai.string, "popfd"))
+		{
+			instruction[0] = 0x9d;
+			return 1;
+		}
+		else if (nmd_strstr(ai.string, "inc ") == ai.string || nmd_strstr(ai.string, "dec ") == ai.string)
+		{
+			ai.string += 4;
+			for (i = 0; i < NMD_NUM_ELEMENTS(reg32); i++)
+			{
+				if (nmd_strcmp(ai.string, reg32[i]))
+				{
+					instruction[0] = (*(ai.string - 4) == 'i' ? 0x40 : 0x48) + i;
+					return 1;
+				}
+			}
+
+			for (i = 0; i < NMD_NUM_ELEMENTS(reg16); i++)
+			{
+				if (nmd_strcmp(ai.string, reg16[i]))
+				{
+					instruction[0] = 0x66;
+					instruction[1] = (*(ai.string - 4) == 'i' ? 0x40 : 0x48) + i;
+					return 2;
+				}
+			}
+		}
+	}
 	
 	typedef struct NMD_StringBytePair { const char* s; uint8_t b; } NMD_StringBytePair;
 
-	const NMD_StringBytePair op1SingleByteMap[] = {
+	const NMD_StringBytePair op1SingleByte[] = {
 		{ "int3", 0xcc },
 		{ "nop", 0x90 },
 		{ "ret", 0xc3 },
@@ -2663,106 +2906,163 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, NMD_X86_MODE m
 		{ "std", 0xfd },
 	};
 
-	for (i = 0; i < sizeof(op1SingleByteMap); i++)
+	const NMD_StringBytePair op2SingleByte[] = {
+		{ "syscall", 0x05 },
+		{ "clts", 0x06 },
+		{ "sysret", 0x07 },
+		{ "invd", 0x08 },
+		{ "wbinvd", 0x09 },
+		{ "ud2", 0x0b },
+		{ "femms", 0x0e },
+		{ "wrmsr", 0x30 },
+		{ "rdtsc", 0x31 },
+		{ "rdmsr", 0x32 },
+		{ "rdpmc", 0x33 },
+		{ "sysenter", 0x34 },
+		{ "sysexit", 0x35 },
+		{ "getsec", 0x37 },
+		{ "emms", 0x77 },
+		{ "push fs", 0xa0 },
+		{ "pop fs", 0xa1 },
+		{ "cpuid", 0xa2 },
+		{ "push gs", 0xa8 },
+		{ "pop gs", 0xa9 },
+		{ "rsm", 0xaa }
+	};
+
+	for (i = 0; i < NMD_NUM_ELEMENTS(op1SingleByte); i++)
 	{
-		if (nmd_strcmp(b, op1SingleByteMap[i].s))
+		if (nmd_strcmp(ai.string, op1SingleByte[i].s))
 		{
-			instruction[i] = op1SingleByteMap[i].b;
+			instruction[0] = op1SingleByte[i].b;
 			return 1;
 		}
 	}
 
-	if (nmd_strcmp(b, "pause"))
+	for (i = 0; i < NMD_NUM_ELEMENTS(op2SingleByte); i++)
+	{
+		if (nmd_strcmp(ai.string, op2SingleByte[i].s))
+		{
+			instruction[0] = 0x0f;
+			instruction[1] = op2SingleByte[i].b;
+			return 2;
+		}
+	}
+
+	if (nmd_strcmp(ai.string, "pause"))
 	{
 		instruction[0] = 0xf3;
 		instruction[1] = 0x90;
 		return 2;
 	}
-	else if (nmd_strcmp(b, "pushfd"))
-	{
-		instruction[0] = 0x66;
-		instruction[1] = 0x9c;
-		return 2;
-	}
-	else if (nmd_strcmp(b, "popfd"))
-	{
-		instruction[0] = 0x66;
-		instruction[1] = 0x9d;
-		return 2;
-	}
-	else if (nmd_strcmp(b, "iret"))
+	else if (nmd_strcmp(ai.string, "iret"))
 	{
 		instruction[0] = 0x66;
 		instruction[1] = 0xcf;
 		return 2;
 	}
-	else if (nmd_strcmp(b, "cbw"))
+	else if (nmd_strcmp(ai.string, "cbw"))
 	{
 		instruction[0] = 0x66;
 		instruction[1] = 0x98;
 		return 2;
 	}
-	else if (nmd_strcmp(b, "cwd"))
+	else if (nmd_strcmp(ai.string, "cwd"))
 	{
 		instruction[0] = 0x66;
 		instruction[1] = 0x99;
 		return 2;
 	}
+	else if (nmd_strcmp(ai.string, "pushf"))
+	{
+		instruction[0] = 0x66;
+		instruction[1] = 0x9c;
+		return 2;
+	}
+	else if (nmd_strcmp(ai.string, "popf"))
+	{
+		instruction[0] = 0x66;
+		instruction[1] = 0x9d;
+		return 2;
+	}
+	else if (nmd_strstr(ai.string, "push ") == ai.string)
+	{
+		ai.string += 5;
+
+		size_t numDigits = 0;
+		int64_t num = 0;
+		if (parseNumber(&ai, &num, &numDigits))
+		{
+			if(*(ai.string + numDigits) != '\0' || !(num >= -(1 << 31) && num <= (1 << 31) - 1))
+				return 0;
+
+			if (num >= -(1 << 7) && num <= (1 << 7) - 1)
+			{
+				instruction[0] = 0x6a;
+				*(int8_t*)(instruction + 1) = (int8_t)num;
+				return 2;
+			}
+			else
+			{
+				instruction[0] = 0x68;
+				*(int32_t*)(instruction + 1) = (int32_t)num;
+				return 5;
+			}
+		}
+
+		size_t n = assembleReg(&ai, 0x50);
+		if (n > 0)
+			return n;
+
+	}
+	else if (nmd_strstr(ai.string, "pop ") == ai.string)
+	{
+		ai.string += 3;
+		return assembleReg(&ai, 0x58);
+	}
+	
+	if (ai.string[0] == 'j')
+	{
+		const char* s = 0;
+		for (i = 0; i < NMD_NUM_ELEMENTS(conditionSuffixes); i++)
+		{
+			if (nmd_strstr_ex(ai.string + 1, conditionSuffixes[i], &s) == ai.string + 1)
+			{
+				if (s[0] == '\0')
+					return 0;
+
+				ai.string = s + 1;
+
+				int64_t num;
+				size_t numDigits;
+				if(!parseNumber(&ai, &num, &numDigits))
+					return 0;
+
+				const int64_t delta = num - runtimeAddress;
+				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
+				{
+					instruction[0] = 0x70 + i;
+					*(int8_t*)(instruction + 1) = (int8_t)(delta - 2);
+					return 2;
+				}
+				else if (delta >= -(1 << 31) + 6 && delta <= ((size_t)(1) << 31) - 1 + 6)
+				{
+					instruction[0] = 0x0f;
+					instruction[1] = 0x80 + i;
+					*(int32_t*)(instruction + 2) = (int32_t)(delta - 6);
+					return 6;
+				}
+				else
+					return 0;
+			}
+		}
+	}
 
 	/* try to parse 00 00*/
-	if (nmd_strstr("add", b) == b)
+	if (nmd_strstr("add", ai.string) == ai.string)
 	{
 
 	}
-
-	/*
-	if ( nmd_strstr( b, "rdtsc" ) == b )
-	{
-		instruction->flags.fields.valid = true;
-		instruction->flags.fields.hasModrm = false;
-		instruction->flags.fields.hasSIB = false;
-		instruction->flags.fields.operandSize64 = false;
-		instruction->flags.fields.repeatPrefix = false;
-
-		instruction->id = NMD_X86_INSTRUCTION_RDTSC;
-		instruction->opcodeMap = NMD_X86_OPCODE_MAP_0F;
-		instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_LEGACY;
-		instruction->numPrefixes = 0;
-		instruction->length = instruction->opcodeSize = 2;
-		instruction->numOperands = 0;
-		instruction->group = NMD_GROUP_NONE;
-
-		instruction->numRegsRead = 0;
-		instruction->regsRead[ 0 ].portion = 0;
-		instruction->regsRead[ 0 ].fields.reg = 0;
-
-		instruction->numRegsWrite = 2;
-		instruction->regsWrite[ 0 ].portion = NMD_X86_REG_PORTION_LOWER_32;
-		instruction->regsWrite[ 0 ].fields.reg = NMD_X86_REG_RDX;
-		instruction->regsWrite[ 1 ].portion = NMD_X86_REG_PORTION_LOWER_32;
-		instruction->regsWrite[ 1 ].fields.reg = NMD_X86_REG_RAX;
-
-		instruction->mode = NMD_X86_MODE_32;
-		instruction->immMask = NMD_X86_IMM_NONE;
-		instruction->dispMask = NMD_X86_DISP_NONE;
-		instruction->prefixes = NMD_X86_PREFIXES_NONE;
-		instruction->segmentOverride = NMD_X86_PREFIXES_NONE;
-		instruction->simdPrefix = NMD_X86_PREFIXES_NONE;
-		instruction->opcode = 0x31;
-
-		instruction->vex.byte0 = 0;
-		instruction->vex.R = 0;
-		instruction->vex.X = 0;
-		instruction->vex.B = 0;
-		instruction->vex.L = 0;
-		instruction->vex.W = 0;
-		instruction->vex.m_mmmm = 0;
-		instruction->vex.vvvv = 0;
-		instruction->vex.pp = 0;
-		instruction->vex.vex[ 0 ] = 0;
-		instruction->vex.vex[ 1 ] = 0;
-		instruction->vex.vex[ 2 ] = 0;
-	}*/
 
 	return 0;
 }
@@ -4524,41 +4824,6 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 
 	return true;
 }
-
-/* If there was potential for a crash because of bad logic it won't crash now, rather it'll just print an empty string. */
-#define NMD_NULL ""
-
-static const char* const reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
-static const char* const reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };
-static const char* const reg16[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
-static const char* const reg32[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
-static const char* const reg64[] = { "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi" };
-static const char* const regrx[] = { "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15" };
-static const char* const segmentReg[] = { "es", "cs", "ss", "ds", "fs", "gs" };
-
-static const char* const conditionSuffixes[] = { "o", "no", "b", "ae", "e", "ne", "be", "a", "s", "ns", "p", "np", "l", "ge", "le", "g" };
-
-static const char* const op1OpcodeMapMnemonics[] = { "add", "adc", "and", "xor", "or", "sbb", "sub", "cmp" };
-static const char* const opcodeExtensionsGrp1[] = { "add", "or", "adc", "sbb", "and", "sub", "xor", "cmp" };
-static const char* const opcodeExtensionsGrp2[] = { "rol", "ror", "rcl", "rcr", "shl", "shr", "shl", "sar" };
-static const char* const opcodeExtensionsGrp3[] = { "test", "test", "not", "neg", "mul", "imul", "div", "idiv" };
-static const char* const opcodeExtensionsGrp5[] = { "inc", "dec", "call", "call far", "jmp", "jmp far", "push" };
-static const char* const opcodeExtensionsGrp6[] = { "sldt", "str", "lldt", "ltr", "verr", "verw" };
-static const char* const opcodeExtensionsGrp7[] = { "sgdt", "sidt", "lgdt", "lidt", "smsw", NMD_NULL, "lmsw", "invlpg" };
-static const char* const opcodeExtensionsGrp7reg0[] = { "enclv", "vmcall", "vmlaunch", "vmresume", "vmxoff", "pconfig" };
-static const char* const opcodeExtensionsGrp7reg1[] = { "monitor", "mwait", "clac", "stac", NMD_NULL, NMD_NULL, NMD_NULL, "encls" };
-static const char* const opcodeExtensionsGrp7reg2[] = { "xgetbv", "xsetbv", NMD_NULL, NMD_NULL, "vmfunc", "xend", "xtest", "enclu" };
-static const char* const opcodeExtensionsGrp7reg3[] = { "vmrun ", "vmmcall", "vmload ", "vmsave", "stgi", "clgi", "skinit eax", "invlpga " };
-static const char* const opcodeExtensionsGrp7reg7[] = { "swapgs", "rdtscp", "monitorx", "mwaitx", "clzero ", "rdpru" };
-
-static const char* const escapeOpcodesD8[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
-static const char* const escapeOpcodesD9[] = { "ld", NMD_NULL, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
-static const char* const escapeOpcodesDA_DE[] = { "iadd", "imul", "icom", "icomp", "isub", "isubr", "idiv", "idivr" };
-static const char* const escapeOpcodesDB[] = { "ild", "isttp", "ist", "istp", NMD_NULL, "ld", NMD_NULL, "stp" };
-static const char* const escapeOpcodesDC[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
-static const char* const escapeOpcodesDD[] = { "ld", "isttp", "st", "stp", "rstor", NMD_NULL, "nsave", "nstsw" };
-static const char* const escapeOpcodesDF[] = { "ild", "isttp", "ist", "istp", "bld", "ild", "bstp", "istp" };
-static const char* const* escapeOpcodes[] = { escapeOpcodesD8, escapeOpcodesD9, escapeOpcodesDA_DE, escapeOpcodesDB, escapeOpcodesDC, escapeOpcodesDD, escapeOpcodesDA_DE, escapeOpcodesDF };
 
 typedef struct StringInfo
 {
