@@ -1,5 +1,5 @@
 #define NMD_LDISASM_IMPLEMENTATION
-#include "nmd_ldisasm.h"
+#include "../nmd_ldisasm.h"
 #include <stdio.h>
 int main()
 {
