@@ -60,30 +60,30 @@ Expected output:
 #include <stdio.h>
 int main()
 {
-	const uint8_t code[] = { 0x33, 0xC0, 0x40, 0xC3, 0x8B, 0x65, 0xE8 };
+	const uint8_t buffer[] = { 0x33, 0xC0, 0x40, 0xC3, 0x8B, 0x65, 0xE8 };
+	const uint8_t* const bufferEnd = buffer + sizeof(buffer);
 
 	NMD_X86Instruction instruction;
-	char instructionString[128];
+	char formattedInstruction[128];
 
 	size_t i = 0;
-	for (; i < sizeof(code); i += instruction.length)
+	for (; i < sizeof(buffer); i += instruction.length)
 	{
-		if (!nmd_x86_decode_buffer(code + i, &instruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_MODE_32, NMD_X86_FEATURE_FLAGS_MINIMAL))
+		if (!nmd_x86_decode_buffer(buffer + i, bufferEnd - (buffer + i), &instruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_MODE_32, NMD_X86_FEATURE_FLAGS_MINIMAL))
 			break;
 
-		nmd_x86_format_instruction(&instruction, instructionString, NMD_X86_FORMAT_FLAGS_DEFAULT);
+		nmd_x86_format_instruction(&instruction, formattedInstruction, NMD_X86_FORMAT_FLAGS_DEFAULT);
 
-		printf("%s\n", instructionString);
+		printf("%s\n", formattedInstruction);
 	}
 }
 
 TODO:
  Short-Term
-  - Add a 'bufferSize' parameter to nmd_x86_decode_buffer().
   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
   - Implement x86 Assembler.
  Long-Term
-  - Implement decompiler for x86.
+  - Implement decompiler and emulator for x86.
   - Add support for other architectures(ARM, MIPS and PowerPC ?).
 
 References
@@ -2281,7 +2281,7 @@ Assembles an instruction from its string representation. Returns the length of t
   runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
   mode           [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
 */
-size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode);
+size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode);
 
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
@@ -2555,8 +2555,8 @@ static const char* const* escapeOpcodes[] = { escapeOpcodesD8, escapeOpcodesD9, 
 
 typedef struct AssembleInfo
 {
-	const char* string;
-	uint8_t* instruction;
+	const char* s; /* string */
+	uint8_t* i; /* instruction */
 	NMD_X86_MODE mode;
 } AssembleInfo;
 
@@ -2567,19 +2567,19 @@ size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 	{
 		for (i = 0; i < NMD_NUM_ELEMENTS(reg64); i++)
 		{
-			if (nmd_strcmp(ai->string, reg64[i]))
+			if (nmd_strcmp(ai->s, reg64[i]))
 			{
-				ai->instruction[0] = baseByte + i;
+				ai->i[0] = baseByte + i;
 				return 1;
 			}
 		}
 
 		for (i = 0; i < NMD_NUM_ELEMENTS(regrx); i++)
 		{
-			if (nmd_strcmp(ai->string, regrx[i]))
+			if (nmd_strcmp(ai->s, regrx[i]))
 			{
-				ai->instruction[0] = 0x41;
-				ai->instruction[1] = baseByte + i;
+				ai->i[0] = 0x41;
+				ai->i[1] = baseByte + i;
 				return 2;
 			}
 		}
@@ -2588,9 +2588,9 @@ size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 	{
 		for (i = 0; i < NMD_NUM_ELEMENTS(reg32); i++)
 		{
-			if (nmd_strcmp(ai->string, reg32[i]))
+			if (nmd_strcmp(ai->s, reg32[i]))
 			{
-				ai->instruction[0] = baseByte + i;
+				ai->i[0] = baseByte + i;
 				return 1;
 			}
 		}
@@ -2598,10 +2598,10 @@ size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 
 	for (i = 0; i < NMD_NUM_ELEMENTS(reg16); i++)
 	{
-		if (nmd_strcmp(ai->string, reg16[i]))
+		if (nmd_strcmp(ai->s, reg16[i]))
 		{
-			ai->instruction[0] = 0x66;
-			ai->instruction[1] = baseByte + i;
+			ai->i[0] = 0x66;
+			ai->i[1] = baseByte + i;
 			return 2;
 		}
 	}
@@ -2622,7 +2622,7 @@ bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
 	/* Assume decimal base. */
 	uint8_t base = NMD_NUMBER_BASE_DECIMAL;
 	size_t i;
-	const char* s = ai->string;
+	const char* s = ai->s;
 	bool isNegative = false;
 
 	if (s[0] == '-')
@@ -2691,8 +2691,8 @@ bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
 		}
 	}
 
-	if (s != ai->string) /* There's either a "0x" or "0b" prefix. */
-		*numDigits = (size_t)((ptrdiff_t)(s + i) - (ptrdiff_t)ai->string);
+	if (s != ai->s) /* There's either a "0x" or "0b" prefix. */
+		*numDigits = (size_t)((ptrdiff_t)(s + i) - (ptrdiff_t)ai->s);
 	
 	if (isNegative)
 		numTemp *= -1;
@@ -2713,7 +2713,7 @@ Assembles an instruction from its string representation. Returns the length of t
   instruction [out] A pointer to a buffer capable of holding 15 bytes that receives the encoded instruction.
   mode        [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
 */
-size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode)
+size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode)
 {
 	if (string[0] == '\0')
 		return 0;
@@ -2748,21 +2748,21 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runti
 	buffer[length] = '\0';
 
 	AssembleInfo ai;
-	ai.string = buffer;
-	ai.instruction = instruction;
+	ai.s = buffer;
+	ai.i = (uint8_t*)instruction;
 	ai.mode = mode;
 
 	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false, repeatNotZeroPrefix = false;
 
 	/* Parse prefixes */
 	if (nmd_strstr(buffer, "lock ") == buffer)
-		lockPrefix = NMD_X86_PREFIXES_LOCK, ai.string += 5;
+		lockPrefix = NMD_X86_PREFIXES_LOCK, ai.s += 5;
 	else if (nmd_strstr(buffer, "rep ") == buffer)
-		repeatPrefix = NMD_X86_PREFIXES_REPEAT, ai.string += 4;
+		repeatPrefix = NMD_X86_PREFIXES_REPEAT, ai.s += 4;
 	else if (nmd_strstr(buffer, "repe ") == buffer || nmd_strstr(buffer, "repz ") == buffer)
-		repeatZeroPrefix = NMD_X86_PREFIXES_REPEAT, ai.string += 5;
+		repeatZeroPrefix = NMD_X86_PREFIXES_REPEAT, ai.s += 5;
 	else if (nmd_strstr(buffer, "repne ") == buffer || nmd_strstr(buffer, "repnz ") == buffer)
-		repeatNotZeroPrefix = NMD_X86_PREFIXES_REPEAT_NOT_ZERO, ai.string += 6;
+		repeatNotZeroPrefix = NMD_X86_PREFIXES_REPEAT_NOT_ZERO, ai.s += 6;
 
 	if (nmd_strstr(buffer, "xacquire ") == buffer)
 	{
@@ -2774,99 +2774,99 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runti
 	/* Parse opcode */
 	if (mode == NMD_X86_MODE_64) /* Only x86-64. */
 	{
-		if (nmd_strcmp(ai.string, "xchg r8,rax") || nmd_strcmp(ai.string, "xchg rax,r8"))
+		if (nmd_strcmp(ai.s, "xchg r8,rax") || nmd_strcmp(ai.s, "xchg rax,r8"))
 		{
-			instruction[0] = 0x49;
-			instruction[1] = 0x90;
+			ai.i[0] = 0x49;
+			ai.i[1] = 0x90;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.string, "xchg r8d,eax") || nmd_strcmp(ai.string, "xchg eax,r8d"))
+		else if (nmd_strcmp(ai.s, "xchg r8d,eax") || nmd_strcmp(ai.s, "xchg eax,r8d"))
 		{
-			instruction[0] = 0x41;
-			instruction[1] = 0x90;
+			ai.i[0] = 0x41;
+			ai.i[1] = 0x90;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.string, "pushfq"))
+		else if (nmd_strcmp(ai.s, "pushfq"))
 		{
-			instruction[0] = 0x9c;
+			ai.i[0] = 0x9c;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.string, "popfq"))
+		else if (nmd_strcmp(ai.s, "popfq"))
 		{
-			instruction[0] = 0x9d;
+			ai.i[0] = 0x9d;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.string, "iretq"))
+		else if (nmd_strcmp(ai.s, "iretq"))
 		{
-			instruction[0] = 0x48;
-			instruction[1] = 0xcf;
+			ai.i[0] = 0x48;
+			ai.i[1] = 0xcf;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.string, "cdqe"))
+		else if (nmd_strcmp(ai.s, "cdqe"))
 		{
-			instruction[0] = 0x48;
-			instruction[1] = 0x98;
+			ai.i[0] = 0x48;
+			ai.i[1] = 0x98;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.string, "cqo"))
+		else if (nmd_strcmp(ai.s, "cqo"))
 		{
-			instruction[0] = 0x48;
-			instruction[1] = 0x99;
+			ai.i[0] = 0x48;
+			ai.i[1] = 0x99;
 			return 2;
 		}
 	}
 	else /* Only x86-16 or x86-32. */
 	{
-		if (nmd_strcmp(ai.string, "pushad"))
+		if (nmd_strcmp(ai.s, "pushad"))
 		{
-			instruction[0] = 0x60;
+			ai.i[0] = 0x60;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.string, "pusha"))
+		else if (nmd_strcmp(ai.s, "pusha"))
 		{
-			instruction[0] = 0x66;
-			instruction[1] = 0x60;
+			ai.i[0] = 0x66;
+			ai.i[1] = 0x60;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.string, "popad"))
+		else if (nmd_strcmp(ai.s, "popad"))
 		{
-			instruction[0] = 0x61;
+			ai.i[0] = 0x61;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.string, "popa"))
+		else if (nmd_strcmp(ai.s, "popa"))
 		{
-			instruction[0] = 0x66;
-			instruction[1] = 0x62;
+			ai.i[0] = 0x66;
+			ai.i[1] = 0x62;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.string, "pushfd"))
+		else if (nmd_strcmp(ai.s, "pushfd"))
 		{
-			instruction[0] = 0x9c;
+			ai.i[0] = 0x9c;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.string, "popfd"))
+		else if (nmd_strcmp(ai.s, "popfd"))
 		{
-			instruction[0] = 0x9d;
+			ai.i[0] = 0x9d;
 			return 1;
 		}
-		else if (nmd_strstr(ai.string, "inc ") == ai.string || nmd_strstr(ai.string, "dec ") == ai.string)
+		else if (nmd_strstr(ai.s, "inc ") == ai.s || nmd_strstr(ai.s, "dec ") == ai.s)
 		{
-			ai.string += 4;
+			ai.s += 4;
 			for (i = 0; i < NMD_NUM_ELEMENTS(reg32); i++)
 			{
-				if (nmd_strcmp(ai.string, reg32[i]))
+				if (nmd_strcmp(ai.s, reg32[i]))
 				{
-					instruction[0] = (*(ai.string - 4) == 'i' ? 0x40 : 0x48) + i;
+					ai.i[0] = (*(ai.s - 4) == 'i' ? 0x40 : 0x48) + i;
 					return 1;
 				}
 			}
 
 			for (i = 0; i < NMD_NUM_ELEMENTS(reg16); i++)
 			{
-				if (nmd_strcmp(ai.string, reg16[i]))
+				if (nmd_strcmp(ai.s, reg16[i]))
 				{
-					instruction[0] = 0x66;
-					instruction[1] = (*(ai.string - 4) == 'i' ? 0x40 : 0x48) + i;
+					ai.i[0] = 0x66;
+					ai.i[1] = (*(ai.s - 4) == 'i' ? 0x40 : 0x48) + i;
 					return 2;
 				}
 			}
@@ -2941,80 +2941,80 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runti
 
 	for (i = 0; i < NMD_NUM_ELEMENTS(op1SingleByte); i++)
 	{
-		if (nmd_strcmp(ai.string, op1SingleByte[i].s))
+		if (nmd_strcmp(ai.s, op1SingleByte[i].s))
 		{
-			instruction[0] = op1SingleByte[i].b;
+			ai.i[0] = op1SingleByte[i].b;
 			return 1;
 		}
 	}
 
 	for (i = 0; i < NMD_NUM_ELEMENTS(op2SingleByte); i++)
 	{
-		if (nmd_strcmp(ai.string, op2SingleByte[i].s))
+		if (nmd_strcmp(ai.s, op2SingleByte[i].s))
 		{
-			instruction[0] = 0x0f;
-			instruction[1] = op2SingleByte[i].b;
+			ai.i[0] = 0x0f;
+			ai.i[1] = op2SingleByte[i].b;
 			return 2;
 		}
 	}
 
-	if (nmd_strcmp(ai.string, "pause"))
+	if (nmd_strcmp(ai.s, "pause"))
 	{
-		instruction[0] = 0xf3;
-		instruction[1] = 0x90;
+		ai.i[0] = 0xf3;
+		ai.i[1] = 0x90;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.string, "iret"))
+	else if (nmd_strcmp(ai.s, "iret"))
 	{
-		instruction[0] = 0x66;
-		instruction[1] = 0xcf;
+		ai.i[0] = 0x66;
+		ai.i[1] = 0xcf;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.string, "cbw"))
+	else if (nmd_strcmp(ai.s, "cbw"))
 	{
-		instruction[0] = 0x66;
-		instruction[1] = 0x98;
+		ai.i[0] = 0x66;
+		ai.i[1] = 0x98;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.string, "cwd"))
+	else if (nmd_strcmp(ai.s, "cwd"))
 	{
-		instruction[0] = 0x66;
-		instruction[1] = 0x99;
+		ai.i[0] = 0x66;
+		ai.i[1] = 0x99;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.string, "pushf"))
+	else if (nmd_strcmp(ai.s, "pushf"))
 	{
-		instruction[0] = 0x66;
-		instruction[1] = 0x9c;
+		ai.i[0] = 0x66;
+		ai.i[1] = 0x9c;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.string, "popf"))
+	else if (nmd_strcmp(ai.s, "popf"))
 	{
-		instruction[0] = 0x66;
-		instruction[1] = 0x9d;
+		ai.i[0] = 0x66;
+		ai.i[1] = 0x9d;
 		return 2;
 	}
-	else if (nmd_strstr(ai.string, "push ") == ai.string)
+	else if (nmd_strstr(ai.s, "push ") == ai.s)
 	{
-		ai.string += 5;
+		ai.s += 5;
 
 		size_t numDigits = 0;
 		int64_t num = 0;
 		if (parseNumber(&ai, &num, &numDigits))
 		{
-			if(*(ai.string + numDigits) != '\0' || !(num >= -(1 << 31) && num <= (1 << 31) - 1))
+			if(*(ai.s + numDigits) != '\0' || !(num >= -(1 << 31) && num <= (1 << 31) - 1))
 				return 0;
 
 			if (num >= -(1 << 7) && num <= (1 << 7) - 1)
 			{
-				instruction[0] = 0x6a;
-				*(int8_t*)(instruction + 1) = (int8_t)num;
+				ai.i[0] = 0x6a;
+				*(int8_t*)(ai.i + 1) = (int8_t)num;
 				return 2;
 			}
 			else
 			{
-				instruction[0] = 0x68;
-				*(int32_t*)(instruction + 1) = (int32_t)num;
+				ai.i[0] = 0x68;
+				*(int32_t*)(ai.i + 1) = (int32_t)num;
 				return 5;
 			}
 		}
@@ -3024,23 +3024,23 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runti
 			return n;
 
 	}
-	else if (nmd_strstr(ai.string, "pop ") == ai.string)
+	else if (nmd_strstr(ai.s, "pop ") == ai.s)
 	{
-		ai.string += 3;
+		ai.s += 3;
 		return assembleReg(&ai, 0x58);
 	}
 	
-	if (ai.string[0] == 'j')
+	if (ai.s[0] == 'j')
 	{
 		const char* s = 0;
 		for (i = 0; i < NMD_NUM_ELEMENTS(conditionSuffixes); i++)
 		{
-			if (nmd_strstr_ex(ai.string + 1, conditionSuffixes[i], &s) == ai.string + 1)
+			if (nmd_strstr_ex(ai.s + 1, conditionSuffixes[i], &s) == ai.s + 1)
 			{
 				if (s[0] == '\0')
 					return 0;
 
-				ai.string = s + 1;
+				ai.s = s + 1;
 
 				int64_t num;
 				size_t numDigits;
@@ -3050,15 +3050,15 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runti
 				const int64_t delta = num - runtimeAddress;
 				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
 				{
-					instruction[0] = 0x70 + i;
-					*(int8_t*)(instruction + 1) = (int8_t)(delta - 2);
+					ai.i[0] = 0x70 + i;
+					*(int8_t*)(ai.i + 1) = (int8_t)(delta - 2);
 					return 2;
 				}
 				else if (delta >= -(1 << 31) + 6 && delta <= ((size_t)(1) << 31) - 1 + 6)
 				{
-					instruction[0] = 0x0f;
-					instruction[1] = 0x80 + i;
-					*(int32_t*)(instruction + 2) = (int32_t)(delta - 6);
+					ai.i[0] = 0x0f;
+					ai.i[1] = 0x80 + i;
+					*(int32_t*)(ai.i + 2) = (int32_t)(delta - 6);
 					return 6;
 				}
 				else
@@ -3068,7 +3068,7 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runti
 	}
 
 	/* try to parse 00 00*/
-	if (nmd_strstr("add", ai.string) == ai.string)
+	if (nmd_strstr("add", ai.s) == ai.s)
 	{
 
 	}
