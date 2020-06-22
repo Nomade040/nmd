@@ -63,7 +63,7 @@ int main()
 	const uint8_t code[] = { 0x33, 0xC0, 0x40, 0xC3, 0x8B, 0x65, 0xE8 };
 
 	NMD_X86Instruction instruction;
-	char instructionString[NMD_X86_MAXIMUM_FORMATTED_INSTRUCTION_LENGTH];
+	char instructionString[128];
 
 	size_t i = 0;
 	for (; i < sizeof(code); i += instruction.length)
@@ -156,7 +156,6 @@ typedef unsigned long long uint64_t;
 #endif /* NMD_ASSEMBLY_NO_INCLUDES */
 
 #define NMD_X86_INVALID_RUNTIME_ADDRESS -1
-#define NMD_X86_MAXIMUM_FORMATTED_INSTRUCTION_LENGTH 128
 #define NMD_X86_MAXIMUM_INSTRUCTION_LENGTH 15
 #define NMD_X86_MAXIMUM_NUM_OPERANDS 4
 
@@ -2288,12 +2287,13 @@ size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runti
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
   buffer         [in]  A pointer to a buffer containing a encoded instruction.
+  bufferSize     [in]  The buffer's size in bytes.
   instruction    [out] A pointer to a variable of type 'NMD_X86Instruction' that describes the instruction.
   runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
   mode           [in]  The architecture mode. A member of the 'NMD_X86_MODE' enum.
   featureFlags   [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use.
 */
-bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode, uint32_t featureFlags);
+bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode, uint32_t featureFlags);
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
@@ -2325,8 +2325,12 @@ void nmd_x86_decompile(const NMD_X86Instruction instructions[], size_t numInstru
 
 bool nmd_findByte(const uint8_t* arr, const size_t N, const uint8_t x) { size_t i = 0; for (; i < N; i++) { if (arr[i] == x) { return true; } }; return false; }
 
-void parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction)
+/* 'remaningSize' in the context of this function is the number of bytes the instruction takes not counting prefixes and opcode. */
+bool parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction, const size_t remainingSize)
 {
+	if (remainingSize < 1)
+		return false;
+
 	instruction->flags.fields.hasModrm = true;
 	instruction->modrm.modrm = *++*b;
 	const bool addressPrefix = (bool)(instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE);
@@ -2357,7 +2361,13 @@ void parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction)
 		{
 			/* Check for SIB byte */
 			if (instruction->modrm.modrm < 0xC0 && instruction->modrm.fields.rm == 0b100 && (!addressPrefix || (addressPrefix && instruction->mode == NMD_X86_MODE_64)))
-				instruction->flags.fields.hasSIB = true, instruction->sib.sib = *++ * b;
+			{
+				if (remainingSize < 2)
+					return false;
+
+				instruction->flags.fields.hasSIB = true;
+				instruction->sib.sib = *++*b;
+			}
 
 			if (instruction->modrm.fields.mod == 0b01) /* disp8 (ModR/M) */
 				instruction->dispMask = NMD_X86_DISP8;
@@ -2368,9 +2378,14 @@ void parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction)
 		}
 	}
 
+	if (remainingSize - (instruction->flags.fields.hasSIB ? 2 : 1) < instruction->dispMask)
+		return false;
+
 	size_t i = 0;
 	for (; i < (size_t)instruction->dispMask; i++, (*b)++)
 		((uint8_t*)(&instruction->displacement))[i] = *(*b + 1);
+
+	return true;
 }
 
 /* Returns a pointer to the first occurrence of 'c' in 's', or a null pointer if 'c' is not present. */
@@ -2687,6 +2702,11 @@ bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
 	return true;
 }
 
+bool isLowercase(char c)
+{
+	return c >= 'a' && c <= 'z';
+}
+
 /*
 Assembles an instruction from its string representation. Returns the length of the assembled instruction on success, zero otherwise.
   string      [in]  A pointer to a string that represents a instruction in assembly language.
@@ -2695,47 +2715,36 @@ Assembles an instruction from its string representation. Returns the length of t
 */
 size_t nmd_x86_assemble(const char* string, uint8_t* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode)
 {
-	if (*string == '\0')
-		return false;
+	if (string[0] == '\0')
+		return 0;
 
 	size_t i = 0;
-	char buffer[NMD_X86_MAXIMUM_FORMATTED_INSTRUCTION_LENGTH];
+	char buffer[128];
 
-	/* Copy 'string' to 'buffer' converting it to lowercase. If the character ';'(comment) is found, stop. */
+	/* Copy 'string' to 'buffer' converting it to lowercase and removing unwanted spaces. If the character ';'/'#'(comment) is found, stop. */
 	size_t length = 0;
-	for (; string[length]; length++)
+	bool allowSpace = false;
+	for (; *string; string++)
 	{
-		const char c = string[length];
-		if (c == ';')
+		const char c = *string;
+		if (c == ';' || c == '#')
 			break;
+		else if (c == ' ' && !allowSpace)
+			continue;
 
-		buffer[length] = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
+		if (length >= 128)
+			return 0;
+
+		const char newChar = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
+		buffer[length++] = newChar;
+		allowSpace = isLowercase(newChar) && isLowercase(*(string + 2));
 	}
 
-	/* Remove any number of contiguous of white-spaces at the end of the string. */
-	for (i = length - 1; i > 0; i--)
-	{
-		if (buffer[i] != ' ')
-		{
-			length = i + 1;
-			break;
-		}
-	}
+	/* If the last character is a ' '(space), remove it. */
+	if (buffer[length - 1] == ' ')
+		length--;
 
-	/* Remove all white-spaces where the previous character is not a lowercase letter. */
-	for (i = 0; i < length; i++)
-	{
-		if (buffer[i] == ' ' && (i == 0 || !(buffer[i - 1] >= 'a' && buffer[i - 1] <= 'z')))
-		{
-			size_t j = i;
-			for (; j < length; j++)
-				buffer[j] = buffer[j + 1];
-
-			length--;
-		}
-	}
-
-	/* After all the string manipulation, place the null character. */
+	/* After all of the string manipulation, place the null character. */
 	buffer[length] = '\0';
 
 	AssembleInfo ai;
@@ -3247,13 +3256,17 @@ void parseOperandUdq(const NMD_X86Instruction* instruction, NMD_X86Operand* oper
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
   buffer         [in]  A pointer to a buffer containing a encoded instruction.
+  bufferSize     [in]  The buffer's size in bytes.
   instruction    [out] A pointer to a variable of type 'NMD_X86Instruction' that describes the instruction.
   runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
   mode           [in]  The architecture mode. A member of the 'NMD_X86_MODE' enum.
   featureFlags   [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use.
 */
-bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode, uint32_t featureFlags)
+bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NMD_X86Instruction* const instruction, const uint64_t runtimeAddress, const NMD_X86_MODE mode, const uint32_t featureFlags)
 {
+	if (bufferSize == 0)
+		return false;
+
 	const uint8_t op1modrm[] = { 0x62, 0x63, 0x69, 0x6B, 0xC0, 0xC1, 0xC4, 0xC5, 0xC6, 0xC7, 0xD0, 0xD1, 0xD2, 0xD3, 0xF6, 0xF7, 0xFE, 0xFF };
 	const uint8_t op1imm8[] = { 0x6A, 0x6B, 0x80, 0x82, 0x83, 0xA8, 0xC0, 0xC1, 0xC6, 0xCD, 0xD4, 0xD5, 0xEB };
 	const uint8_t op1imm32[] = { 0x68, 0x69, 0x81, 0xA9, 0xC7, 0xE8, 0xE9 };
@@ -3269,8 +3282,9 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 
 	const uint8_t* b = (const uint8_t*)(buffer);
 
+	const size_t numMaxPrefixes = bufferSize < 14 ? bufferSize : 14;
+	for (i = 0; i < numMaxPrefixes; i++, b++)
 	/* Parse legacy prefixes & REX prefixes. */
-	for (i = 0; i < 14; i++, b++)
 	{
 		switch (*b)
 		{
@@ -3310,17 +3324,28 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 
 	instruction->numPrefixes = (uint8_t)((ptrdiff_t)(b)-(ptrdiff_t)(buffer));
 
+	/* Define 'remainingSize' to be the buffer's size after counting any prefixes. */
+	const size_t remainingSize = bufferSize - instruction->numPrefixes;
+	if (remainingSize == 0)
+		return false;
+
 	/* Assume NMD_X86_INSTRUCTION_ENCODING_LEGACY. */
 	instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_LEGACY;
 
 	/* Parse opcode. */
 	if (*b == 0x0F) /* 2 or 3 byte opcode. */
 	{
+		if (remainingSize == 1)
+			return false;
+
 		b++;
 		instruction->opcodeOffset = instruction->numPrefixes;
 
 		if (*b == 0x38 || *b == 0x3A) /* 3 byte opcode. */
 		{
+			if (remainingSize < 4)
+				return false;
+
 			instruction->opcodeSize = 3;
 			instruction->opcode = *++b;
 			const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
@@ -3375,7 +3400,8 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
 
-				parseModrm(&b, instruction);
+				if (!parseModrm(&b, instruction, remainingSize - 3))
+					return false;
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
@@ -3431,6 +3457,9 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 			}
 			else /* 0x3a */
 			{
+				if (remainingSize < 5)
+					return false;
+
 				instruction->opcodeMap = NMD_X86_OPCODE_MAP_0F_3A;
 				instruction->immMask = NMD_X86_IMM8;
 
@@ -3471,7 +3500,8 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 				}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
 
-				parseModrm(&b, instruction);
+				if (!parseModrm(&b, instruction, remainingSize - 3))
+					return false;
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
@@ -3511,7 +3541,16 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 			instruction->opcodeSize = 2;
 			instruction->opcode = *b;
 
-			const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
+			/* Check for ModR/M, SIB and displacement. */
+			if (*b >= 0x20 && *b <= 0x23 && remainingSize == 2)
+				instruction->flags.fields.hasModrm = true, instruction->modrm.modrm = *++b;
+			else if (nmd_findByte(op2modrm, sizeof(op2modrm), *b) || *b < 4 || (NMD_R(*b) != 3 && NMD_R(*b) > 0 && NMD_R(*b) < 7) || (*b >= 0xD0 && *b != 0xFF) || (NMD_R(*b) == 7 && NMD_C(*b) != 7) || NMD_R(*b) == 9 || NMD_R(*b) == 0xB || (NMD_R(*b) == 0xC && NMD_C(*b) < 8))
+			{
+				if (!parseModrm(&b, instruction, remainingSize - 2))
+					return false;
+			}
+
+			const NMD_Modrm modrm = instruction->modrm;
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
 			{
@@ -3716,12 +3755,6 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 					instruction->group = NMD_GROUP_INT;
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_GROUP */
-
-			/* Check for ModR/M, SIB and displacement. */
-			if (*b >= 0x20 && *b <= 0x23)
-				instruction->flags.fields.hasModrm = true, instruction->modrm.modrm = *++b;
-			else if (nmd_findByte(op2modrm, sizeof(op2modrm), *b) || *b < 4 || (NMD_R(*b) != 3 && NMD_R(*b) > 0 && NMD_R(*b) < 7) || (*b >= 0xD0 && *b != 0xFF) || (NMD_R(*b) == 7 && NMD_C(*b) != 7) || NMD_R(*b) == 9 || NMD_R(*b) == 0xB || (NMD_R(*b) == 0xC && NMD_C(*b) < 8))
-				parseModrm(&b, instruction);
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 			if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
@@ -4106,54 +4139,61 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 		instruction->opcode = *b;
 		instruction->opcodeMap = NMD_X86_OPCODE_MAP_DEFAULT;
 
-		const NMD_Modrm modrm = *(NMD_Modrm*)(b + 1);
-#ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
-		/* Check if the instruction is invalid. */
-		if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
+		/* Check for ModR/M, SIB and displacement. */
+		if (nmd_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
 		{
-			if (((*b == 0xC6 || *b == 0xC7) && ((modrm.fields.reg != 0b000 && modrm.fields.reg != 0b111) || (modrm.fields.reg == 0b111 && (modrm.fields.mod != 0b11 || modrm.fields.rm != 0b000)))) ||
-				(*b == 0x8f && modrm.fields.reg != 0b000) ||
-				(*b == 0xfe && modrm.fields.reg >= 0b010) ||
-				(*b == 0xff && (modrm.fields.reg == 0b111 || (modrm.fields.mod == 0b11 && (modrm.fields.reg == 0b011 || modrm.fields.reg == 0b101)))) ||
-				((*b == 0x8c || *b == 0x8e) && modrm.fields.reg >= 6) ||
-				(*b == 0x8e && modrm.fields.reg == 0b001) ||
-				(modrm.fields.mod == 0b11 && (*b == 0x8d || *b == 0x62)) ||
-				((*b == 0xc4 || *b == 0xc5) && mode == NMD_X86_MODE_64 && modrm.fields.mod != 0b11) ||
-				(mode == NMD_X86_MODE_64 && (*b == 0x6 || *b == 0x7 || *b == 0xe || *b == 0x16 || *b == 0x17 || *b == 0x1e || *b == 0x1f || *b == 0x27 || *b == 0x2f || *b == 0x37 || *b == 0x3f || (*b >= 0x60 && *b <= 0x62) || *b == 0x82 || *b == 0xce || (*b >= 0xd4 && *b <= 0xd6))))
+			if (!parseModrm(&b, instruction, remainingSize - 1))
 				return false;
-			else if (*b >= 0xd8 && *b <= 0xdf)
+		}
+
+		const NMD_Modrm modrm = instruction->modrm;
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
+			/* Check if the instruction is invalid. */
+			if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
 			{
-				switch (*b)
+				if (((*b == 0xC6 || *b == 0xC7) && ((modrm.fields.reg != 0b000 && modrm.fields.reg != 0b111) || (modrm.fields.reg == 0b111 && (modrm.fields.mod != 0b11 || modrm.fields.rm != 0b000)))) ||
+					(*b == 0x8f && modrm.fields.reg != 0b000) ||
+					(*b == 0xfe && modrm.fields.reg >= 0b010) ||
+					(*b == 0xff && (modrm.fields.reg == 0b111 || (modrm.fields.mod == 0b11 && (modrm.fields.reg == 0b011 || modrm.fields.reg == 0b101)))) ||
+					((*b == 0x8c || *b == 0x8e) && modrm.fields.reg >= 6) ||
+					(*b == 0x8e && modrm.fields.reg == 0b001) ||
+					(modrm.fields.mod == 0b11 && (*b == 0x8d || *b == 0x62)) ||
+					((*b == 0xc4 || *b == 0xc5) && mode == NMD_X86_MODE_64 && modrm.fields.mod != 0b11) ||
+					(mode == NMD_X86_MODE_64 && (*b == 0x6 || *b == 0x7 || *b == 0xe || *b == 0x16 || *b == 0x17 || *b == 0x1e || *b == 0x1f || *b == 0x27 || *b == 0x2f || *b == 0x37 || *b == 0x3f || (*b >= 0x60 && *b <= 0x62) || *b == 0x82 || *b == 0xce || (*b >= 0xd4 && *b <= 0xd6))))
+					return false;
+				else if (*b >= 0xd8 && *b <= 0xdf)
 				{
-				case 0xd9:
-					if ((modrm.fields.reg == 0b001 && modrm.fields.mod != 0b11) || (modrm.modrm > 0xd0 && modrm.modrm < 0xd8) || modrm.modrm == 0xe2 || modrm.modrm == 0xe3 || modrm.modrm == 0xe6 || modrm.modrm == 0xe7 || modrm.modrm == 0xef)
-						return false;
-					break;
-				case 0xda:
-					if (modrm.modrm >= 0xe0 && modrm.modrm != 0xe9)
-						return false;
-					break;
-				case 0xdb:
-					if (((modrm.fields.reg == 0b100 || modrm.fields.reg == 0b110) && modrm.fields.mod != 0b11) || (modrm.modrm >= 0xe5 && modrm.modrm <= 0xe7) || modrm.modrm >= 0xf8)
-						return false;
-					break;
-				case 0xdd:
-					if ((modrm.fields.reg == 0b101 && modrm.fields.mod != 0b11) || NMD_R(modrm.modrm) == 0xf)
-						return false;
-					break;
-				case 0xde:
-					if (modrm.modrm == 0xd8 || (modrm.modrm >= 0xda && modrm.modrm <= 0xdf))
-						return false;
-					break;
-				case 0xdf:
-					if ((modrm.modrm >= 0xe1 && modrm.modrm <= 0xe7) || modrm.modrm >= 0xf8)
-						return false;
-					break;
+					switch (*b)
+					{
+					case 0xd9:
+						if ((modrm.fields.reg == 0b001 && modrm.fields.mod != 0b11) || (modrm.modrm > 0xd0 && modrm.modrm < 0xd8) || modrm.modrm == 0xe2 || modrm.modrm == 0xe3 || modrm.modrm == 0xe6 || modrm.modrm == 0xe7 || modrm.modrm == 0xef)
+							return false;
+						break;
+					case 0xda:
+						if (modrm.modrm >= 0xe0 && modrm.modrm != 0xe9)
+							return false;
+						break;
+					case 0xdb:
+						if (((modrm.fields.reg == 0b100 || modrm.fields.reg == 0b110) && modrm.fields.mod != 0b11) || (modrm.modrm >= 0xe5 && modrm.modrm <= 0xe7) || modrm.modrm >= 0xf8)
+							return false;
+						break;
+					case 0xdd:
+						if ((modrm.fields.reg == 0b101 && modrm.fields.mod != 0b11) || NMD_R(modrm.modrm) == 0xf)
+							return false;
+						break;
+					case 0xde:
+						if (modrm.modrm == 0xd8 || (modrm.modrm >= 0xda && modrm.modrm <= 0xdf))
+							return false;
+						break;
+					case 0xdf:
+						if ((modrm.modrm >= 0xe1 && modrm.modrm <= 0xe7) || modrm.modrm >= 0xf8)
+							return false;
+						break;
+					}
 				}
 			}
-		}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK */
-
+		
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
 		{
@@ -4411,7 +4451,8 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 					instruction->opcode = *b;
 				}
 
-				parseModrm(&b, instruction);
+				if (!parseModrm(&b, instruction, remainingSize - (instruction->vex.byte0 == 0xc4 ? 3 : 2)))
+					return false;
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VEX */
 #if !(defined(NMD_ASSEMBLY_DISABLE_DECODER_EVEX) && defined(NMD_ASSEMBLY_DISABLE_DECODER_VEX))
@@ -4469,10 +4510,6 @@ bool nmd_x86_decode_buffer(const void* buffer, NMD_X86Instruction* instruction, 
 						instruction->group = NMD_GROUP_RELATIVE_ADDRESSING;
 				}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_GROUP */
-
-				/* Check for ModR/M, SIB and displacement. */
-				if (nmd_findByte(op1modrm, sizeof(op1modrm), *b) || (NMD_R(*b) < 4 && (NMD_C(*b) < 4 || (NMD_C(*b) >= 8 && NMD_C(*b) < 0xC))) || NMD_R(*b) == 8 || (NMD_R(*b) == 0xD && NMD_C(*b) >= 8))
-					parseModrm(&b, instruction);
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
@@ -5401,7 +5438,7 @@ Parameters:
   buffer      [out] A pointer to buffer that receives the string.
   formatFlags [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction.
 */
-void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, char buffer[], uint32_t formatFlags)
+void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, char buffer[], const uint32_t formatFlags)
 {
 	if (!instruction->flags.fields.valid)
 		return;
