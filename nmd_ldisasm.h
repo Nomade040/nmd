@@ -24,18 +24,16 @@ Sample program:
 
 #define NMD_LDISASM_IMPLEMENTATION
 #include "nmd_ldisasm.h"
-
 #include <stdio.h>
-
 int main()
 {
-	const uint8_t code[] = { 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x81, 0xEC, 0x70, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x33, 0x82, 0x77, 0x33, 0xC4 };
+	const uint8_t buffer[] = { 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x81, 0xEC, 0x70, 0x01, 0x00, 0x00, 0xA1, 0x60, 0x33, 0x82, 0x77, 0x33, 0xC4 };
 
 	size_t i = 0;
 	size_t length = 0;
-	for (; i < sizeof(code); i += length)
+	for (; i < sizeof(buffer); i += length)
 	{
-		if (!(length = nmd_x86_ldisasm(code + i, NMD_LDISASM_X86_MODE_32)))
+		if (!(length = nmd_x86_ldisasm(buffer + i, NMD_LDISASM_X86_MODE_32)))
 			break;
 
 		printf("%d\n", (uint32_t)length);
@@ -116,7 +114,7 @@ typedef union NMD_ldisasm_Modrm
 
 void nmd_ldisasm_parseModrm(uint8_t** b, const bool addressPrefix, NMD_LDISASM_X86_MODE mode)
 {
-	const NMD_ldisasm_Modrm modrm = *(NMD_ldisasm_Modrm*)(++*b);
+	const NMD_ldisasm_Modrm modrm = *(NMD_ldisasm_Modrm*)(++ * b);
 
 	if (mode == NMD_LDISASM_X86_MODE_16)
 	{
@@ -146,7 +144,7 @@ void nmd_ldisasm_parseModrm(uint8_t** b, const bool addressPrefix, NMD_LDISASM_X
 			bool hasSIB = false;
 			uint8_t sib;
 			if (modrm.modrm < 0xC0 && modrm.fields.rm == 0b100 && (!addressPrefix || (addressPrefix && mode == NMD_LDISASM_X86_MODE_64)))
-				hasSIB = true, sib = *++*b;
+				hasSIB = true, sib = *++ * b;
 
 			if (modrm.fields.mod == 0b01) /* disp8 (ModR/M) */
 				(*b)++;
@@ -156,7 +154,7 @@ void nmd_ldisasm_parseModrm(uint8_t** b, const bool addressPrefix, NMD_LDISASM_X
 				*b += (modrm.fields.mod == 0b01 ? 1 : 4);
 		}
 	}
-	
+
 }
 
 size_t nmd_x86_ldisasm(const void* buffer, NMD_LDISASM_X86_MODE mode)
