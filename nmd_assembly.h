@@ -183,8 +183,6 @@ enum NMD_X86_FORMAT_FLAGS
 
 	/* These are not actual format flags, but actually masks of format flags, they're just here for simplicity. */
 	NMD_X86_FORMAT_FLAGS_DEFAULT  = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
-	NMD_X86_FORMAT_FLAGS_ZYDIS    = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_SCALE_ONE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW), /* Specifies a format similar to the default Zydis's style. */
-	NMD_X86_FORMAT_FLAGS_CAPSTONE = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_0X_PREFIX | NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE | NMD_X86_FORMAT_FLAGS_POINTER_SIZE | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_COMMA_SPACES | NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES) /* Specifies a format similar to the default capstone's stlye. */
 };
 
 enum NMD_X86_FEATURE_FLAGS
@@ -3338,6 +3336,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 
 	/* Parse legacy prefixes & REX prefixes. */
 	const size_t numMaxPrefixes = bufferSize < 14 ? bufferSize : 14;
+	i = 0;
 	for (; i < numMaxPrefixes; i++, b++)
 	{
 		switch (*b)
