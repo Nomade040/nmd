@@ -201,7 +201,7 @@ enum NMD_X86_FEATURE_FLAGS
 	NMD_X86_FEATURE_FLAGS_ALL     = (1 << 7) - 1, /* Mask that specifies all features. */
 };
 
-typedef enum NMD_X86_PREFIXES
+enum NMD_X86_PREFIXES
 {
 	NMD_X86_PREFIXES_NONE                  = 0,
 	NMD_X86_PREFIXES_ES_SEGMENT_OVERRIDE   = (1 << 0),
@@ -219,9 +219,9 @@ typedef enum NMD_X86_PREFIXES
 	NMD_X86_PREFIXES_REX_R                 = (1 << 12),
 	NMD_X86_PREFIXES_REX_X                 = (1 << 13),
 	NMD_X86_PREFIXES_REX_B                 = (1 << 14)
-} NMD_X86_PREFIXES;
+};
 
-typedef enum NMD_X86_IMM
+enum NMD_X86_IMM
 {
 	NMD_X86_IMM_NONE = 0,
 	NMD_X86_IMM8     = 1,
@@ -230,16 +230,16 @@ typedef enum NMD_X86_IMM
 	NMD_X86_IMM48    = 6,
 	NMD_X86_IMM64    = 8,
 	NMD_X86_IMM_ANY  = (NMD_X86_IMM8 | NMD_X86_IMM16 | NMD_X86_IMM32 | NMD_X86_IMM64)
-} NMD_X86_IMM;
+};
 
-typedef enum NMD_X86_DISP
+enum NMD_X86_DISP
 {
 	NMD_X86_DISP_NONE        = 0,
 	NMD_X86_DISP8            = 1,
 	NMD_X86_DISP16           = 2,
 	NMD_X86_DISP32           = 4,
 	NMD_X86_DISP_ANY         = (NMD_X86_DISP8 | NMD_X86_DISP16 | NMD_X86_DISP32)
-} NMD_X86_DISP;
+};
 
 typedef union NMD_Modrm
 {
@@ -275,23 +275,22 @@ enum NMD_X86_INSTRUCTION_FLAGS
 	NMD_X86_INSTRUCTION_FLAGS_REPEAT_PREFIX   = (1 << 6),
 };
 
-/* X86 mode. */
-typedef enum NMD_X86_MODE
+enum NMD_X86_MODE
 {
 	NMD_X86_MODE_16 = 1,
 	NMD_X86_MODE_32 = 2,
 	NMD_X86_MODE_64 = 3,
-} NMD_X86_MODE;
+};
 
-typedef enum NMD_X86_OPCODE_MAP
+enum NMD_X86_OPCODE_MAP
 {
 	NMD_X86_OPCODE_MAP_DEFAULT,
 	NMD_X86_OPCODE_MAP_0F,
 	NMD_X86_OPCODE_MAP_0F_38,
 	NMD_X86_OPCODE_MAP_0F_3A
-} NMD_X86_OPCODE_MAP;
+};
 
-typedef enum NMD_X86_INSTRUCTION_ENCODING
+enum NMD_X86_INSTRUCTION_ENCODING
 {
 	NMD_X86_INSTRUCTION_ENCODING_LEGACY,  /* Legacy encoding. */
 	NMD_X86_INSTRUCTION_ENCODING_3DNOW,   /* AMD's 3DNow! extension. [TODO] */
@@ -299,23 +298,22 @@ typedef enum NMD_X86_INSTRUCTION_ENCODING
 	NMD_X86_INSTRUCTION_ENCODING_VEX,     /* Intel's VEX(vector extensions) coding scheme. [TODO] */
 	NMD_X86_INSTRUCTION_ENCODING_EVEX,    /* Intel's EVEX(Enhanced vector extension) coding scheme. [TODO] */
 	/*NMD_X86_INSTRUCTION_ENCODING_MVEX,  /* MVEX used by Intel's "Xeon Phi" ISA. */
-} NMD_X86_INSTRUCTION_ENCODING;
+};
 
 typedef struct NMD_X86Vex
 {
-	uint8_t byte0; /* Either C4h(3-byte VEX) or C5h(2-byte VEX). */
-	bool R;
-	bool X;
-	bool B;
-	bool L;
-	bool W;
-	uint8_t m_mmmm;
-	uint8_t vvvv;
-	uint8_t pp;
-	uint8_t vex[3]; /* The full vex prefix. */
+	bool R : 1;
+	bool X : 1;
+	bool B : 1;
+	bool L : 1;
+	bool W : 1;
+	uint8_t pp : 2;
+	uint8_t m_mmmm : 5;
+	uint8_t vvvv : 4;
+	uint8_t vex[3]; /* The full vex prefix. vex[0] is either C4h(3-byte VEX) or C5h(2-byte VEX).*/
 } NMD_X86Vex;
 
-typedef enum NMD_X86_REG
+enum NMD_X86_REG
 {
 	NMD_X86_REG_NONE = 0,
 
@@ -548,32 +546,31 @@ typedef enum NMD_X86_REG
 	NMD_X86_REG_ZMM29,
 	NMD_X86_REG_ZMM30,
 	NMD_X86_REG_ZMM31,
-} NMD_X86_REG;
+};
 
-typedef enum NMD_GROUP {
+enum NMD_GROUP {
 	NMD_GROUP_NONE = 0, /* The instruction is not part of any group. */
 
 	NMD_GROUP_JUMP                 = (1 << 0), /* Jump instruction. */
 	NMD_GROUP_CALL                 = (1 << 1), /* Call instruction. */
 	NMD_GROUP_RET                  = (1 << 2), /* Return instruction. */
-	NMD_GROUP_IRET                 = (1 << 3), /* Interrupt return instruction. */
-	NMD_GROUP_INT                  = (1 << 4), /* Interrupt instruction. */
-	NMD_GROUP_PRIVILEGE            = (1 << 5), /* Privileged instruction. */
-	NMD_GROUP_CONDITIONAL_BRANCH   = (1 << 6), /* Conditional branch instruction. */
-	NMD_GROUP_UNCONDITIONAL_BRANCH = (1 << 7), /* Unconditional branch instruction. */
-	NMD_GROUP_RELATIVE_ADDRESSING  = (1 << 8), /* Relative addressing instruction. */
+	NMD_GROUP_INT                  = (1 << 3), /* Interrupt instruction. */
+	NMD_GROUP_PRIVILEGE            = (1 << 4), /* Privileged instruction. */
+	NMD_GROUP_CONDITIONAL_BRANCH   = (1 << 5), /* Conditional branch instruction. */
+	NMD_GROUP_UNCONDITIONAL_BRANCH = (1 << 6), /* Unconditional branch instruction. */
+	NMD_GROUP_RELATIVE_ADDRESSING  = (1 << 7), /* Relative addressing instruction. */
 
 	/* These are not actual groups, but rather masks of groups. */
 	NMD_GROUP_BRANCH = (NMD_GROUP_CONDITIONAL_BRANCH | NMD_GROUP_UNCONDITIONAL_BRANCH), /* Mask used to check if the instruction is a branch instruction. */
 	NMD_GROUP_ANY    = (1 << 8) - 1, /* Mask used to check if the instruction is part of any group. */
-} NMD_GROUP;
+};
 
 /*
 Credits to the capstone engine:
 Some members of the enum are organized in such a way because the instruction's id parsing component of the decoder can take advantage of it.
 If an instruction as marked as 'padding', it means that it's being used to fill holes between instructions organized in a special way for optimization reasons.
 */
-typedef enum NMD_X86_INSTRUCTION
+enum NMD_X86_INSTRUCTION
 {
 	NMD_X86_INSTRUCTION_INVALID = 0,
 
@@ -2181,7 +2178,7 @@ NMD_X86_INSTRUCTION_PUNPCKHQDQ,
 	NMD_X86_INSTRUCTION_UD0,
 	NMD_X86_INSTRUCTION_ENDBR32,
 	NMD_X86_INSTRUCTION_ENDBR64,
-} NMD_X86_INSTRUCTION;
+};
 
 typedef enum NMD_X86_OPERAND_TYPE
 {
@@ -2193,11 +2190,11 @@ typedef enum NMD_X86_OPERAND_TYPE
 
 typedef struct NMD_X86_OPERAND_MEM
 {
-	NMD_X86_REG segment;
-	NMD_X86_REG base;
-	NMD_X86_REG index;
+	uint8_t segment;
+	uint8_t base;
+	uint8_t index;
 	uint8_t scale;       /* Scale(1, 2, 4 or 8). */
-	int64_t disp;        /* Displacement. */
+	int32_t disp;        /* Displacement. */
 } NMD_X86_OPERAND_MEM;
 
 typedef enum NMD_X86_OPERAND_ACTION
@@ -2217,10 +2214,10 @@ typedef enum NMD_X86_OPERAND_ACTION
 
 typedef struct NMD_X86Operand
 {
-	NMD_X86_OPERAND_TYPE type;     /* The operand's type. */
+	uint8_t type;                  /* The operand's type. */
 	uint8_t size;                  /* The operand's size in bytes. */
 	bool isImplicit;               /* If true, the operand does not appear on the intruction's formatted form. */
-	NMD_X86_OPERAND_ACTION action; /* The action on the operand. */
+	uint8_t action;                /* The action on the operand. */
 	union {                        /* The operand's "raw" data. */
 		NMD_X86_REG reg;
 		int64_t imm;
@@ -2265,7 +2262,6 @@ typedef union NMD_X86CpuFlags
 		uint8_t CF   : 1; /* Bit  0.    Carry Flag (CF) */
 	} fields;
 	uint32_t eflags;
-	uint64_t rflags;
 } NMD_X86CpuFlags;
 
 enum NMD_X86_CPU_FLAGS
@@ -2298,32 +2294,32 @@ typedef union NMD_X86InstructionFlags
 typedef struct NMD_X86Instruction
 {
 	NMD_X86InstructionFlags flags;                               /* The instruction's flags. See the 'NMD_X86InstructionFlags' union. */
-	uint8_t fullInstruction[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH]; /* Buffer containing the full instruction. */
+	uint8_t fullInstruction[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH]; /* A buffer containing the full instruction. */
+	uint16_t id;                                                 /* The instruction's identifier. A member of 'NMD_X86_INSTRUCTION'. */
+	uint16_t prefixes;                                           /* A mask of prefixes. See 'NMD_X86_PREFIXES'. */
 	NMD_X86CpuFlags cpuFlags;                                    /* Cpu flags accessed by the instruction. */
 	NMD_X86Operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS];       /* Operands. */
-	NMD_X86_INSTRUCTION id;                                      /* A member of 'NMD_X86_INSTRUCTION' enum that identifies which instruction this is. */
-	NMD_X86_OPCODE_MAP opcodeMap;                                /* The opcode map the instruction belongs to. */
-	NMD_X86_INSTRUCTION_ENCODING encoding;                       /* The instruction's encoding. */
-	NMD_X86_PREFIXES prefixes;                                   /* A mask of prefixes. */
-	uint8_t numPrefixes;                                         /* Number of prefixes. */
 	uint8_t length;                                              /* The instruction's length in bytes. */
+	uint8_t opcodeMap;                                           /* The instruction's opcode map. A member of 'NMD_X86_OPCODE_MAP'. */
+	uint8_t encoding;                                            /* The instruction's encoding. A member of 'NMD_X86_INSTRUCTION_ENCODING'. */
+	uint8_t numPrefixes;                                         /* Number of prefixes. */
 	uint8_t opcode;                                              /* Opcode byte. */
 	uint8_t opcodeSize;                                          /* The opcode's size in bytes. */
 	uint8_t numOperands;                                         /* The number of operands. */
-	uint8_t rex;                                                 /* REX prefix */
+	uint8_t rex;                                                 /* REX prefix. */
 	uint8_t opcodeOffset;                                        /* The number of bytes before the opcode. */
-	NMD_Modrm modrm;                                             /* The modrm byte. Check 'flags.fields.hasModrm'. */
+	uint8_t mode;                                                /* The mode the instruction was parsed. A member of 'NMD_X86_MODE' */
+	NMD_Modrm modrm;                                             /* The Mod/RM byte. Check 'flags.fields.hasModrm'. */
 	NMD_SIB sib;                                                 /* The SIB byte. Check 'flags.fields.hasSIB'. */
-	NMD_GROUP group;                                             /* The instruction's group(e.g. jmp, prvileged...). */
-	NMD_X86_MODE mode;                                           /* The mode the instruction was parsed. */
-	NMD_X86_PREFIXES segmentOverride;                            /* One segment override prefix in the 'NMD_X86_PREFIXES' enum that is the closest to the opcode. */
-	NMD_X86_PREFIXES simdPrefix;                                 /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
-	NMD_X86_IMM immMask;                                         /* A mask of one or more members of the 'NMD_X86_IMM_MASK' enum. */
-	NMD_X86_DISP dispMask;                                       /* A mask of one or more members of the 'NMD_X86_DISP_MASK' enum. */
-	uint64_t immediate;                                          /* Immediate. Check 'immMask'. */
-	uint32_t displacement;                                       /* Displacement. Check 'dispMask'. */
+	uint8_t segmentOverride;                                     /* The segment override prefix closest to the opcode. A member of 'NMD_X86_PREFIXES'. */
+	uint8_t group;                                               /* The instruction's group(e.g. jmp, prvileged...). A member of 'NMD_X86_GROUP'. */
+	uint8_t immMask;                                             /* A mask of one or more members of 'NMD_X86_IMM'. */
+	uint8_t dispMask;                                            /* A mask of one or more members of 'NMD_X86_DISP'. */
+	uint16_t simdPrefix;                                         /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
 	NMD_X86Vex vex;                                              /* VEX prefix. */
-	uint64_t runtimeAddress;                                     /* Runtime address provided by the user. */
+	uint32_t displacement;                                       /* Displacement. Check 'dispMask'. */
+	uint64_t immediate;                                          /* Immediate. Check 'immMask'. */
+	uint64_t runtimeAddress;                                     /* The runtime address provided by the user. */
 } NMD_X86Instruction;
 
 /*
@@ -4475,11 +4471,11 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			{
 				instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
 
-				instruction->vex.byte0 = op;
+				instruction->vex.vex[0] = op;
 				const uint8_t byte1 = *++b;
 
 				instruction->vex.R = byte1 & 0b10000000;
-				if (instruction->vex.byte0 == 0xc4)
+				if (instruction->vex.vex[1] == 0xc4)
 				{
 					instruction->opcodeOffset = instruction->numPrefixes + 3;
 
@@ -4525,7 +4521,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 					op = instruction->opcode;
 				}
 
-				if (!parseModrm(&b, instruction, remainingSize - (instruction->vex.byte0 == 0xc4 ? 3 : 2)))
+				if (!parseModrm(&b, instruction, remainingSize - (instruction->vex.vex[0] == 0xc4 ? 3 : 2)))
 					return false;
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VEX */
@@ -4570,8 +4566,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 						instruction->group = (NMD_GROUP)(NMD_GROUP_CALL | NMD_GROUP_UNCONDITIONAL_BRANCH | (op == 0xe8 ? NMD_GROUP_RELATIVE_ADDRESSING : 0));
 					else if (op == 0xc2 || op == 0xc3 || op == 0xca || op == 0xcb)
 						instruction->group = NMD_GROUP_RET;
-					else if (op == 0xcf)
-						instruction->group = NMD_GROUP_IRET;
 					else if ((op >= 0xcc && op <= 0xce) || op == 0xf1)
 						instruction->group = NMD_GROUP_INT;
 					else if (op == 0xf4)
@@ -4582,6 +4576,8 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 						instruction->group = (NMD_GROUP)(NMD_GROUP_CONDITIONAL_BRANCH | NMD_GROUP_RELATIVE_ADDRESSING);
 					else if (op == 0x8d && instruction->mode == NMD_X86_MODE_64)
 						instruction->group = NMD_GROUP_RELATIVE_ADDRESSING;
+					else if(op == 0xcf)
+						instruction->group = (NMD_GROUP_RET | NMD_GROUP_INT);
 				}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_GROUP */
 
@@ -5566,7 +5562,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VEX
 			if (instruction->encoding == NMD_X86_INSTRUCTION_ENCODING_VEX)
 			{
-				if (instruction->vex.byte0 == 0xc4)
+				if (instruction->vex.vex[0] == 0xc4)
 				{
 					if (instruction->opcode == 0x0c || instruction->opcode == 0x0d || instruction->opcode == 0x4a || instruction->opcode == 0x4b)
 					{
