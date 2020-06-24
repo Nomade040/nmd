@@ -275,12 +275,12 @@ enum NMD_X86_INSTRUCTION_FLAGS
 	NMD_X86_INSTRUCTION_FLAGS_REPEAT_PREFIX   = (1 << 6),
 };
 
-enum NMD_X86_MODE
+typedef enum NMD_X86_MODE
 {
 	NMD_X86_MODE_16 = 1,
 	NMD_X86_MODE_32 = 2,
 	NMD_X86_MODE_64 = 3,
-};
+} NMD_X86_MODE;
 
 enum NMD_X86_OPCODE_MAP
 {
@@ -2180,24 +2180,24 @@ NMD_X86_INSTRUCTION_PUNPCKHQDQ,
 	NMD_X86_INSTRUCTION_ENDBR64,
 };
 
-typedef enum NMD_X86_OPERAND_TYPE
+enum NMD_X86_OPERAND_TYPE
 {
 	NMD_X86_OPERAND_TYPE_NONE = 0,
 	NMD_X86_OPERAND_TYPE_REGISTER,
 	NMD_X86_OPERAND_TYPE_MEMORY,
 	NMD_X86_OPERAND_TYPE_IMMEDIATE,
-} NMD_X86_OPERAND_TYPE;
+};
 
-typedef struct NMD_X86_OPERAND_MEM
+typedef struct NMD_X86MemoryOperand
 {
-	uint8_t segment;
-	uint8_t base;
-	uint8_t index;
-	uint8_t scale;       /* Scale(1, 2, 4 or 8). */
+	uint8_t segment;     /* The segment register. A member of 'NMD_X86_REG'. */
+	uint8_t base;        /* The base register. A member of 'NMD_X86_REG'. */
+	uint8_t index;       /* The index register. A member of 'NMD_X86_REG'. */
+	uint8_t scale;       /* Scale. 1, 2, 4 or 8. */
 	int32_t disp;        /* Displacement. */
-} NMD_X86_OPERAND_MEM;
+} NMD_X86MemoryOperand;
 
-typedef enum NMD_X86_OPERAND_ACTION
+enum NMD_X86_OPERAND_ACTION
 {
 	NMD_X86_OPERAND_ACTION_NONE = 0, /* The operand is neither read from nor written to. */
 
@@ -2210,18 +2210,18 @@ typedef enum NMD_X86_OPERAND_ACTION
 	NMD_X86_OPERAND_ACTION_READ_WRITE = (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_WRITE),
 	NMD_X86_OPERAND_ACTION_ANY_READ   = (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_CONDITIONAL_READ),
 	NMD_X86_OPERAND_ACTION_ANY_WRITE  = (NMD_X86_OPERAND_ACTION_WRITE | NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE)
-} NMD_X86_OPERAND_ACTION;
+};
 
 typedef struct NMD_X86Operand
 {
-	uint8_t type;                  /* The operand's type. */
+	uint8_t type;                  /* The operand's type. A member of 'NMD_X86_OPERAND_TYPE'. */
 	uint8_t size;                  /* The operand's size in bytes. */
 	bool isImplicit;               /* If true, the operand does not appear on the intruction's formatted form. */
-	uint8_t action;                /* The action on the operand. */
+	uint8_t action;                /* The action on the operand. A member of 'NMD_X86_OPERAND_ACTION'. */
 	union {                        /* The operand's "raw" data. */
 		NMD_X86_REG reg;
 		int64_t imm;
-		NMD_X86_OPERAND_MEM mem;
+		NMD_X86MemoryOperand mem;
 	} fields;
 } NMD_X86Operand;
 
@@ -3378,12 +3378,8 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 	if (remainingSize == 0)
 		return false;
 
-
 	/* Assume NMD_X86_INSTRUCTION_ENCODING_LEGACY. */
 	instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_LEGACY;
-
-	//instruction->immMask = NMD_X86_IMM_NONE;
-	//instruction->dispMask = NMD_X86_DISP_NONE;
 
 	uint8_t op;
 
@@ -4445,10 +4441,12 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
 		{
-			//if (*b <= 0x05 || (*b >= 0x10 && *b <= 0x15) || ((NMD_R(*b) == 1 || NMD_R(*b) == 2 || NMD_R(*b) == 3) && (NMD_C(*b) >= 0x8 && NMD_C(*b) <= 0x0d)) || ((*b >= 0x80 && *b <= 0x83) && (modrm.fields.reg == 0b000 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b011 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b101 || modrm.fields.reg == 0b111))) /* add,adc,sbb,sub,cmp */
-			//	instruction->cpuFlags.eflags = (NMD_X86_CPU_FLAGS_OF | NMD_X86_CPU_FLAGS_SF | NMD_X86_CPU_FLAGS_ZF | NMD_X86_CPU_FLAGS_AF | NMD_X86_CPU_FLAGS_CF | NMD_X86_CPU_FLAGS_PF);
-			//else if()
-			//	instruction->cpuFlags.eflags = (NMD_X86_CPU_FLAGS_OF | NMD_X86_CPU_FLAGS_SF | NMD_X86_CPU_FLAGS_ZF | NMD_X86_CPU_FLAGS_AF | NMD_X86_CPU_FLAGS_CF | NMD_X86_CPU_FLAGS_PF);
+			/*
+			if (*b <= 0x05 || (*b >= 0x10 && *b <= 0x15) || ((NMD_R(*b) == 1 || NMD_R(*b) == 2 || NMD_R(*b) == 3) && (NMD_C(*b) >= 0x8 && NMD_C(*b) <= 0x0d)) || ((*b >= 0x80 && *b <= 0x83) && (modrm.fields.reg == 0b000 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b011 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b101 || modrm.fields.reg == 0b111))) /* add,adc,sbb,sub,cmp */
+			/*	instruction->cpuFlags.eflags = (NMD_X86_CPU_FLAGS_OF | NMD_X86_CPU_FLAGS_SF | NMD_X86_CPU_FLAGS_ZF | NMD_X86_CPU_FLAGS_AF | NMD_X86_CPU_FLAGS_CF | NMD_X86_CPU_FLAGS_PF);
+			else if()
+				instruction->cpuFlags.eflags = (NMD_X86_CPU_FLAGS_OF | NMD_X86_CPU_FLAGS_SF | NMD_X86_CPU_FLAGS_ZF | NMD_X86_CPU_FLAGS_AF | NMD_X86_CPU_FLAGS_CF | NMD_X86_CPU_FLAGS_PF);
+			*/
 		}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS */
 
@@ -4531,7 +4529,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			{
 				instruction->opcodeOffset = instruction->numPrefixes;
 
-				/* Check for immediate field */
+				/* Check for immediate */
 				if ((NMD_R(op) == 0xE && NMD_C(op) < 8) || (NMD_R(op) == 0xB && NMD_C(op) < 8) || NMD_R(op) == 7 || (NMD_R(op) < 4 && (NMD_C(op) == 4 || NMD_C(op) == 0xC)) || (op == 0xF6 && !(*(b + 1) & 48)) || nmd_findByte(op1imm8, sizeof(op1imm8), op)) /* imm8 */
 					instruction->immMask = NMD_X86_IMM8;
 				else if (op == 0xC2 || op == 0xCA) /* imm16 */
