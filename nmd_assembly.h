@@ -179,7 +179,6 @@ enum NMD_X86_FORMAT_FLAGS
 	NMD_X86_FORMAT_FLAGS_SCALE_ONE                 = (1 << 13), /* If set, scale one is displayed. E.g. add byte ptr [eax+eax*1], al. */
 	NMD_X86_FORMAT_FLAGS_BYTES                     = (1 << 14), /* The instruction's bytes are displayed before the instructions. */
 	NMD_X86_FORMAT_FLAGS_ATT_SYNTAX                = (1 << 15), /* AT&T syntax is used instead of Intel's. */
-	NMD_X86_FORMAT_FLAGS_ALL                       = (1 << 16) - 1, /* Specifies all format flags. */
 
 	/* These are not actual format flags, but actually masks of format flags, they're just here for simplicity. */
 	NMD_X86_FORMAT_FLAGS_DEFAULT  = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
@@ -2376,7 +2375,7 @@ bool nmd_findByte(const uint8_t* arr, const size_t N, const uint8_t x) { size_t 
 /* 'remaningSize' in the context of this function is the number of bytes the instruction takes not counting prefixes and opcode. */
 bool parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction, const size_t remainingSize)
 {
-	if (remainingSize < 1)
+	if (remainingSize == 0)
 		return false;
 
 	instruction->flags.fields.hasModrm = true;
@@ -3331,9 +3330,8 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 	const uint8_t* b = (const uint8_t*)(buffer);
 
 	/* Parse legacy prefixes & REX prefixes. */
-	const size_t numMaxPrefixes = bufferSize < 14 ? bufferSize : 14;
 	i = 0;
-	for (; i < numMaxPrefixes; i++, b++)
+	for (; i < NMD_X86_MAXIMUM_INSTRUCTION_LENGTH; i++, b++)
 	{
 		switch (*b)
 		{
@@ -3376,10 +3374,15 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 
 	instruction->numPrefixes = (uint8_t)((ptrdiff_t)(b)-(ptrdiff_t)(buffer));
 
-	/* Define 'remainingSize' to be the buffer's size after counting any prefixes. */
-	const size_t remainingSize = bufferSize - instruction->numPrefixes;
-	if (remainingSize == 0)
+	const size_t remainingValidBytes = (NMD_X86_MAXIMUM_INSTRUCTION_LENGTH - instruction->numPrefixes);
+	if (remainingValidBytes == 0)
 		return false;
+
+	const size_t remainingBufferSize = bufferSize - instruction->numPrefixes;
+	if (remainingBufferSize == 0)
+		return false;
+
+	const size_t remainingSize = remainingValidBytes < remainingBufferSize ? remainingValidBytes : remainingBufferSize;
 
 	/* Assume NMD_X86_INSTRUCTION_ENCODING_LEGACY. */
 	instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_LEGACY;
