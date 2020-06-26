@@ -1,14 +1,14 @@
-/* This is a platform independent C89 x86 assembler(todo), disassembler(almost done) and decompiler(todo) library.
+/* This is a platform independent C89 x86 assembler(todo), disassembler(almost done), emulator(todo) and decompiler(todo) library.
 
 Features:
  - Intel and AT&T syntax.
  - x86 support for all three modes: 16, 32, 64.
  - No dynamic memory allocation.
  - No runtime initialization.
- - No global variables/state.
+ - No global variables/state/context.
  - Thread-safe by design.
  - The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_ASSEMBLY_NO_INCLUDES' macro.
- - Optimized for speed and low memory usage.
+ - Optimized for speed, size and low memory usage.
 
 Setup:
 Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation. Example:
@@ -28,7 +28,7 @@ Using absolutely no dependencies(other headers...):
 
 Enabling and disabling features of the decoder:
 To dynamically choose which features are used by the decoder, use the 'featureFlags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
-faster the function runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
+faster the decoder runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
 the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
  - 'NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK': the decoder does not check if the instruction is valid.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID': the decoder does not fill the 'id' variable.
@@ -70,10 +70,10 @@ int main()
 	size_t i = 0;
 	for (; i < sizeof(buffer); i += instruction.length)
 	{
-		if (!nmd_x86_decode_buffer(buffer + i, bufferEnd - (buffer + i), &instruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_MODE_32, NMD_X86_FEATURE_FLAGS_MINIMAL))
+		if (!nmd_x86_decode_buffer(buffer + i, bufferEnd - (buffer + i), &instruction, NMD_X86_MODE_32, NMD_X86_FEATURE_FLAGS_MINIMAL))
 			break;
 
-		nmd_x86_format_instruction(&instruction, formattedInstruction, NMD_X86_FORMAT_FLAGS_DEFAULT);
+		nmd_x86_format_instruction(&instruction, formattedInstruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_FORMAT_FLAGS_DEFAULT);
 
 		printf("%s\n", formattedInstruction);
 	}
@@ -280,9 +280,10 @@ enum NMD_X86_INSTRUCTION_FLAGS
 
 typedef enum NMD_X86_MODE
 {
-	NMD_X86_MODE_16 = 1,
-	NMD_X86_MODE_32 = 2,
-	NMD_X86_MODE_64 = 3,
+	NMD_X86_MODE_NONE = 0, /* Invalid mode. */
+	NMD_X86_MODE_16   = 1,
+	NMD_X86_MODE_32   = 2,
+	NMD_X86_MODE_64   = 3,
 } NMD_X86_MODE;
 
 enum NMD_X86_OPCODE_MAP
@@ -2287,15 +2288,19 @@ typedef union NMD_X86CpuFlags
 
 enum NMD_X86_EFLAGS
 {
-	NMD_X86_EFLAGS_OF = (1 << 11),
-	NMD_X86_EFLAGS_DF = (1 << 10),
-	NMD_X86_EFLAGS_IF = (1 << 9),
-	NMD_X86_EFLAGS_TF = (1 << 8),
-	NMD_X86_EFLAGS_SF = (1 << 7),
-	NMD_X86_EFLAGS_ZF = (1 << 6),
-	NMD_X86_EFLAGS_AF = (1 << 4),
-	NMD_X86_EFLAGS_PF = (1 << 2),
-	NMD_X86_EFLAGS_CF = (1 << 0)
+	NMD_X86_EFLAGS_VIF  = (1 << 19),
+	NMD_X86_EFLAGS_RF   = (1 << 16),
+	NMD_X86_EFLAGS_NT   = (1 << 14),
+	NMD_X86_EFLAGS_IOPL = (1 << 12) | (1 << 13),
+	NMD_X86_EFLAGS_OF   = (1 << 11),
+	NMD_X86_EFLAGS_DF   = (1 << 10),
+	NMD_X86_EFLAGS_IF   = (1 << 9),
+	NMD_X86_EFLAGS_TF   = (1 << 8),
+	NMD_X86_EFLAGS_SF   = (1 << 7),
+	NMD_X86_EFLAGS_ZF   = (1 << 6),
+	NMD_X86_EFLAGS_AF   = (1 << 4),
+	NMD_X86_EFLAGS_PF   = (1 << 2),
+	NMD_X86_EFLAGS_CF   = (1 << 0)
 };
 
 enum NMD_X86_FPU_FLAGS
@@ -2354,6 +2359,107 @@ typedef struct NMD_X86Instruction
 	uint64_t immediate;                                          /* Immediate. Check 'immMask'. */
 } NMD_X86Instruction;
 
+typedef union NMD_X86Register
+{
+	uint8_t  h8;
+	uint8_t  l8;
+	uint16_t l16;
+	uint32_t l32;
+	uint64_t h64;
+} NMD_X86Register;
+
+typedef union NMD_X86Register512
+{
+	uint64_t xmm0[2];
+	uint64_t ymm0[4];
+	uint64_t zmm0[8];
+} NMD_X86Register512;
+
+typedef struct NMD_X86Cpu
+{
+	bool running; /* If true, the emulator is running, false otherwise. */
+
+	NMD_X86_MODE mode; /* Emulation mode. A member of 'NMD_X86_MODE'. */
+
+	void* memoryBlock; /* A pointer to a block of memory used as the emulator's virtual address space. */
+	size_t memoryBlockSize; /* The size of the memory block in bytes. */
+	uintptr_t address; /* The block's base address. */
+	uintptr_t entryPoint; /* A pointer to the entry point of the emulator inside the memory block. */
+
+	uint64_t rip;
+
+	NMD_X86CpuFlags flags;
+
+	NMD_X86Register rax;
+	NMD_X86Register rcx;
+	NMD_X86Register rdx;
+	NMD_X86Register rbx;
+	NMD_X86Register rsp;
+	NMD_X86Register rbp;
+	NMD_X86Register rsi;
+	NMD_X86Register rdi;
+
+	NMD_X86Register r8;
+	NMD_X86Register r9;
+	NMD_X86Register r10;
+	NMD_X86Register r11;
+	NMD_X86Register r12;
+	NMD_X86Register r13;
+	NMD_X86Register r14;
+	NMD_X86Register r15;
+
+	NMD_X86Register mm0;
+	NMD_X86Register mm1;
+	NMD_X86Register mm2;
+	NMD_X86Register mm3;
+	NMD_X86Register mm4;
+	NMD_X86Register mm5;
+	NMD_X86Register mm6;
+	NMD_X86Register mm7;
+
+	NMD_X86Register512 zmm0;
+	NMD_X86Register512 zmm1;
+	NMD_X86Register512 zmm2;
+	NMD_X86Register512 zmm3;
+	NMD_X86Register512 zmm4;
+	NMD_X86Register512 zmm5;
+	NMD_X86Register512 zmm6;
+	NMD_X86Register512 zmm7;
+	NMD_X86Register512 zmm8;
+	NMD_X86Register512 zmm9;
+	NMD_X86Register512 zmm10;
+	NMD_X86Register512 zmm11;
+	NMD_X86Register512 zmm12;
+	NMD_X86Register512 zmm13;
+	NMD_X86Register512 zmm14;
+	NMD_X86Register512 zmm15;
+	NMD_X86Register512 zmm16;
+	NMD_X86Register512 zmm17;
+	NMD_X86Register512 zmm18;
+	NMD_X86Register512 zmm19;
+	NMD_X86Register512 zmm20;
+	NMD_X86Register512 zmm21;
+	NMD_X86Register512 zmm22;
+	NMD_X86Register512 zmm23;
+	NMD_X86Register512 zmm24;
+	NMD_X86Register512 zmm25;
+	NMD_X86Register512 zmm26;
+	NMD_X86Register512 zmm27;
+	NMD_X86Register512 zmm28;
+	NMD_X86Register512 zmm29;
+	NMD_X86Register512 zmm30;
+	NMD_X86Register512 zmm31;
+
+	NMD_X86Register dr0;
+	NMD_X86Register dr1;
+	NMD_X86Register dr2;
+	NMD_X86Register dr3;
+	NMD_X86Register dr4;
+	NMD_X86Register dr5;
+	NMD_X86Register dr6;
+	NMD_X86Register dr7;
+} NMD_X86Cpu;
+
 /*
 Assembles an instruction from its string representation. Returns the length of the assembled instruction on success, zero otherwise.
   string         [in]  A pointer to a string that represents a instruction in assembly language.
@@ -2383,6 +2489,20 @@ Parameters:
   formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction.
 */
 void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
+
+/*
+Emulates x86 code. It might be a good idea to clear(i.e. memset(&cpu, 0, sizeof(cpu) ) the 'cpu'.
+Before calling this function you MUST fill the following variables of 'NMD_X86Cpu':
+ - mode: A member of 'NMD_X86_MODE'.
+ - memoryBlock: A pointer to a block of memory. You may use a buffer on the stack, on the heap or wherever you want.
+ - memoryBlockSize: The size of the memory block in bytes.
+ - address: The base address of the memory block. This address can be any value.
+ - entryPoint: The address where emulation starts.
+Parameters:
+  cpu      [in] A pointer to a variable of type 'NMD_X86CpuState' that holds the cpu's state.
+  maxCount [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
+*/
+bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const size_t maxCount);
 
 /*
 Decompiles a sequence of instructions into a compilable source code in C.
@@ -2782,16 +2902,14 @@ bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
 	return true;
 }
 
-bool isLowercase(char c)
-{
-	return c >= 'a' && c <= 'z';
-}
+#define NMD_IS_LOWERCASE(c) (c >= 'a' && c <= 'z')
 
 /*
 Assembles an instruction from its string representation. Returns the length of the assembled instruction on success, zero otherwise.
-  string      [in]  A pointer to a string that represents a instruction in assembly language.
-  instruction [out] A pointer to a buffer capable of holding 15 bytes that receives the encoded instruction.
-  mode        [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
+  string         [in]  A pointer to a string that represents a instruction in assembly language.
+  instruction    [out] A pointer to a buffer capable of holding 15 bytes that receives the encoded instruction.
+  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+  mode           [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
 */
 size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode)
 {
@@ -2817,7 +2935,7 @@ size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeA
 
 		const char newChar = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
 		buffer[length++] = newChar;
-		allowSpace = isLowercase(newChar) && isLowercase(*(string + 2));
+		allowSpace = NMD_IS_LOWERCASE(newChar) && NMD_IS_LOWERCASE(*(string + 2));
 	}
 
 	/* If the last character is a ' '(space), remove it. */
@@ -4504,7 +4622,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 		{
 			if (op <= 0x05 || (op >= 0x10 && op <= 0x15) || ((NMD_R(op) == 1 || NMD_R(op) == 2 || NMD_R(op) == 3) && (NMD_C(op) >= 0x8 && NMD_C(op) <= 0x0d)) || ((op >= 0x80 && op <= 0x83) && (modrm.fields.reg == 0b000 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b011 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b101 || modrm.fields.reg == 0b111)) || (op == 0xa6 || op == 0xa7) || (op == 0xae || op == 0xaf)) /* add,adc,sbb,sub,cmp, cmps,cmpsb,cmpsw,cmpsd,cmpsq, scas,scasb,scasw,scasd */
 				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF;
-			else if ((op >= 0x08 && op <= 0x0d) || ((NMD_R(op) == 2 || NMD_R(op) == 3) && NMD_C(op) <= 5) || ((op >= 0x80 && op <= 0x83) && (modrm.fields.reg == 0b001 || modrm.fields.reg == 0b100 || modrm.fields.reg == 0b110)) || (op == 0x84 || op == 0x85 || op == 0xa8 || op == 0xa9)) /* or,and,xor, test */
+			else if ((op >= 0x08 && op <= 0x0d) || ((NMD_R(op) == 2 || NMD_R(op) == 3) && NMD_C(op) <= 5) || ((op >= 0x80 && op <= 0x83) && (modrm.fields.reg == 0b001 || modrm.fields.reg == 0b100 || modrm.fields.reg == 0b110)) || (op == 0x84 || op == 0x85 || op == 0xa8 || op == 0xa9) || ((op == 0xf6 || op == 0xf7) && modrm.fields.reg == 0b000)) /* or,and,xor, test */
 			{
 				instruction->clearedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_CF;
 				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_AF;
@@ -4520,22 +4638,67 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF;
 				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
 			}
-			else if (NMD_R(op) == 4) /* inc/dec */
+			else if (NMD_R(op) == 4 || ((op == 0xfe || op == 0xff) && modrm.fields.reg <= 0b001)) /* inc,dec */
 				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF;
 			else if (op == 0x63 && instruction->mode != NMD_X86_MODE_64) /* arpl */
 				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_ZF;
-			else if (op == 0x69 || op == 0x6b) /* mul(three-operand form) */
+			else if (op == 0x69 || op == 0x6b || ((op == 0xf6 || op == 0xf7) && (modrm.fields.reg == 0b100 || modrm.fields.reg == 0b101))) /* mul,imul */
 			{
 				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_OF;
 				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF;
 			}
 			else if (NMD_R(op) == 7) /* conditional jump */
 				decodeConditionalJumpFlag(instruction, NMD_C(op));
-			else if (op == 0x9b) /* fwait/wait */
+			else if (op == 0x9b) /* fwait,wait */
 				instruction->undefinedFlags.fpuFlags = NMD_X86_FPU_FLAGS_C0 | NMD_X86_FPU_FLAGS_C1 | NMD_X86_FPU_FLAGS_C2 | NMD_X86_FPU_FLAGS_C3;
-			else if(op == 0x9e) /* sahf */
+			else if (op == 0x9e) /* sahf */
 				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_CF;
-			
+			else if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3))
+			{
+				if (modrm.fields.reg <= 0b011) /* rol,ror,rcl,rcr */
+				{
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF;
+					instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF;
+				}
+				else /* shl,shr,sar */
+				{
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_OF;
+					instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_AF;
+				}
+			}
+			else if (op == 0xcc || op == 0xcd || op == 0xce || op == 0xf1) /* int3,int,into,int1 */
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_RF;
+			else if (op == 0xd4 || op == 0xd5) /* aam,aad */
+			{
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
+				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF;
+			}
+			else if (op >= 0xd8 && op <= 0xdf) /* escape opcodes */
+			{
+
+			}
+			else if (op == 0xf5) /* cmc */
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF;
+			else if (op == 0xf6 || op == 0xf7) /* Group 3 */
+			{
+				if (modrm.fields.reg == 0b011) /* neg */
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
+				else if (modrm.fields.reg >= 0b110) /* div,idiv */
+					instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF;
+			}
+			else if (op == 0xf8) /* clc */
+				instruction->clearedFlags.eflags = NMD_X86_EFLAGS_CF;
+			else if (op == 0xf9) /* stc */
+				instruction->setFlags.eflags = NMD_X86_EFLAGS_CF;
+			else if (op == 0xfa || op == 0xfb) /* cli,sti */
+			{
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_VIF;
+				instruction->testedFlags.eflags = NMD_X86_EFLAGS_IOPL;
+			}
+			else if (op == 0xfc) /* cld */
+				instruction->clearedFlags.eflags = NMD_X86_EFLAGS_DF;
+			else if (op == 0xfd) /* std */
+				instruction->setFlags.eflags = NMD_X86_EFLAGS_DF;
 		}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS */
 
@@ -5620,7 +5783,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 			*si.buffer++ = ' ';
 		}
 
-		const size_t numPaddingBytes = instruction->length <= NMD_X86_FORMATTER_NUM_PADDING_BYTES ? (NMD_X86_FORMATTER_NUM_PADDING_BYTES - instruction->length) : 0;
+		const size_t numPaddingBytes = instruction->length < NMD_X86_FORMATTER_NUM_PADDING_BYTES ? (NMD_X86_FORMATTER_NUM_PADDING_BYTES - instruction->length) : 0;
 		for (i = 0; i < numPaddingBytes * 3; i++)
 			*si.buffer++ = ' ';
 	}
@@ -8084,6 +8247,145 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 
 	*si.buffer = '\0';
 }
+
+bool check_jump_condition(NMD_X86Cpu* const cpu, uint8_t opcodeCondition)
+{
+	switch (opcodeCondition)
+	{
+	case 0x0: return cpu->flags.fields.OF == 1;                                                           /* Jump if overflow (OF=1) */
+	case 0x1: return cpu->flags.fields.OF == 0;                                                           /* Jump if not overflow (OF=0) */
+	case 0x2: return cpu->flags.fields.CF == 1;                                                           /* Jump if not above or equal (CF=1) */
+	case 0x3: return cpu->flags.fields.CF == 0;                                                           /* Jump if not below (CF=0) */
+	case 0x4: return cpu->flags.fields.ZF == 1;                                                           /* Jump if equal (ZF=1) */
+	case 0x5: return cpu->flags.fields.ZF == 0;                                                           /* Jump if not equal (ZF=0) */
+	case 0x6: return cpu->flags.fields.CF == 1 || cpu->flags.fields.ZF == 1;                              /* Jump if not above (CF=1 or ZF=1) */
+	case 0x7: return cpu->flags.fields.CF == 0 && cpu->flags.fields.ZF == 0;                              /* Jump if not below or equal (CF=0 and ZF=0) */
+	case 0x8: return cpu->flags.fields.SF == 1;                                                           /* Jump if sign (SF=1) */
+	case 0x9: return cpu->flags.fields.SF == 0;                                                           /* Jump if not sign (SF=0) */
+	case 0xa: return cpu->flags.fields.PF == 1;                                                           /* Jump if parity/parity even (PF=1) */
+	case 0xb: return cpu->flags.fields.PF == 0;                                                           /* Jump if parity odd (PF=0) */
+	case 0xc: return cpu->flags.fields.SF != cpu->flags.fields.OF;                                        /* Jump if not greater or equal (SF != OF) */
+	case 0xd: return cpu->flags.fields.SF == cpu->flags.fields.OF;                                        /* Jump if not less (SF=OF) */
+	case 0xe: return cpu->flags.fields.ZF == 1 || cpu->flags.fields.SF != cpu->flags.fields.OF;           /* Jump if not greater (ZF=1 or SF != OF) */
+	case 0xf: return cpu->flags.fields.ZF == 0 && cpu->flags.fields.SF == cpu->flags.fields.OF;           /* Jump if not less or equal (ZF=0 and SF=OF) */
+	default: return false;
+	}
+}
+
+bool isParityEven8(uint8_t x)
+{
+	x ^= x >> 4;
+	x ^= x >> 2;
+	x ^= x >> 1;
+	return !(x & 1);
+}
+
+/*
+Emulates x86 code. It might be a good idea to clear(i.e. memset(&cpu, 0, sizeof(cpu) ) the 'cpu'.
+Before calling this function you MUST fill the following variables of 'NMD_X86Cpu':
+ - mode: A member of 'NMD_X86_MODE'.
+ - memoryBlock: A pointer to a block of memory. You may use a buffer on the stack, on the heap or wherever you want.
+ - memoryBlockSize: The size of the memory block in bytes.
+ - address: The base address of the memory block. This address can be any value.
+ - entryPoint: The address where emulation starts.
+Parameters:
+  cpu      [in] A pointer to a variable of type 'NMD_X86CpuState' that holds the cpu's state.
+  maxCount [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
+*/
+bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const size_t maxCount)
+{
+	if (cpu->mode == NMD_X86_MODE_NONE)
+		return false;
+
+	const uintptr_t endAddress = cpu->address + cpu->memoryBlockSize;
+	if (!(cpu->entryPoint >= cpu->address && cpu->entryPoint <= endAddress))
+		return false;
+
+	cpu->rip = cpu->entryPoint;
+	size_t count = 0;
+
+	cpu->running = true;
+
+	while (cpu->rip < endAddress)
+	{
+		NMD_X86Register* r0 = 0; /* first operand(register) */
+		NMD_X86Register* r1 = 0; /* second operand(register) */
+
+		NMD_X86Instruction instruction;
+		const uintptr_t relativeAddress = (cpu->rip - cpu->address);
+		if (!nmd_x86_decode_buffer((uint8_t*)cpu->memoryBlock + relativeAddress, endAddress - relativeAddress, &instruction, cpu->mode, NMD_X86_FEATURE_FLAGS_MINIMAL))
+			break;
+
+		cpu->rip += instruction.length;
+
+		if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_DEFAULT)
+		{
+			if (instruction.opcode == 0xe9) /* jmp r32 */
+				cpu->rip += (int32_t)instruction.immediate;
+			else if (instruction.opcode == 0xeb) /* jmp r8 */
+				cpu->rip += (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x03)
+			{
+				r0 = &cpu->rax + instruction.modrm.fields.reg;
+				r1 = &cpu->rax + instruction.modrm.fields.rm;
+
+				r0->l32 += r1->l32;
+			}
+			else if (instruction.opcode == 0x04) /* add al, imm8 */
+				cpu->rax.l8 += (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x05) /* add ax/eax/rax, imm16/imm32/imm32*/
+				cpu->rax.l32 += (int32_t)instruction.immediate;
+			else if (NMD_R(instruction.opcode) == 4) /* inc/dec [40,4f] */
+			{
+				r0 = &cpu->rax + (instruction.opcode % 8);
+				if (instruction.opcode >= 0x48)
+					r0->h64--;
+				else
+					r0->h64++;
+			}
+			else if (NMD_R(instruction.opcode) == 7 && check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r8 */
+				cpu->rip += (int8_t)(instruction.immediate);
+			else if (instruction.opcode >= 0x91 && instruction.opcode <= 0x97) /* xchg rax, ... */
+			{
+				NMD_X86Register tmp = cpu->rax;
+				r0 = &cpu->rax + (instruction.opcode - 0x91);
+				cpu->rax = *r0;
+				*r0 = tmp;
+				r0 = 0; /* Prevent flag modification */
+			}
+			else if (instruction.opcode == 0xf4) /* HLT */
+				break;
+		}
+		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F)
+		{
+			if (NMD_R(instruction.opcode) == 8 && check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r32 */
+				cpu->rip += (int32_t)(instruction.immediate);
+		}
+		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F_38)
+		{
+
+		}
+		else /* if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F_38) */
+		{
+
+		}
+
+		if (r0)
+		{
+			cpu->flags.fields.ZF == r0->h64 == 0;
+			cpu->flags.fields.PF = isParityEven8(r0->l8);
+			/* OF,SF,CF*/
+		}
+
+		if (maxCount > 0 && ++count >= maxCount)
+			return true;
+	}
+
+	cpu->running = false;
+
+	return true;
+}
+
 
 #endif /* NMD_ASSEMBLY_IMPLEMENTATION */
 
