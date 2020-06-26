@@ -43,7 +43,7 @@ To dynamically choose which features are used by the formatter, use the 'formatF
 faster the function runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
 the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE': the formatter does not support pointer size.
- - 'NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES: the formatter does not support instruction bytes.
+ - 'NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES: the formatter does not support instruction bytes. You may define the 'NMD_X86_FORMATTER_NUM_PADDING_BYTES' macro to be the number of bytes used as space padding.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX: the formatter does not support AT&T syntax.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_UPPERCASE: the formatter does not support uppercase.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES: the formatter does not support comma spaces.
@@ -155,6 +155,10 @@ typedef unsigned long long uint64_t;
 #include <stddef.h>
 
 #endif /* NMD_ASSEMBLY_NO_INCLUDES */
+
+#ifndef NMD_X86_FORMATTER_NUM_PADDING_BYTES
+#define NMD_X86_FORMATTER_NUM_PADDING_BYTES 10
+#endif /* NMD_X86_FORMATTER_NUM_PADDING_BYTES */
 
 #define NMD_X86_INVALID_RUNTIME_ADDRESS -1
 #define NMD_X86_MAXIMUM_INSTRUCTION_LENGTH 15
@@ -2228,52 +2232,78 @@ typedef union NMD_X86CpuFlags
 {
 	struct
 	{
-		uint8_t B31  : 1; /* Bit 31.    Reserved */
-		uint8_t B30  : 1; /* Bit 30.    Reserved */
-		uint8_t B29  : 1; /* Bit 29.    Reserved */
-		uint8_t B28  : 1; /* Bit 28.    Reserved */
-		uint8_t B27  : 1; /* Bit 27.    Reserved */
-		uint8_t B26  : 1; /* Bit 26.    Reserved */
-		uint8_t B25  : 1; /* Bit 25.    Reserved */
-		uint8_t B24  : 1; /* Bit 24.    Reserved */
-		uint8_t B23  : 1; /* Bit 23.    Reserved */
-		uint8_t B22  : 1; /* Bit 22.    Reserved */
-		uint8_t ID   : 1; /* Bit 21.    ID Flag(ID) */
-		uint8_t VIP  : 1; /* Bit 20.    Virtual Interrupt Pending (VIP) */
-		uint8_t VIF  : 1; /* Bit 19.    Virtual Interrupt Flag (VIF) */
-		uint8_t AC   : 1; /* Bit 18.    Alignment Check / Access Control (AC) */
-		uint8_t VM   : 1; /* Bit 17.    Virtual-8086 Mode (VM) */
-		uint8_t RF   : 1; /* Bit 16.    Resume Flag (RF) */
-		uint8_t B15  : 1; /* Bit 15.    Reserved */
-		uint8_t NT   : 1; /* Bit 14.    Nested Task (NT) */
-		uint8_t IOPL : 2; /* Bit 13/12. I/O Privilege Level (IOPL) */
-		uint8_t OF   : 1; /* Bit 11.    Overflow Flag (OF) */
-		uint8_t DF   : 1; /* Bit 10.    Direction Flag (DF) */
-		uint8_t IF   : 1; /* Bit  9.    Interrupt Enable Flag (IF) */
-		uint8_t TF   : 1; /* Bit  8.    Trap flag(TF) */
-		uint8_t SF   : 1; /* Bit  7.    Sign flag(SF) */
-		uint8_t ZF   : 1; /* Bit  6.    Zero flag(ZF) */
-		uint8_t B5   : 1; /* Bit  5.    Reserved */
-		uint8_t AF   : 1; /* Bit  4.    Auxiliary Carry Flag (AF) */
-		uint8_t B3   : 1; /* Bit  3.    Reserved */
-		uint8_t PF   : 1; /* Bit  2.    Parity Flag (PF) */
-		uint8_t b1   : 1; /* Bit  1.    Reserved */
 		uint8_t CF   : 1; /* Bit  0.    Carry Flag (CF) */
+		uint8_t b1   : 1; /* Bit  1.    Reserved */
+		uint8_t PF   : 1; /* Bit  2.    Parity Flag (PF) */
+		uint8_t B3   : 1; /* Bit  3.    Reserved */
+		uint8_t AF   : 1; /* Bit  4.    Auxiliary Carry Flag (AF) */
+		uint8_t B5   : 1; /* Bit  5.    Reserved */
+		uint8_t ZF   : 1; /* Bit  6.    Zero flag(ZF) */
+		uint8_t SF   : 1; /* Bit  7.    Sign flag(SF) */
+		uint8_t TF   : 1; /* Bit  8.    Trap flag(TF) */
+		uint8_t IF   : 1; /* Bit  9.    Interrupt Enable Flag (IF) */
+		uint8_t DF   : 1; /* Bit 10.    Direction Flag (DF) */
+		uint8_t OF   : 1; /* Bit 11.    Overflow Flag (OF) */
+		uint8_t IOPL : 2; /* Bit 12-13. I/O Privilege Level (IOPL) */
+		uint8_t NT   : 1; /* Bit 14.    Nested Task (NT) */
+		uint8_t B15  : 1; /* Bit 15.    Reserved */
+		uint8_t RF   : 1; /* Bit 16.    Resume Flag (RF) */
+		uint8_t VM   : 1; /* Bit 17.    Virtual-8086 Mode (VM) */
+		uint8_t AC   : 1; /* Bit 18.    Alignment Check / Access Control (AC) */
+		uint8_t VIF  : 1; /* Bit 19.    Virtual Interrupt Flag (VIF) */
+		uint8_t VIP  : 1; /* Bit 20.    Virtual Interrupt Pending (VIP) */
+		uint8_t ID   : 1; /* Bit 21.    ID Flag(ID) */
+		uint8_t B22  : 1; /* Bit 22.    Reserved */
+		uint8_t B23  : 1; /* Bit 23.    Reserved */
+		uint8_t B24  : 1; /* Bit 24.    Reserved */
+		uint8_t B25  : 1; /* Bit 25.    Reserved */
+		uint8_t B26  : 1; /* Bit 26.    Reserved */
+		uint8_t B27  : 1; /* Bit 27.    Reserved */
+		uint8_t B28  : 1; /* Bit 28.    Reserved */
+		uint8_t B29  : 1; /* Bit 29.    Reserved */
+		uint8_t B30  : 1; /* Bit 30.    Reserved */
+		uint8_t B31  : 1; /* Bit 31.    Reserved */
 	} fields;
+	struct
+	{
+		uint8_t IE  : 1; /* Bit  0.    Invalid Operation (IE) */
+		uint8_t DE  : 1; /* Bit  1.    Denormalized Operand (DE) */
+		uint8_t ZE  : 1; /* Bit  2.    Zero Divide (ZE) */
+		uint8_t OE  : 1; /* Bit  3.    Overflow (OE) */
+		uint8_t UE  : 1; /* Bit  4.    Underflow (UE) */
+		uint8_t PE  : 1; /* Bit  5.    Precision (PE) */
+		uint8_t SF  : 1; /* Bit  6.    Stack Fault (SF) */
+		uint8_t ES  : 1; /* Bit  7.    Exception Summary Status (ES) */
+		uint8_t C0  : 1; /* Bit  8.    Condition code 0 (C0) */
+		uint8_t C1  : 1; /* Bit  9.    Condition code 1 (C1) */
+		uint8_t C2  : 1; /* Bit 10.    Condition code 2 (C2) */
+		uint8_t TOP : 3; /* Bit 11-13. Top of Stack Pointer (TOP) */
+		uint8_t C3  : 1; /* Bit 14.    Condition code 3 (C3) */
+		uint8_t B   : 1; /* Bit 15.    FPU Busy (B) */
+	} fpuFields;
 	uint32_t eflags;
+	uint16_t fpuFlags;
 } NMD_X86CpuFlags;
 
-enum NMD_X86_CPU_FLAGS
+enum NMD_X86_EFLAGS
 {
-	NMD_X86_CPU_FLAGS_OF = (1 << 11),
-	NMD_X86_CPU_FLAGS_DF = (1 << 10),
-	NMD_X86_CPU_FLAGS_IF = (1 << 9),
-	NMD_X86_CPU_FLAGS_TF = (1 << 8),
-	NMD_X86_CPU_FLAGS_SF = (1 << 7),
-	NMD_X86_CPU_FLAGS_ZF = (1 << 6),
-	NMD_X86_CPU_FLAGS_AF = (1 << 4),
-	NMD_X86_CPU_FLAGS_PF = (1 << 2),
-	NMD_X86_CPU_FLAGS_CF = (1 << 0)
+	NMD_X86_EFLAGS_OF = (1 << 11),
+	NMD_X86_EFLAGS_DF = (1 << 10),
+	NMD_X86_EFLAGS_IF = (1 << 9),
+	NMD_X86_EFLAGS_TF = (1 << 8),
+	NMD_X86_EFLAGS_SF = (1 << 7),
+	NMD_X86_EFLAGS_ZF = (1 << 6),
+	NMD_X86_EFLAGS_AF = (1 << 4),
+	NMD_X86_EFLAGS_PF = (1 << 2),
+	NMD_X86_EFLAGS_CF = (1 << 0)
+};
+
+enum NMD_X86_FPU_FLAGS
+{
+	NMD_X86_FPU_FLAGS_C0 = (1 << 8),
+	NMD_X86_FPU_FLAGS_C1 = (1 << 9),
+	NMD_X86_FPU_FLAGS_C2 = (1 << 10),
+	NMD_X86_FPU_FLAGS_C3 = (1 << 14)
 };
 
 typedef union NMD_X86InstructionFlags
@@ -2296,7 +2326,11 @@ typedef struct NMD_X86Instruction
 	uint8_t fullInstruction[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH]; /* A buffer containing the full instruction. */
 	uint16_t id;                                                 /* The instruction's identifier. A member of 'NMD_X86_INSTRUCTION'. */
 	uint16_t prefixes;                                           /* A mask of prefixes. See 'NMD_X86_PREFIXES'. */
-	NMD_X86CpuFlags cpuFlags;                                    /* Cpu flags accessed by the instruction. */
+	NMD_X86CpuFlags modifiedFlags;                               /* Cpu flags modified by the instruction. */
+	NMD_X86CpuFlags testedFlags;                                 /* Cpu flags tested by the instruction. */
+	NMD_X86CpuFlags setFlags;                                    /* Cpu flags set by the instruction. */
+	NMD_X86CpuFlags clearedFlags;                                /* Cpu flags cleared by the instruction. */
+	NMD_X86CpuFlags undefinedFlags;                              /* Cpu flags whose state is undefined. */
 	NMD_X86Operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS];       /* Operands. */
 	uint8_t length;                                              /* The instruction's length in bytes. */
 	uint8_t opcodeMap;                                           /* The instruction's opcode map. A member of 'NMD_X86_OPCODE_MAP'. */
@@ -2318,7 +2352,6 @@ typedef struct NMD_X86Instruction
 	NMD_X86Vex vex;                                              /* VEX prefix. */
 	uint32_t displacement;                                       /* Displacement. Check 'dispMask'. */
 	uint64_t immediate;                                          /* Immediate. Check 'immMask'. */
-	uint64_t runtimeAddress;                                     /* The runtime address provided by the user. */
 } NMD_X86Instruction;
 
 /*
@@ -2333,23 +2366,23 @@ size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeA
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
-  buffer         [in]  A pointer to a buffer containing a encoded instruction.
-  bufferSize     [in]  The buffer's size in bytes.
-  instruction    [out] A pointer to a variable of type 'NMD_X86Instruction' that describes the instruction.
-  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  mode           [in]  The architecture mode. A member of the 'NMD_X86_MODE' enum.
-  featureFlags   [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use.
+  buffer       [in]  A pointer to a buffer containing a encoded instruction.
+  bufferSize   [in]  The buffer's size in bytes.
+  instruction  [out] A pointer to a variable of type 'NMD_X86Instruction' that describes the instruction.
+  mode         [in]  The architecture mode. A member of the 'NMD_X86_MODE' enum.
+  featureFlags [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use.
 */
-bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode, uint32_t featureFlags);
+bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t featureFlags);
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 Parameters:
-  instruction [in]  A pointer to a variable of type 'NMD_X86Instruction' that will be used by the formatter.
-  buffer      [out] A pointer to buffer that receives the string.
-  formatFlags [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction.
+  instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' that will be used by the formatter.
+  buffer         [out] A pointer to buffer that receives the string.
+  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+  formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction.
 */
-void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint32_t formatFlags);
+void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
 
 /*
 Decompiles a sequence of instructions into a compilable source code in C.
@@ -3299,6 +3332,29 @@ void parseOperandUdq(const NMD_X86Instruction* instruction, NMD_X86Operand* oper
 	operand->size = 1;
 }
 
+void decodeConditionalJumpFlag(NMD_X86Instruction* instruction, const uint8_t condition)
+{
+	switch (condition)
+	{
+		case 0x0: instruction->testedFlags.fields.OF = 1; break;                                                                           /* Jump if overflow (OF=1) */
+		case 0x1: instruction->testedFlags.fields.OF = 1; break;                                                                           /* Jump if not overflow (OF=0) */
+		case 0x2: instruction->testedFlags.fields.CF = 1; break;                                                                           /* Jump if not above or equal (CF=1) */
+		case 0x3: instruction->testedFlags.fields.CF = 1; break;                                                                           /* Jump if not below (CF=0) */
+		case 0x4: instruction->testedFlags.fields.ZF = 1; break;                                                                           /* Jump if equal (ZF=1) */
+		case 0x5: instruction->testedFlags.fields.ZF = 1; break;                                                                           /* Jump if not equal (ZF=0) */
+		case 0x6: instruction->testedFlags.fields.CF = instruction->testedFlags.fields.ZF = 1; break;                                      /* Jump if not above (CF=1 or ZF=1) */
+		case 0x7: instruction->testedFlags.fields.CF = instruction->testedFlags.fields.ZF = 1; break;                                      /* Jump if not below or equal (CF=0 and ZF=0) */
+		case 0x8: instruction->testedFlags.fields.SF = 1; break;                                                                           /* Jump if sign (SF=1) */
+		case 0x9: instruction->testedFlags.fields.SF = 1; break;                                                                           /* Jump if not sign (SF=0) */
+		case 0xa: instruction->testedFlags.fields.PF = 1; break;                                                                           /* Jump if parity/parity even (PF=1) */
+		case 0xb: instruction->testedFlags.fields.PF = 1; break;                                                                           /* Jump if parity odd (PF=0) */
+		case 0xc: instruction->testedFlags.fields.SF = instruction->testedFlags.fields.OF = 1; break;                                      /* Jump if not greater or equal (SF != OF) */
+		case 0xd: instruction->testedFlags.fields.SF = instruction->testedFlags.fields.OF = 1; break;                                      /* Jump if not less (SF=OF) */
+		case 0xe: instruction->testedFlags.fields.ZF = instruction->testedFlags.fields.SF = instruction->testedFlags.fields.OF = 1; break; /* Jump if not greater (ZF=1 or SF != OF) */
+		case 0xf: instruction->testedFlags.fields.ZF = instruction->testedFlags.fields.SF = instruction->testedFlags.fields.OF = 1; break; /* Jump if not less or equal (ZF=0 and SF=OF) */
+	}
+}
+
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
@@ -3309,7 +3365,7 @@ Parameters:
   mode           [in]  The architecture mode. A member of the 'NMD_X86_MODE' enum.
   featureFlags   [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use.
 */
-bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NMD_X86Instruction* const instruction, const uint64_t runtimeAddress, const NMD_X86_MODE mode, const uint32_t featureFlags)
+bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NMD_X86Instruction* const instruction, const NMD_X86_MODE mode, const uint32_t featureFlags)
 {
 	if (bufferSize == 0)
 		return false;
@@ -3324,7 +3380,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 	for (; i < sizeof(NMD_X86Instruction); i++)
 		((uint8_t*)(instruction))[i] = 0x00;
 
-	instruction->runtimeAddress = runtimeAddress;
 	instruction->mode = mode;
 
 	const uint8_t* b = (const uint8_t*)(buffer);
@@ -4447,12 +4502,40 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
 		{
-			/*
-			if (*b <= 0x05 || (*b >= 0x10 && *b <= 0x15) || ((NMD_R(*b) == 1 || NMD_R(*b) == 2 || NMD_R(*b) == 3) && (NMD_C(*b) >= 0x8 && NMD_C(*b) <= 0x0d)) || ((*b >= 0x80 && *b <= 0x83) && (modrm.fields.reg == 0b000 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b011 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b101 || modrm.fields.reg == 0b111))) /* add,adc,sbb,sub,cmp */
-			/*	instruction->cpuFlags.eflags = (NMD_X86_CPU_FLAGS_OF | NMD_X86_CPU_FLAGS_SF | NMD_X86_CPU_FLAGS_ZF | NMD_X86_CPU_FLAGS_AF | NMD_X86_CPU_FLAGS_CF | NMD_X86_CPU_FLAGS_PF);
-			else if()
-				instruction->cpuFlags.eflags = (NMD_X86_CPU_FLAGS_OF | NMD_X86_CPU_FLAGS_SF | NMD_X86_CPU_FLAGS_ZF | NMD_X86_CPU_FLAGS_AF | NMD_X86_CPU_FLAGS_CF | NMD_X86_CPU_FLAGS_PF);
-			*/
+			if (op <= 0x05 || (op >= 0x10 && op <= 0x15) || ((NMD_R(op) == 1 || NMD_R(op) == 2 || NMD_R(op) == 3) && (NMD_C(op) >= 0x8 && NMD_C(op) <= 0x0d)) || ((op >= 0x80 && op <= 0x83) && (modrm.fields.reg == 0b000 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b011 || modrm.fields.reg == 0b010 || modrm.fields.reg == 0b101 || modrm.fields.reg == 0b111)) || (op == 0xa6 || op == 0xa7) || (op == 0xae || op == 0xaf)) /* add,adc,sbb,sub,cmp, cmps,cmpsb,cmpsw,cmpsd,cmpsq, scas,scasb,scasw,scasd */
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF;
+			else if ((op >= 0x08 && op <= 0x0d) || ((NMD_R(op) == 2 || NMD_R(op) == 3) && NMD_C(op) <= 5) || ((op >= 0x80 && op <= 0x83) && (modrm.fields.reg == 0b001 || modrm.fields.reg == 0b100 || modrm.fields.reg == 0b110)) || (op == 0x84 || op == 0x85 || op == 0xa8 || op == 0xa9)) /* or,and,xor, test */
+			{
+				instruction->clearedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_CF;
+				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_AF;
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
+			}
+			else if (op == 0x27 || op == 0x2f) /* daa,das */
+			{
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
+				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF;
+			}
+			else if (op == 0x37 || op == 0x3f) /* aaa,aas */
+			{
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF;
+				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
+			}
+			else if (NMD_R(op) == 4) /* inc/dec */
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF;
+			else if (op == 0x63 && instruction->mode != NMD_X86_MODE_64) /* arpl */
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_ZF;
+			else if (op == 0x69 || op == 0x6b) /* mul(three-operand form) */
+			{
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_OF;
+				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF;
+			}
+			else if (NMD_R(op) == 7) /* conditional jump */
+				decodeConditionalJumpFlag(instruction, NMD_C(op));
+			else if (op == 0x9b) /* fwait/wait */
+				instruction->undefinedFlags.fpuFlags = NMD_X86_FPU_FLAGS_C0 | NMD_X86_FPU_FLAGS_C1 | NMD_X86_FPU_FLAGS_C2 | NMD_X86_FPU_FLAGS_C3;
+			else if(op == 0x9e) /* sahf */
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_CF;
+			
 		}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS */
 
@@ -4939,6 +5022,7 @@ typedef struct StringInfo
 {
 	char* buffer;
 	const NMD_X86Instruction* instruction;
+	uint64_t runtimeAddress;
 	uint32_t formatFlags;
 } StringInfo;
 
@@ -5025,7 +5109,7 @@ void appendSignedNumberMemoryView(StringInfo* const si)
 
 void appendRelativeAddress8(StringInfo* const si)
 {
-	if (si->instruction->runtimeAddress == -1)
+	if (si->runtimeAddress == NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		*si->buffer++ = '$';
 		appendSignedNumber(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
@@ -5034,27 +5118,27 @@ void appendRelativeAddress8(StringInfo* const si)
 	{
 		uint64_t n;
 		if (si->instruction->mode == NMD_X86_MODE_64)
-			n = (uint64_t)((int64_t)(si->instruction->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint64_t)((int64_t)(si->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else if (si->instruction->mode == NMD_X86_MODE_16)
-			n = (uint16_t)((int16_t)(si->instruction->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint16_t)((int16_t)(si->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else
-			n = (uint32_t)((int32_t)(si->instruction->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint32_t)((int32_t)(si->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
 		appendNumber(si, n);
 	}
 }
 
 void appendRelativeAddress16_32(StringInfo* const si)
 {
-	if (si->instruction->runtimeAddress == -1)
+	if (si->runtimeAddress == NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		*si->buffer++ = '$';
 		appendSignedNumber(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
 	}
 	else
 		appendNumber(si, ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == NMD_X86_MODE_64 ?
-			(uint64_t)((uint64_t)((int64_t)(si->instruction->runtimeAddress + si->instruction->length) + (int32_t)(si->instruction->immediate))) :
-			(uint64_t)((uint32_t)((int32_t)(si->instruction->runtimeAddress + si->instruction->length) + (int32_t)(si->instruction->immediate)))
-			));
+			(uint64_t)((uint64_t)((int64_t)(si->runtimeAddress + si->instruction->length) + (int32_t)(si->instruction->immediate))) :
+			(uint64_t)((uint32_t)((int32_t)(si->runtimeAddress + si->instruction->length) + (int32_t)(si->instruction->immediate)))
+		));
 }
 
 void appendModRmMemoryPrefix(StringInfo* const si, const char* addrSpecifierReg)
@@ -5155,12 +5239,12 @@ void appendModRm32Upper(StringInfo* const si)
 	if (si->instruction->dispMask != NMD_X86_DISP_NONE && (si->instruction->displacement != 0 || *(si->buffer - 1) == '['))
 	{
 		/* Relative address. */
-		if (si->instruction->modrm.fields.rm == 0b101 && si->instruction->mode == NMD_X86_MODE_64 && si->instruction->modrm.fields.mod == 0b00 && si->instruction->runtimeAddress != -1)
+		if (si->instruction->modrm.fields.rm == 0b101 && si->instruction->mode == NMD_X86_MODE_64 && si->instruction->modrm.fields.mod == 0b00 && si->runtimeAddress != NMD_X86_INVALID_RUNTIME_ADDRESS)
 		{
 			if (si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE)
-				appendNumber(si, (uint32_t)((int32_t)(si->instruction->runtimeAddress + si->instruction->length) + (int32_t)si->instruction->displacement));
+				appendNumber(si, (uint32_t)((int32_t)(si->runtimeAddress + si->instruction->length) + (int32_t)si->instruction->displacement));
 			else
-				appendNumber(si, (uint64_t)((int64_t)(si->instruction->runtimeAddress + si->instruction->length) + (int64_t)((int32_t)si->instruction->displacement)));
+				appendNumber(si, (uint64_t)((int64_t)(si->runtimeAddress + si->instruction->length) + (int64_t)((int32_t)si->instruction->displacement)));
 		}
 		else if (si->instruction->modrm.fields.mod == 0b00 && ((si->instruction->sib.fields.base == 0b101 && si->instruction->sib.fields.index == 0b100) || si->instruction->modrm.fields.rm == 0b101) && *(si->buffer - 1) == '[')
 			appendNumber(si, si->instruction->mode == NMD_X86_MODE_64 ? 0xFFFFFFFF00000000 | si->instruction->displacement : si->instruction->displacement);
@@ -5507,11 +5591,12 @@ char* formatOperandToAtt(char* operand, StringInfo* si)
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 Parameters:
-  instruction [in]  A pointer to a variable of type 'NMD_X86Instruction' that will be used by the formatter.
-  buffer      [out] A pointer to buffer that receives the string.
-  formatFlags [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction.
+  instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' that will be used by the formatter.
+  buffer         [out] A pointer to buffer that receives the string.
+  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+  formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction.
 */
-void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, char buffer[], const uint32_t formatFlags)
+void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, char buffer[], const uint64_t runtimeAddress, const uint32_t formatFlags)
 {
 	if (!instruction->flags.fields.valid)
 		return;
@@ -5519,6 +5604,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 	StringInfo si;
 	si.buffer = buffer;
 	si.instruction = instruction;
+	si.runtimeAddress = runtimeAddress;
 	si.formatFlags = formatFlags;
 
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES
@@ -5534,7 +5620,8 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 			*si.buffer++ = ' ';
 		}
 
-		for (i = 0; i < (size_t)(30 - instruction->length * 3); i++)
+		const size_t numPaddingBytes = instruction->length <= NMD_X86_FORMATTER_NUM_PADDING_BYTES ? (NMD_X86_FORMATTER_NUM_PADDING_BYTES - instruction->length) : 0;
+		for (i = 0; i < numPaddingBytes * 3; i++)
 			*si.buffer++ = ' ';
 	}
 #endif /* NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES */
