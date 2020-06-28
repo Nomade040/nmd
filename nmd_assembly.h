@@ -281,9 +281,9 @@ enum NMD_X86_INSTRUCTION_FLAGS
 typedef enum NMD_X86_MODE
 {
 	NMD_X86_MODE_NONE = 0, /* Invalid mode. */
-	NMD_X86_MODE_16   = 1,
-	NMD_X86_MODE_32   = 2,
-	NMD_X86_MODE_64   = 3,
+	NMD_X86_MODE_16   = 2,
+	NMD_X86_MODE_32   = 4,
+	NMD_X86_MODE_64   = 8,
 } NMD_X86_MODE;
 
 enum NMD_X86_OPCODE_MAP
@@ -2365,7 +2365,7 @@ typedef union NMD_X86Register
 	uint8_t  l8;
 	uint16_t l16;
 	uint32_t l32;
-	uint64_t h64;
+	uint64_t l64;
 } NMD_X86Register;
 
 typedef union NMD_X86Register512
@@ -2383,8 +2383,7 @@ typedef struct NMD_X86Cpu
 
 	void* memoryBlock; /* A pointer to a block of memory used as the emulator's virtual address space. */
 	size_t memoryBlockSize; /* The size of the memory block in bytes. */
-	uintptr_t address; /* The block's base address. */
-	uintptr_t entryPoint; /* A pointer to the entry point of the emulator inside the memory block. */
+	uint64_t address; /* The block's base address. */
 
 	uint64_t rip;
 
@@ -2461,13 +2460,15 @@ typedef struct NMD_X86Cpu
 } NMD_X86Cpu;
 
 /*
-Assembles an instruction from its string representation. Returns the length of the assembled instruction on success, zero otherwise.
-  string         [in]  A pointer to a string that represents a instruction in assembly language.
-  instruction    [out] A pointer to a buffer capable of holding 15 bytes that receives the encoded instruction.
-  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  mode           [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
+Assembles an instruction from its string representation. Returns the number of bytes written to the buffer on success, zero otherwise.
+  string         [in]         A pointer to a string that represents a instruction in assembly language.
+  buffer         [out]        A pointer to a buffer that receives the encoded instructions.
+  bufferSize     [in]         The size of the buffer in bytes.
+  runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+  mode           [in]         A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
+  count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed, and on output is the number of instructions parsed. This parameter may be 0(zero).
 */
-size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode);
+size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uint64_t runtimeAddress, NMD_X86_MODE mode, size_t* const count);
 
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
@@ -2492,17 +2493,18 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buff
 
 /*
 Emulates x86 code. It might be a good idea to clear(i.e. memset(&cpu, 0, sizeof(cpu) ) the 'cpu'.
-Before calling this function you MUST fill the following variables of 'NMD_X86Cpu':
+If you wish to use the stack, you have to change the esp register and set it to the stack's address.
+Before calling this function you must fill the following variables of 'NMD_X86Cpu':
  - mode: A member of 'NMD_X86_MODE'.
  - memoryBlock: A pointer to a block of memory. You may use a buffer on the stack, on the heap or wherever you want.
  - memoryBlockSize: The size of the memory block in bytes.
  - address: The base address of the memory block. This address can be any value.
- - entryPoint: The address where emulation starts.
 Parameters:
-  cpu      [in] A pointer to a variable of type 'NMD_X86CpuState' that holds the cpu's state.
-  maxCount [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
+  cpu        [in] A pointer to a variable of type 'NMD_X86CpuState' that holds the cpu's state.
+  entryPoint [in] The address where emulation starts.
+  maxCount   [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
 */
-bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const size_t maxCount);
+bool nmd_x86_emulate(NMD_X86Cpu* const cpu, uint64_t entryPoint, const size_t maxCount);
 
 /*
 Decompiles a sequence of instructions into a compilable source code in C.
@@ -2756,8 +2758,9 @@ static const char* const* escapeOpcodes[] = { escapeOpcodesD8, escapeOpcodesD9, 
 typedef struct AssembleInfo
 {
 	const char* s; /* string */
-	uint8_t* i; /* instruction */
+	uint8_t* b; /* buffer */
 	NMD_X86_MODE mode;
+	uint64_t runtimeAddress;
 } AssembleInfo;
 
 size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
@@ -2769,7 +2772,7 @@ size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 		{
 			if (nmd_strcmp(ai->s, reg64[i]))
 			{
-				ai->i[0] = baseByte + i;
+				ai->b[0] = baseByte + i;
 				return 1;
 			}
 		}
@@ -2778,8 +2781,8 @@ size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 		{
 			if (nmd_strcmp(ai->s, regrx[i]))
 			{
-				ai->i[0] = 0x41;
-				ai->i[1] = baseByte + i;
+				ai->b[0] = 0x41;
+				ai->b[1] = baseByte + i;
 				return 2;
 			}
 		}
@@ -2790,7 +2793,7 @@ size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 		{
 			if (nmd_strcmp(ai->s, reg32[i]))
 			{
-				ai->i[0] = baseByte + i;
+				ai->b[0] = baseByte + i;
 				return 1;
 			}
 		}
@@ -2800,8 +2803,8 @@ size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 	{
 		if (nmd_strcmp(ai->s, reg16[i]))
 		{
-			ai->i[0] = 0x66;
-			ai->i[1] = baseByte + i;
+			ai->b[0] = 0x66;
+			ai->b[1] = baseByte + i;
 			return 2;
 		}
 	}
@@ -2817,12 +2820,15 @@ enum NMD_NUMBER_BASE
 	NMD_NUMBER_BASE_BINARY      = 2
 };
 
-bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
+bool parseNumber(const char* string, int64_t* num, size_t* numDigits)
 {
+	if (*string == '\0')
+		return false;
+
 	/* Assume decimal base. */
 	uint8_t base = NMD_NUMBER_BASE_DECIMAL;
 	size_t i;
-	const char* s = ai->s;
+	const char* s = string;
 	bool isNegative = false;
 
 	if (s[0] == '-')
@@ -2877,6 +2883,7 @@ bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
 		numTemp += (c <= '9') ? (c - '0') : (10 + c - 'a');
 		if (i < *numDigits - 1)
 		{
+			/* Return false if number is greater than 2^64-1 */
 			if (*numDigits > 16 && i >= 15)
 			{
 				if ((base == NMD_NUMBER_BASE_DECIMAL && numTemp >= 1844674407370955162) || /* ceiling((2^64-1) / 10) */
@@ -2891,8 +2898,8 @@ bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
 		}
 	}
 
-	if (s != ai->s) /* There's either a "0x" or "0b" prefix. */
-		*numDigits = (size_t)((ptrdiff_t)(s + i) - (ptrdiff_t)ai->s);
+	if (s != string) /* There's either a "0x" or "0b" prefix. */
+		*numDigits = (size_t)((ptrdiff_t)(s + i) - (ptrdiff_t)string);
 	
 	if (isNegative)
 		numTemp *= -1;
@@ -2903,174 +2910,152 @@ bool parseNumber(AssembleInfo* ai, int64_t* num, size_t* numDigits)
 }
 
 #define NMD_IS_LOWERCASE(c) (c >= 'a' && c <= 'z')
+#define NMD_IS_DECIMAL_NUMBER(c) (c >= '0' && c <= '9')
 
-/*
-Assembles an instruction from its string representation. Returns the length of the assembled instruction on success, zero otherwise.
-  string         [in]  A pointer to a string that represents a instruction in assembly language.
-  instruction    [out] A pointer to a buffer capable of holding 15 bytes that receives the encoded instruction.
-  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  mode           [in]  A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
-*/
-size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeAddress, NMD_X86_MODE mode)
+size_t assembleSingle(AssembleInfo* ai)
 {
-	if (string[0] == '\0')
-		return 0;
-
 	size_t i = 0;
-	char buffer[128];
-
-	/* Copy 'string' to 'buffer' converting it to lowercase and removing unwanted spaces. If the character ';'/'#'(comment) is found, stop. */
-	size_t length = 0;
-	bool allowSpace = false;
-	for (; *string; string++)
-	{
-		const char c = *string;
-		if (c == ';' || c == '#')
-			break;
-		else if (c == ' ' && !allowSpace)
-			continue;
-
-		if (length >= 128)
-			return 0;
-
-		const char newChar = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
-		buffer[length++] = newChar;
-		allowSpace = NMD_IS_LOWERCASE(newChar) && NMD_IS_LOWERCASE(*(string + 2));
-	}
-
-	/* If the last character is a ' '(space), remove it. */
-	if (buffer[length - 1] == ' ')
-		length--;
-
-	/* After all of the string manipulation, place the null character. */
-	buffer[length] = '\0';
-
-	AssembleInfo ai;
-	ai.s = buffer;
-	ai.i = (uint8_t*)instruction;
-	ai.mode = mode;
 
 	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false, repeatNotZeroPrefix = false;
 
-	/* Parse prefixes */
-	if (nmd_strstr(buffer, "lock ") == buffer)
-		lockPrefix = NMD_X86_PREFIXES_LOCK, ai.s += 5;
-	else if (nmd_strstr(buffer, "rep ") == buffer)
-		repeatPrefix = NMD_X86_PREFIXES_REPEAT, ai.s += 4;
-	else if (nmd_strstr(buffer, "repe ") == buffer || nmd_strstr(buffer, "repz ") == buffer)
-		repeatZeroPrefix = NMD_X86_PREFIXES_REPEAT, ai.s += 5;
-	else if (nmd_strstr(buffer, "repne ") == buffer || nmd_strstr(buffer, "repnz ") == buffer)
-		repeatNotZeroPrefix = NMD_X86_PREFIXES_REPEAT_NOT_ZERO, ai.s += 6;
+	if (nmd_strstr(ai->s, "emit ") == (const char*)ai->s)
+	{
+		int64_t num = 0;
+		size_t numDigits = 0;
+		size_t offset = 5;
+		while (parseNumber(ai->s + offset, &num, &numDigits))
+		{
+			if (num < 0 || num > 0xff)
+				return 0;
 
-	if (nmd_strstr(buffer, "xacquire ") == buffer)
+			ai->b[i++] = num;
+
+			offset += numDigits;
+			if (ai->s[offset] == ' ')
+				offset++;
+		}
+		return i;
+	}
+
+	/* Parse prefixes */
+	if (nmd_strstr(ai->s, "lock ") == (const char*)ai->s)
+		lockPrefix = NMD_X86_PREFIXES_LOCK, ai->s += 5;
+	else if (nmd_strstr(ai->s, "rep ") == (const char*)ai->s)
+		repeatPrefix = NMD_X86_PREFIXES_REPEAT, ai->s += 4;
+	else if (nmd_strstr(ai->s, "repe ") == (const char*)ai->s || nmd_strstr(ai->s, "repz ") == (const char*)ai->s)
+		repeatZeroPrefix = NMD_X86_PREFIXES_REPEAT, ai->s += 5;
+	else if (nmd_strstr(ai->s, "repne ") == (const char*)ai->s || nmd_strstr(ai->s, "repnz ") == (const char*)ai->s)
+		repeatNotZeroPrefix = NMD_X86_PREFIXES_REPEAT_NOT_ZERO, ai->s += 6;
+
+	if (nmd_strstr(ai->s, "xacquire ") == (const char*)ai->b)
 	{
 	}
-	else if (nmd_strstr(buffer, "xrelease ") == buffer)
+	else if (nmd_strstr(ai->s, "xrelease ") == (const char*)ai->b)
 	{
 	}
 
 	/* Parse opcode */
-	if (mode == NMD_X86_MODE_64) /* Only x86-64. */
+	if (ai->mode == NMD_X86_MODE_64) /* Only x86-64. */
 	{
-		if (nmd_strcmp(ai.s, "xchg r8,rax") || nmd_strcmp(ai.s, "xchg rax,r8"))
+		if (nmd_strcmp(ai->s, "xchg r8,rax") || nmd_strcmp(ai->s, "xchg rax,r8"))
 		{
-			ai.i[0] = 0x49;
-			ai.i[1] = 0x90;
+			ai->b[0] = 0x49;
+			ai->b[1] = 0x90;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.s, "xchg r8d,eax") || nmd_strcmp(ai.s, "xchg eax,r8d"))
+		else if (nmd_strcmp(ai->s, "xchg r8d,eax") || nmd_strcmp(ai->s, "xchg eax,r8d"))
 		{
-			ai.i[0] = 0x41;
-			ai.i[1] = 0x90;
+			ai->b[0] = 0x41;
+			ai->b[1] = 0x90;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.s, "pushfq"))
+		else if (nmd_strcmp(ai->s, "pushfq"))
 		{
-			ai.i[0] = 0x9c;
+			ai->b[0] = 0x9c;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.s, "popfq"))
+		else if (nmd_strcmp(ai->s, "popfq"))
 		{
-			ai.i[0] = 0x9d;
+			ai->b[0] = 0x9d;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.s, "iretq"))
+		else if (nmd_strcmp(ai->s, "iretq"))
 		{
-			ai.i[0] = 0x48;
-			ai.i[1] = 0xcf;
+			ai->b[0] = 0x48;
+			ai->b[1] = 0xcf;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.s, "cdqe"))
+		else if (nmd_strcmp(ai->s, "cdqe"))
 		{
-			ai.i[0] = 0x48;
-			ai.i[1] = 0x98;
+			ai->b[0] = 0x48;
+			ai->b[1] = 0x98;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.s, "cqo"))
+		else if (nmd_strcmp(ai->s, "cqo"))
 		{
-			ai.i[0] = 0x48;
-			ai.i[1] = 0x99;
+			ai->b[0] = 0x48;
+			ai->b[1] = 0x99;
 			return 2;
 		}
 	}
 	else /* Only x86-16 or x86-32. */
 	{
-		if (nmd_strcmp(ai.s, "pushad"))
+		if (nmd_strcmp(ai->s, "pushad"))
 		{
-			ai.i[0] = 0x60;
+			ai->b[0] = 0x60;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.s, "pusha"))
+		else if (nmd_strcmp(ai->s, "pusha"))
 		{
-			ai.i[0] = 0x66;
-			ai.i[1] = 0x60;
+			ai->b[0] = 0x66;
+			ai->b[1] = 0x60;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.s, "popad"))
+		else if (nmd_strcmp(ai->s, "popad"))
 		{
-			ai.i[0] = 0x61;
+			ai->b[0] = 0x61;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.s, "popa"))
+		else if (nmd_strcmp(ai->s, "popa"))
 		{
-			ai.i[0] = 0x66;
-			ai.i[1] = 0x62;
+			ai->b[0] = 0x66;
+			ai->b[1] = 0x62;
 			return 2;
 		}
-		else if (nmd_strcmp(ai.s, "pushfd"))
+		else if (nmd_strcmp(ai->s, "pushfd"))
 		{
-			ai.i[0] = 0x9c;
+			ai->b[0] = 0x9c;
 			return 1;
 		}
-		else if (nmd_strcmp(ai.s, "popfd"))
+		else if (nmd_strcmp(ai->s, "popfd"))
 		{
-			ai.i[0] = 0x9d;
+			ai->b[0] = 0x9d;
 			return 1;
 		}
-		else if (nmd_strstr(ai.s, "inc ") == ai.s || nmd_strstr(ai.s, "dec ") == ai.s)
+		else if (nmd_strstr(ai->s, "inc ") == ai->s || nmd_strstr(ai->s, "dec ") == ai->s)
 		{
-			ai.s += 4;
+			ai->s += 4;
 			for (i = 0; i < NMD_NUM_ELEMENTS(reg32); i++)
 			{
-				if (nmd_strcmp(ai.s, reg32[i]))
+				if (nmd_strcmp(ai->s, reg32[i]))
 				{
-					ai.i[0] = (*(ai.s - 4) == 'i' ? 0x40 : 0x48) + i;
+					ai->b[0] = (*(ai->s - 4) == 'i' ? 0x40 : 0x48) + i;
 					return 1;
 				}
 			}
 
 			for (i = 0; i < NMD_NUM_ELEMENTS(reg16); i++)
 			{
-				if (nmd_strcmp(ai.s, reg16[i]))
+				if (nmd_strcmp(ai->s, reg16[i]))
 				{
-					ai.i[0] = 0x66;
-					ai.i[1] = (*(ai.s - 4) == 'i' ? 0x40 : 0x48) + i;
+					ai->b[0] = 0x66;
+					ai->b[1] = (*(ai->s - 4) == 'i' ? 0x40 : 0x48) + i;
 					return 2;
 				}
 			}
 		}
 	}
-	
+
 	typedef struct NMD_StringBytePair { const char* s; uint8_t b; } NMD_StringBytePair;
 
 	const NMD_StringBytePair op1SingleByte[] = {
@@ -3139,124 +3124,121 @@ size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeA
 
 	for (i = 0; i < NMD_NUM_ELEMENTS(op1SingleByte); i++)
 	{
-		if (nmd_strcmp(ai.s, op1SingleByte[i].s))
+		if (nmd_strcmp(ai->s, op1SingleByte[i].s))
 		{
-			ai.i[0] = op1SingleByte[i].b;
+			ai->b[0] = op1SingleByte[i].b;
 			return 1;
 		}
 	}
 
 	for (i = 0; i < NMD_NUM_ELEMENTS(op2SingleByte); i++)
 	{
-		if (nmd_strcmp(ai.s, op2SingleByte[i].s))
+		if (nmd_strcmp(ai->s, op2SingleByte[i].s))
 		{
-			ai.i[0] = 0x0f;
-			ai.i[1] = op2SingleByte[i].b;
+			ai->b[0] = 0x0f;
+			ai->b[1] = op2SingleByte[i].b;
 			return 2;
 		}
 	}
 
-	if (nmd_strcmp(ai.s, "pause"))
+	if (nmd_strcmp(ai->s, "pause"))
 	{
-		ai.i[0] = 0xf3;
-		ai.i[1] = 0x90;
+		ai->b[0] = 0xf3;
+		ai->b[1] = 0x90;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.s, "iret"))
+	else if (nmd_strcmp(ai->s, "iret"))
 	{
-		ai.i[0] = 0x66;
-		ai.i[1] = 0xcf;
+		ai->b[0] = 0x66;
+		ai->b[1] = 0xcf;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.s, "cbw"))
+	else if (nmd_strcmp(ai->s, "cbw"))
 	{
-		ai.i[0] = 0x66;
-		ai.i[1] = 0x98;
+		ai->b[0] = 0x66;
+		ai->b[1] = 0x98;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.s, "cwd"))
+	else if (nmd_strcmp(ai->s, "cwd"))
 	{
-		ai.i[0] = 0x66;
-		ai.i[1] = 0x99;
+		ai->b[0] = 0x66;
+		ai->b[1] = 0x99;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.s, "pushf"))
+	else if (nmd_strcmp(ai->s, "pushf"))
 	{
-		ai.i[0] = 0x66;
-		ai.i[1] = 0x9c;
+		ai->b[0] = 0x66;
+		ai->b[1] = 0x9c;
 		return 2;
 	}
-	else if (nmd_strcmp(ai.s, "popf"))
+	else if (nmd_strcmp(ai->s, "popf"))
 	{
-		ai.i[0] = 0x66;
-		ai.i[1] = 0x9d;
+		ai->b[0] = 0x66;
+		ai->b[1] = 0x9d;
 		return 2;
 	}
-	else if (nmd_strstr(ai.s, "push ") == ai.s)
+	else if (nmd_strstr(ai->s, "push ") == ai->s)
 	{
-		ai.s += 5;
-
 		size_t numDigits = 0;
 		int64_t num = 0;
-		if (parseNumber(&ai, &num, &numDigits))
+		if (parseNumber(ai->s + 5, &num, &numDigits))
 		{
-			if(*(ai.s + numDigits) != '\0' || !(num >= -(1 << 31) && num <= (1 << 31) - 1))
+			if (*(ai->s + numDigits) != '\0' || !(num >= -(1 << 31) && num <= (1 << 31) - 1))
 				return 0;
 
 			if (num >= -(1 << 7) && num <= (1 << 7) - 1)
 			{
-				ai.i[0] = 0x6a;
-				*(int8_t*)(ai.i + 1) = (int8_t)num;
+				ai->b[0] = 0x6a;
+				*(int8_t*)(ai->b + 1) = (int8_t)num;
 				return 2;
 			}
 			else
 			{
-				ai.i[0] = 0x68;
-				*(int32_t*)(ai.i + 1) = (int32_t)num;
+				ai->b[0] = 0x68;
+				*(int32_t*)(ai->b + 1) = (int32_t)num;
 				return 5;
 			}
 		}
 
-		size_t n = assembleReg(&ai, 0x50);
+		size_t n = assembleReg(ai, 0x50);
 		if (n > 0)
 			return n;
 
 	}
-	else if (nmd_strstr(ai.s, "pop ") == ai.s)
+	else if (nmd_strstr(ai->s, "pop ") == ai->s)
 	{
-		ai.s += 3;
-		return assembleReg(&ai, 0x58);
+		ai->s += 3;
+		return assembleReg(ai, 0x58);
 	}
-	
-	if (ai.s[0] == 'j')
+
+	if (ai->s[0] == 'j')
 	{
 		const char* s = 0;
 		for (i = 0; i < NMD_NUM_ELEMENTS(conditionSuffixes); i++)
 		{
-			if (nmd_strstr_ex(ai.s + 1, conditionSuffixes[i], &s) == ai.s + 1)
+			if (nmd_strstr_ex(ai->s + 1, conditionSuffixes[i], &s) == ai->s + 1)
 			{
-				if (s[0] == '\0')
+				if (s[0] != ' ')
 					return 0;
 
-				ai.s = s + 1;
 
 				int64_t num;
 				size_t numDigits;
-				if(!parseNumber(&ai, &num, &numDigits))
+				if (!parseNumber(s + 1, &num, &numDigits))
 					return 0;
 
-				const int64_t delta = num - runtimeAddress;
+				const int64_t delta = num - ai->runtimeAddress;
 				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
 				{
-					ai.i[0] = 0x70 + i;
-					*(int8_t*)(ai.i + 1) = (int8_t)(delta - 2);
+					ai->b[0] = 0x70 + i;
+					*(int8_t*)(ai->b + 1) = (int8_t)(delta - 2);
 					return 2;
 				}
 				else if (delta >= -(1 << 31) + 6 && delta <= ((size_t)(1) << 31) - 1 + 6)
 				{
-					ai.i[0] = 0x0f;
-					ai.i[1] = 0x80 + i;
-					*(int32_t*)(ai.i + 2) = (int32_t)(delta - 6);
+					ai->b[0] = 0x0f;
+					ai->b[1] = 0x80 + i;
+					*(int32_t*)(ai->b + 2) = (int32_t)(delta - 6);
 					return 6;
 				}
 				else
@@ -3266,12 +3248,95 @@ size_t nmd_x86_assemble(const char* string, void* instruction, uint64_t runtimeA
 	}
 
 	/* try to parse 00 00*/
-	if (nmd_strstr("add", ai.s) == ai.s)
+	if (nmd_strstr("add", ai->s) == ai->s)
 	{
 
 	}
 
 	return 0;
+}
+
+/*
+Assembles an instruction from its string representation. Returns the number of bytes written to the buffer on success, zero otherwise.
+Instructions can be separated using either the ';' or '\n' characters.
+  string         [in]         A pointer to a string that represents a instruction in assembly language.
+  buffer         [out]        A pointer to a buffer that receives the encoded instructions.
+  bufferSize     [in]         The size of the buffer in bytes.
+  runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+  mode           [in]         A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
+  count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
+*/
+size_t nmd_x86_assemble(const char* string, void* const buffer, const size_t bufferSize, const uint64_t runtimeAddress, const NMD_X86_MODE mode, size_t* const count)
+{
+	char parsedString[128];
+	const uint8_t* const bufferEnd = (uint8_t*)buffer + bufferSize;
+	uint8_t* b = (uint8_t*)buffer;
+	size_t remainingSize;
+
+	uint8_t tempBuffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];
+
+	AssembleInfo ai;
+	ai.s = parsedString;
+	ai.mode = mode;
+	ai.runtimeAddress = runtimeAddress;
+	ai.b = tempBuffer;
+
+	size_t numInstructions = 0;
+	const size_t numMaxInstructions = (count && *count != 0) ? *count : (size_t)(-1);
+
+	while (string[0] != '\0')
+	{
+		if (numInstructions == numMaxInstructions)
+			break;
+
+		remainingSize = bufferEnd - b;
+
+		/* Copy 'string' to 'buffer' converting it to lowercase and removing unwanted spaces. If the instruction separator character ';' and '\n' is found, stop. */
+		size_t length = 0;
+		bool allowSpace = false;
+		for (; *string; string++)
+		{
+			const char c = *string;
+			if (c == ';' || c == '\n')
+				break;
+			else if (c == ' ' && !allowSpace)
+				continue;
+
+			if (length >= 128)
+				return 0;
+
+			const char newChar = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
+			parsedString[length++] = newChar;
+			allowSpace = (NMD_IS_LOWERCASE(newChar) || NMD_IS_DECIMAL_NUMBER(newChar)) && (NMD_IS_LOWERCASE(*(string + 2)) || NMD_IS_DECIMAL_NUMBER(*(string + 2)));
+		}
+
+		if (*string != '\0')
+			string++;
+
+		/* If the last character is a ' '(space), remove it. */
+		if (parsedString[length - 1] == ' ')
+			length--;
+
+		/* After all of the string manipulation, place the null character. */
+		parsedString[length] = '\0';
+
+		const size_t numBytes = assembleSingle(&ai);
+		if (numBytes == 0 || numBytes > remainingSize)
+			return 0;
+
+		size_t i = 0;
+		for (; i < numBytes; i++)
+			b[i] = tempBuffer[i];
+
+		b += numBytes;
+
+		numInstructions++;
+	}
+
+	if (count)
+		*count = numInstructions;
+
+	return (size_t)(b - (uint8_t*)buffer);
 }
 
 size_t nmd_getBitNumber(uint32_t mask)
@@ -8272,6 +8337,10 @@ bool check_jump_condition(NMD_X86Cpu* const cpu, uint8_t opcodeCondition)
 	}
 }
 
+/* 
+Checks if the number of set bits in an 8-bit number is even.
+Credits: https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
+*/
 bool isParityEven8(uint8_t x)
 {
 	x ^= x >> 4;
@@ -8280,33 +8349,39 @@ bool isParityEven8(uint8_t x)
 	return !(x & 1);
 }
 
+void* getRealAddress(const NMD_X86Cpu* const cpu, uint64_t address)
+{
+	return (uint8_t*)cpu->memoryBlock + (address - cpu->address);
+}
+
 /*
 Emulates x86 code. It might be a good idea to clear(i.e. memset(&cpu, 0, sizeof(cpu) ) the 'cpu'.
-Before calling this function you MUST fill the following variables of 'NMD_X86Cpu':
+If you wish to use the stack, you have to change the esp register and set it to the stack's address.
+Before calling this function you must fill the following variables of 'NMD_X86Cpu':
  - mode: A member of 'NMD_X86_MODE'.
  - memoryBlock: A pointer to a block of memory. You may use a buffer on the stack, on the heap or wherever you want.
  - memoryBlockSize: The size of the memory block in bytes.
  - address: The base address of the memory block. This address can be any value.
- - entryPoint: The address where emulation starts.
 Parameters:
-  cpu      [in] A pointer to a variable of type 'NMD_X86CpuState' that holds the cpu's state.
-  maxCount [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
+  cpu        [in] A pointer to a variable of type 'NMD_X86CpuState' that holds the cpu's state.
+  entryPoint [in] The address where emulation starts.
+  maxCount   [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
 */
-bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const size_t maxCount)
+bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const uint64_t entryPoint, const size_t maxCount)
 {
 	if (cpu->mode == NMD_X86_MODE_NONE)
 		return false;
 
 	const uintptr_t endAddress = cpu->address + cpu->memoryBlockSize;
-	if (!(cpu->entryPoint >= cpu->address && cpu->entryPoint <= endAddress))
+	if (!(entryPoint >= cpu->address && entryPoint <= endAddress))
 		return false;
 
-	cpu->rip = cpu->entryPoint;
+	cpu->rip = entryPoint;
 	size_t count = 0;
 
 	cpu->running = true;
 
-	while (cpu->rip < endAddress)
+	while (cpu->rip < endAddress && cpu->running)
 	{
 		NMD_X86Register* r0 = 0; /* first operand(register) */
 		NMD_X86Register* r1 = 0; /* second operand(register) */
@@ -8339,9 +8414,19 @@ bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const size_t maxCount)
 			{
 				r0 = &cpu->rax + (instruction.opcode % 8);
 				if (instruction.opcode >= 0x48)
-					r0->h64--;
+					r0->l64--;
 				else
-					r0->h64++;
+					r0->l64++;
+			}
+			else if (NMD_R(instruction.opcode) == 5) /* push,pop [50,5f] */
+			{
+				r0 = &cpu->rax + (instruction.opcode % 8);
+				cpu->rsp.l64 -= (int)cpu->mode;
+				void* addr = getRealAddress(cpu, cpu->rsp.l64);
+				if (instruction.opcode >= 0x58)
+					r0->l64--;
+				else
+					r0->l64++;
 			}
 			else if (NMD_R(instruction.opcode) == 7 && check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r8 */
 				cpu->rip += (int8_t)(instruction.immediate);
@@ -8372,7 +8457,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const size_t maxCount)
 
 		if (r0)
 		{
-			cpu->flags.fields.ZF == r0->h64 == 0;
+			cpu->flags.fields.ZF == r0->l64 == 0;
 			cpu->flags.fields.PF = isParityEven8(r0->l8);
 			/* OF,SF,CF*/
 		}
