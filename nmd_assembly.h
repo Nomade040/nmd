@@ -2288,7 +2288,11 @@ typedef union NMD_X86CpuFlags
 
 enum NMD_X86_EFLAGS
 {
+	NMD_X86_EFLAGS_ID   = (1 << 21),
+	NMD_X86_EFLAGS_VIP  = (1 << 20),
 	NMD_X86_EFLAGS_VIF  = (1 << 19),
+	NMD_X86_EFLAGS_AC   = (1 << 18),
+	NMD_X86_EFLAGS_VM   = (1 << 17),
 	NMD_X86_EFLAGS_RF   = (1 << 16),
 	NMD_X86_EFLAGS_NT   = (1 << 14),
 	NMD_X86_EFLAGS_IOPL = (1 << 12) | (1 << 13),
@@ -3515,7 +3519,7 @@ void parseOperandUdq(const NMD_X86Instruction* instruction, NMD_X86Operand* oper
 	operand->size = 1;
 }
 
-void decodeConditionalJumpFlag(NMD_X86Instruction* instruction, const uint8_t condition)
+void decodeConditionalFlag(NMD_X86Instruction* instruction, const uint8_t condition)
 {
 	switch (condition)
 	{
@@ -3699,6 +3703,24 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
 				
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
+				if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
+				{
+					if (op == 0x80 || op == 0x81) /* invept,invvpid */
+					{
+						instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_ZF;
+						instruction->clearedFlags.eflags = NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
+					}
+					else if (op == 0xf6)
+					{
+						if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) /* adcx */
+							instruction->modifiedFlags.eflags = instruction->testedFlags.eflags = NMD_X86_EFLAGS_CF;
+						if (instruction->prefixes & NMD_X86_PREFIXES_REPEAT) /* adox */
+							instruction->modifiedFlags.eflags = instruction->testedFlags.eflags = NMD_X86_EFLAGS_OF;
+					}
+				}
+#endif /* NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS */
+
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
 				{
@@ -3799,6 +3821,12 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
 				
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
+				if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
+				{
+				}
+#endif /* NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS */
+
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
 				{
@@ -4032,6 +4060,69 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				}
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
+
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
+			if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
+			{
+				if (op == 0x00 && (modrm.fields.reg == 0b100 || modrm.fields.reg == 0b101)) /* verr,verw*/
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_OF;
+				else if (op == 0x01 && modrm.fields.mod == 0b11)
+				{
+					if (modrm.fields.reg == 0b000)
+					{
+						if (modrm.fields.rm == 0b001)
+						{
+							instruction->testedFlags.eflags = NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_VM;
+							instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_DF | NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_RF | NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_AC | NMD_X86_EFLAGS_VIF | NMD_X86_EFLAGS_VIP | NMD_X86_EFLAGS_ID;
+						}
+					}
+				}
+				else if (op == 0x02 || op == 0x03) /* lar,lsl */
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_ZF;
+				else if (op == 0x05 || op == 0x07) /* syscall,sysret */
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_DF | NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_AC | NMD_X86_EFLAGS_VIF | NMD_X86_EFLAGS_VIP | NMD_X86_EFLAGS_ID;
+				else if (op == 0x34)
+					instruction->clearedFlags.eflags = NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_IF;
+				else if (op == 0x78 || op == 0x79) /* vmread,vmwrite */
+				{
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_ZF;
+					instruction->clearedFlags.eflags = ZYDIS_CPUFLAG_PF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
+				}
+				else if (NMD_R(op) == 4 || NMD_R(op) == 8 || NMD_R(op) == 9) /* Conditional Move (CMOVcc),Conditional jump(Jcc),Byte set on condition(SETcc) */
+					decodeConditionalFlag(instruction, NMD_C(op));
+				else if (op == 0xa3 || op == 0xab || op == 0xb3 || op == 0xba || op == 0xbb) /* bt,bts,btc */
+				{
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF;
+					instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF;
+				}
+				else if (op == 0xa4 || op == 0xa5 || op == 0xac || op == 0xad || op == 0xbc) /* shld,shrd */
+				{
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF;
+					instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_OF;
+				}
+				else if (op == 0xaa) /* rsm */
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_DF | NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_RF | NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_AC | NMD_X86_EFLAGS_VIF | NMD_X86_EFLAGS_VIP | NMD_X86_EFLAGS_ID;
+				else if (op == 0xaf) /* mul */
+				{
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_OF;
+					instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF;
+				}
+				else if (op == 0xb0 || op == 0xb1) /* cmpxchg */
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
+				else if ((op == 0xbc || op == 0xbd) && instruction->prefixes & NMD_X86_PREFIXES_REPEAT) /* tzcnt */
+				{
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_ZF;
+					instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
+				}
+				else if (op == 0xbc || op == 0xbd) /* bsf */
+				{
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_ZF;
+					instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
+				}
+				else if (op == 0xc0 || op == 0xc1) /* xadd */
+					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
+			}
+#endif /* NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS */
 
 			if (NMD_R(op) == 8) /* imm32 */
 				instruction->immMask = (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_IMM16 : NMD_X86_IMM32);
@@ -4713,7 +4804,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_PF;
 			}
 			else if (NMD_R(op) == 7) /* conditional jump */
-				decodeConditionalJumpFlag(instruction, NMD_C(op));
+				decodeConditionalFlag(instruction, NMD_C(op));
 			else if (op == 0x9b) /* fwait,wait */
 				instruction->undefinedFlags.fpuFlags = NMD_X86_FPU_FLAGS_C0 | NMD_X86_FPU_FLAGS_C1 | NMD_X86_FPU_FLAGS_C2 | NMD_X86_FPU_FLAGS_C3;
 			else if (op == 0x9e) /* sahf */
