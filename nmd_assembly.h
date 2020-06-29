@@ -4086,7 +4086,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				else if (op == 0x78 || op == 0x79) /* vmread,vmwrite */
 				{
 					instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_ZF;
-					instruction->clearedFlags.eflags = ZYDIS_CPUFLAG_PF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
+					instruction->clearedFlags.eflags = NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_OF;
 				}
 				else if (NMD_R(op) == 4 || NMD_R(op) == 8 || NMD_R(op) == 9) /* Conditional Move (CMOVcc),Conditional jump(Jcc),Byte set on condition(SETcc) */
 					decodeConditionalFlag(instruction, NMD_C(op));
