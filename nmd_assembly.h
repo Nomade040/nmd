@@ -1,26 +1,47 @@
-/* This is a platform independent C89 x86 assembler(todo), disassembler(almost done), emulator(todo) and decompiler(todo) library.
+/* This is a platform independent C89 x86 assembler(in development), disassembler(almost done), emulator(in development) and decompiler(todo) library.
 
 Features:
- - Intel and AT&T syntax.
- - x86 support for all three modes: 16, 32, 64.
- - No dynamic memory allocation.
- - No runtime initialization.
- - No global variables/state/context.
+ - Suppport for Intel and AT&T syntax.
+ - Support for x86(16/32/64).
+ - No dynamic memory allocation, global variables/state/context or runtime initialization.
  - Thread-safe by design.
- - The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_ASSEMBLY_NO_INCLUDES' macro.
  - Optimized for speed, size and low memory usage.
+ - The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_ASSEMBLY_NO_INCLUDES' macro.
 
 Setup:
-Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation. Example:
+Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
 #define NMD_ASSEMBLY_IMPLEMENTATION
 #include "nmd_assembly.h"
 
-The assembler is implemented by this function: [TODO assembler]
- nmd_x86_assemble() -> takes as input a string and fills a 'NMD_X86Instruction'.
+Interfaces(a.k.a the functions you call from your application):
+ - The assembler is represented by the following function:
+    Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
+    Parameters:
+     - string         [in]         A pointer to a string that represents a instruction in assembly language.
+     - buffer         [out]        A pointer to a buffer that receives the encoded instructions.
+     - bufferSize     [in]         The size of the buffer in bytes.
+     - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+     - mode           [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+     - count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
+    size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uint64_t runtimeAddress, NMD_X86_MODE mode, size_t* const count);
+ 
+ - The disassembler is composed of a decoder and a formatter represented by these two functions respectively:
+    Decodes an instruction. Returns true if the instruction is valid, false otherwise.
+    Parameters:
+     - buffer       [in]  A pointer to a buffer containing a encoded instruction.
+     - bufferSize   [in]  The buffer's size in bytes.
+     - instruction  [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+     - mode         [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+     - featureFlags [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_FEATURE_FLAGS_MINIMAL'.
+    bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t featureFlags);
 
-The disassembler is composed of a decoder and a formatter represented by these two functions respectively:
- nmd_x86_decode_buffer() -> takes as input a buffer(containing encoded instructions) and fills a 'NMD_X86Instruction'.
- nmd_x86_format_instruction() -> takes as input a 'NMD_X86Instruction' and constructs its string representation in an user provided buffer.
+    Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
+    Parameters:
+     - instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
+     - buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
+     - runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+     - formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
+    void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
 
 Using absolutely no dependencies(other headers...):
  Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
@@ -2350,7 +2371,7 @@ typedef struct NMD_X86Instruction
 	uint8_t numOperands;                                         /* The number of operands. */
 	uint8_t rex;                                                 /* REX prefix. */
 	uint8_t opcodeOffset;                                        /* The number of bytes before the opcode. */
-	uint8_t mode;                                                /* The mode the instruction was parsed. A member of 'NMD_X86_MODE' */
+	uint8_t mode;                                                /* The mode the instruction was parsed. A member of 'NMD_X86_MODE'. */
 	NMD_Modrm modrm;                                             /* The Mod/RM byte. Check 'flags.fields.hasModrm'. */
 	NMD_SIB sib;                                                 /* The SIB byte. Check 'flags.fields.hasSIB'. */
 	uint8_t segmentOverride;                                     /* The segment override prefix closest to the opcode. A member of 'NMD_X86_PREFIXES'. */
@@ -2464,13 +2485,14 @@ typedef struct NMD_X86Cpu
 } NMD_X86Cpu;
 
 /*
-Assembles an instruction from its string representation. Returns the number of bytes written to the buffer on success, zero otherwise.
+Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
+Parameters:
   string         [in]         A pointer to a string that represents a instruction in assembly language.
   buffer         [out]        A pointer to a buffer that receives the encoded instructions.
   bufferSize     [in]         The size of the buffer in bytes.
   runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  mode           [in]         A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
-  count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed, and on output is the number of instructions parsed. This parameter may be 0(zero).
+  mode           [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+  count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
 */
 size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uint64_t runtimeAddress, NMD_X86_MODE mode, size_t* const count);
 
@@ -2479,19 +2501,19 @@ Decodes an instruction. Returns true if the instruction is valid, false otherwis
 Parameters:
   buffer       [in]  A pointer to a buffer containing a encoded instruction.
   bufferSize   [in]  The buffer's size in bytes.
-  instruction  [out] A pointer to a variable of type 'NMD_X86Instruction' that describes the instruction.
-  mode         [in]  The architecture mode. A member of the 'NMD_X86_MODE' enum.
-  featureFlags [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use.
+  instruction  [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+  mode         [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+  featureFlags [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_FEATURE_FLAGS_MINIMAL'.
 */
 bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t featureFlags);
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 Parameters:
-  instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' that will be used by the formatter.
-  buffer         [out] A pointer to buffer that receives the string.
+  instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
+  buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
   runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction.
+  formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
 void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
 
@@ -3261,13 +3283,13 @@ size_t assembleSingle(AssembleInfo* ai)
 }
 
 /*
-Assembles an instruction from its string representation. Returns the number of bytes written to the buffer on success, zero otherwise.
-Instructions can be separated using either the ';' or '\n' characters.
+Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
+Parameters:
   string         [in]         A pointer to a string that represents a instruction in assembly language.
   buffer         [out]        A pointer to a buffer that receives the encoded instructions.
   bufferSize     [in]         The size of the buffer in bytes.
   runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  mode           [in]         A member of the 'NMD_X86_MODE' enum. The architecture mode. A member of the 'NMD_X86_MODE' enum.
+  mode           [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
   count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
 */
 size_t nmd_x86_assemble(const char* string, void* const buffer, const size_t bufferSize, const uint64_t runtimeAddress, const NMD_X86_MODE mode, size_t* const count)
@@ -3545,12 +3567,11 @@ void decodeConditionalFlag(NMD_X86Instruction* instruction, const uint8_t condit
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
-  buffer         [in]  A pointer to a buffer containing a encoded instruction.
-  bufferSize     [in]  The buffer's size in bytes.
-  instruction    [out] A pointer to a variable of type 'NMD_X86Instruction' that describes the instruction.
-  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  mode           [in]  The architecture mode. A member of the 'NMD_X86_MODE' enum.
-  featureFlags   [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use.
+  buffer       [in]  A pointer to a buffer containing a encoded instruction.
+  bufferSize   [in]  The buffer's size in bytes.
+  instruction  [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+  mode         [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+  featureFlags [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_FEATURE_FLAGS_MINIMAL'.
 */
 bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NMD_X86Instruction* const instruction, const NMD_X86_MODE mode, const uint32_t featureFlags)
 {
@@ -6163,10 +6184,10 @@ char* formatOperandToAtt(char* operand, StringInfo* si)
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 Parameters:
-  instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' that will be used by the formatter.
-  buffer         [out] A pointer to buffer that receives the string.
+  instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
+  buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
   runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction.
+  formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
 void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, char buffer[], const uint64_t runtimeAddress, const uint32_t formatFlags)
 {
