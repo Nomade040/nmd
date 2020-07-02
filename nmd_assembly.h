@@ -4070,7 +4070,14 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				else if (op <= 0x0b)
 					instruction->id = NMD_X86_INSTRUCTION_LAR + (op - 2);
 				else if (op == 0x19 || (op >= 0x1c && op <= 0x1f))
-					instruction->id = NMD_X86_INSTRUCTION_NOP;
+				{
+					if(op == 0x1e && modrm.modrm == 0xfa)
+						instruction->id = NMD_X86_INSTRUCTION_ENDBR64;
+					else if (op == 0x1e && modrm.modrm == 0xfb)
+						instruction->id = NMD_X86_INSTRUCTION_ENDBR32;
+					else
+						instruction->id = NMD_X86_INSTRUCTION_NOP;
+				}
 				else if (op >= 0x10 && op <= 0x17)
 				{
 					switch (instruction->simdPrefix)
@@ -6062,6 +6069,7 @@ void appendW(StringInfo* const si)
 		appendModRmUpper(si, "xmmword");
 }
 
+#ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX
 char* formatOperandToAtt(char* operand, StringInfo* si)
 {
 	char* nextOperand = (char*)nmd_strchr(operand, ',');
@@ -6180,6 +6188,7 @@ char* formatOperandToAtt(char* operand, StringInfo* si)
 		return (char*)operandEnd + 1;
 	}
 }
+#endif /* NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX */
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
@@ -7423,10 +7432,17 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 		}
 		else if (op >= 0x1c && op <= 0x1f)
 		{
-			appendString(&si, "nop ");
-			appendEv(&si);
-			*si.buffer++ = ',';
-			appendGv(&si);
+			if (op == 0x1e && instruction->modrm.modrm == 0xfa)
+				appendString(&si, "endbr64");
+			else if (op == 0x1e && instruction->modrm.modrm == 0xfb)
+				appendString(&si, "endbr32");
+			else
+			{
+				appendString(&si, "nop ");
+				appendEv(&si);
+				*si.buffer++ = ',';
+				appendGv(&si);
+			}
 		}
 		else if (op >= 0x20 && op <= 0x23)
 		{
@@ -8626,7 +8642,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 		size_t i = 0;
 		for (; i < stringLength; i++)
 		{
-			if (buffer[i] >= 'a' && buffer[i] <= 'z')
+			if (NMD_IS_LOWERCASE(buffer[i]))
 				buffer[i] -= 0x20; /* Capitalize letter. */
 		}
 	}
@@ -8835,7 +8851,6 @@ bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const uint64_t entryPoint, const siz
 
 	return true;
 }
-
 
 #endif /* NMD_ASSEMBLY_IMPLEMENTATION */
 
