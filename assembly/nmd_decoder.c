@@ -348,7 +348,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			return false;
 
 		b++;
-		instruction->opcodeOffset = instruction->numPrefixes;
 
 		if (*b == 0x38 || *b == 0x3A) /* 3 byte opcode. */
 		{
@@ -1520,7 +1519,12 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				case 0xe4: case 0xe5: case 0xec: case 0xed: instruction->id = NMD_X86_INSTRUCTION_IN; break;
 				case 0xe6: case 0xe7: case 0xee: case 0xef: instruction->id = NMD_X86_INSTRUCTION_OUT; break;
 				case 0xea: instruction->id = NMD_X86_INSTRUCTION_LJMP; break;
-				case 0x9c: instruction->id = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? NMD_X86_INSTRUCTION_PUSHFQ : (operandSize ? NMD_X86_INSTRUCTION_PUSHF : NMD_X86_INSTRUCTION_PUSHFD); break;
+				case 0x9c:
+					if (operandSize)
+						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_PUSHFD : NMD_X86_INSTRUCTION_PUSHF;
+					else
+						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_PUSHF : ((mode == NMD_X86_MODE_32) ? NMD_X86_INSTRUCTION_PUSHFD : NMD_X86_INSTRUCTION_PUSHFQ);
+					break;
 				case 0x9d: instruction->id = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? NMD_X86_INSTRUCTION_POPFQ : (operandSize ? NMD_X86_INSTRUCTION_POPF : NMD_X86_INSTRUCTION_POPFD); break;
 				case 0x60:
 				case 0x61:
@@ -1834,8 +1838,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 		/* Check if instruction is EVEX. */
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_EVEX && op == 0x62 && modrm.fields.mod == 0b11)
 		{
-			instruction->opcodeOffset = instruction->numPrefixes + 4;
-
 			instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
 		}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_EVEX */
@@ -1855,7 +1857,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				instruction->vex.R = byte1 & 0b10000000;
 				if (instruction->vex.vex[1] == 0xc4)
 				{
-					instruction->opcodeOffset = instruction->numPrefixes + 3;
 
 					instruction->vex.X = (byte1 & 0b01000000) == 0b01000000;
 					instruction->vex.B = (byte1 & 0b00100000) == 0b00100000;
@@ -1888,7 +1889,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				}
 				else /* 0xc5 */
 				{
-					instruction->opcodeOffset = instruction->numPrefixes + 3;
 
 					instruction->vex.vvvv = (uint8_t)(byte1 & 0b01111000);
 					instruction->vex.L = byte1 & 0b00000100;
@@ -1907,8 +1907,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			else
 #endif
 			{
-				instruction->opcodeOffset = instruction->numPrefixes;
-
 				/* Check for immediate */		
 				if (nmd_findByte(op1imm32, sizeof(op1imm32), op) || (NMD_R(op) < 4 && (NMD_C(op) == 5 || NMD_C(op) == 0xD)) || (NMD_R(op) == 0xB && NMD_C(op) >= 8) || (op == 0xF7 && !(*(b + 1) & 48))) /* imm32,16 */
 				{
