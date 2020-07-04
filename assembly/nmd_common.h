@@ -1,5 +1,5 @@
-#ifndef NMD_INTERNAL_H
-#define NMD_INTERNAL_H
+#ifndef NMD_COMMON_H
+#define NMD_COMMON_H
 
 #include "nmd_assembly.h"
 
@@ -74,4 +74,4 @@ bool nmd_strcmp(const char* s1, const char* s2);
 
 size_t nmd_getBitNumber(uint32_t mask);
 
-#endif /* NMD_INTERNAL_H */
+#endif /* NMD_COMMON_H */
