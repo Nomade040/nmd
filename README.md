@@ -10,11 +10,4 @@ set of single-header libraries for C/C++
 
 **The documentation is at the start of each library(i.e. header file).**
 
-Showcase:
-![Image of disassembler](https://i.imgur.com/M4L6DTd.png)
-
-Currently there's no gui, it can only draw basic shapes :/
-
-![Gif of an application using nmd_gui.hpp](https://media.giphy.com/media/KzoJfuFCt9vxyfYuFz/giphy.gif)
-
 I wanted to make this reposity in the same style as https://github.com/nothings/stb/ because it seemed practical.
