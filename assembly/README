@@ -1,0 +1,3 @@
+The development of the single-header library 'nmd_assembly.h' is done here.
+
+Run the 'merge_files.py' python script in order to merge all the files in the current folder into a single-header file "nmd_assembly.h" in the parent folder.
