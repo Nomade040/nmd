@@ -10,4 +10,6 @@ set of single-header libraries for C/C++
 
 **The documentation is at the start of each library(i.e. header file).**
 
+The end user should use the single-header libraries in the current folder("nmd/").
+
 I wanted to make this reposity in the same style as https://github.com/nothings/stb/ because it seemed practical.
