@@ -2218,7 +2218,7 @@ typedef struct NMD_X86MemoryOperand
 	uint8_t segment;     /* The segment register. A member of 'NMD_X86_REG'. */
 	uint8_t base;        /* The base register. A member of 'NMD_X86_REG'. */
 	uint8_t index;       /* The index register. A member of 'NMD_X86_REG'. */
-	uint8_t scale;       /* Scale. 1, 2, 4 or 8. */
+	uint8_t scale;       /* Scale(1, 2, 4 or 8). */
 	int64_t disp;        /* Displacement. */
 } NMD_X86MemoryOperand;
 
