@@ -15,7 +15,8 @@ jobs:
     - uses: actions/checkout@v2
     
     - name: Merge files
-      run: python ./assembly/merge_files.py
+        working-directory: assembly
+        run: python merge_files.py
       
     - name: Build nmd_assembly.h
       run: gcc -std=c89 examples/assembly_example.c
