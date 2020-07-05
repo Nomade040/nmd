@@ -28,7 +28,10 @@ jobs:
       - name: Copy gtest libraries
         working-directory: /usr/src/gtest
         run: sudo cp *.a /usr/lib
-          
+        
+      - name: Merge files
+        run: python ./assembly/merge_files.py
+        
       - name: Compile assembly_test.cpp 
         run: g++ -Wall -g -pthread tests/assembly_test.cpp -lgtest_main -lgtest -lpthread -o assembly_test
           
