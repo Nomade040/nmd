@@ -3,10 +3,10 @@ name: Build nmd_assembly.h
 on: 
   push:
     paths:
-      - 'assembly/'
+      - 'assembly/*'
   pull_request:
     paths:
-      - 'assembly/'
+      - 'assembly/*'
 
 jobs:
   build:
