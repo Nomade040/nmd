@@ -1,4 +1,5 @@
-![C/C++ CI](https://github.com/Nomade040/nmd/workflows/C/C++%20CI/badge.svg)
+![Build nmd_assembly.h](https://github.com/Nomade040/nmd/workflows/Build%20nmd_assembly.h/badge.svg)
+![Test nmd_assembly.h](https://github.com/Nomade040/nmd/workflows/Test%20nmd_assembly.h/badge.svg)
 
 # nmd
 set of single-header libraries for C/C++
