@@ -2352,35 +2352,35 @@ typedef union NMD_X86InstructionFlags
 
 typedef struct NMD_X86Instruction
 {
-	NMD_X86InstructionFlags flags;                               /* The instruction's flags. See the 'NMD_X86InstructionFlags' union. */
-	uint8_t mode;                                                /* The decoding mode. A member of 'NMD_X86_MODE'. */
-	uint8_t length;                                              /* The instruction's length in bytes. */
-	uint8_t opcode;                                              /* Opcode byte. */
-	uint8_t opcodeSize;                                          /* The opcode's size in bytes. */
-	uint16_t id;                                                 /* The instruction's identifier. A member of 'NMD_X86_INSTRUCTION'. */
-	uint16_t prefixes;                                           /* A mask of prefixes. See 'NMD_X86_PREFIXES'. */
-	uint8_t numPrefixes;                                         /* Number of prefixes. */
-	uint8_t numOperands;                                         /* The number of operands. */
-	uint8_t group;                                               /* The instruction's group(e.g. jmp, prvileged...). A member of 'NMD_X86_GROUP'. */
-	uint8_t fullInstruction[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH]; /* A buffer containing the full instruction. */
-	NMD_X86Operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS];       /* Operands. */
-	NMD_X86CpuFlags modifiedFlags;                               /* Cpu flags modified by the instruction. */
-	NMD_X86CpuFlags testedFlags;                                 /* Cpu flags tested by the instruction. */
-	NMD_X86CpuFlags setFlags;                                    /* Cpu flags set by the instruction. */
-	NMD_X86CpuFlags clearedFlags;                                /* Cpu flags cleared by the instruction. */
-	NMD_X86CpuFlags undefinedFlags;                              /* Cpu flags whose state is undefined. */
-	uint8_t rex;                                                 /* REX prefix. */
-	NMD_Modrm modrm;                                             /* The Mod/RM byte. Check 'flags.fields.hasModrm'. */
-	NMD_SIB sib;                                                 /* The SIB byte. Check 'flags.fields.hasSIB'. */
-	uint8_t segmentOverride;                                     /* The segment override prefix closest to the opcode. A member of 'NMD_X86_PREFIXES'. */
-	uint8_t immMask;                                             /* A mask of one or more members of 'NMD_X86_IMM'. */
-	uint8_t dispMask;                                            /* A mask of one or more members of 'NMD_X86_DISP'. */
-	uint8_t opcodeMap;                                           /* The instruction's opcode map. A member of 'NMD_X86_OPCODE_MAP'. */
-	uint8_t encoding;                                            /* The instruction's encoding. A member of 'NMD_X86_INSTRUCTION_ENCODING'. */
-	uint16_t simdPrefix;                                         /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
-	NMD_X86Vex vex;                                              /* VEX prefix. */
-	uint32_t displacement;                                       /* Displacement. Check 'dispMask'. */
-	uint64_t immediate;                                          /* Immediate. Check 'immMask'. */
+	NMD_X86InstructionFlags flags;                         /* The instruction's flags. See the 'NMD_X86InstructionFlags' union. */
+	uint8_t mode;                                          /* The decoding mode. A member of 'NMD_X86_MODE'. */
+	uint8_t length;                                        /* The instruction's length in bytes. */
+	uint8_t opcode;                                        /* Opcode byte. */
+	uint8_t opcodeSize;                                    /* The opcode's size in bytes. */
+	uint16_t id;                                           /* The instruction's identifier. A member of 'NMD_X86_INSTRUCTION'. */
+	uint16_t prefixes;                                     /* A mask of prefixes. See 'NMD_X86_PREFIXES'. */
+	uint8_t numPrefixes;                                   /* Number of prefixes. */
+	uint8_t numOperands;                                   /* The number of operands. */
+	uint8_t group;                                         /* The instruction's group(e.g. jmp, prvileged...). A member of 'NMD_X86_GROUP'. */
+	uint8_t buffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];    /* A buffer containing the full instruction. */
+	NMD_X86Operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS]; /* Operands. */
+	NMD_Modrm modrm;                                       /* The Mod/RM byte. Check 'flags.fields.hasModrm'. */
+	NMD_SIB sib;                                           /* The SIB byte. Check 'flags.fields.hasSIB'. */
+	uint8_t immMask;                                       /* A mask of one or more members of 'NMD_X86_IMM'. */
+	uint8_t dispMask;                                      /* A mask of one or more members of 'NMD_X86_DISP'. */
+	uint64_t immediate;                                    /* Immediate. Check 'immMask'. */
+	uint32_t displacement;                                 /* Displacement. Check 'dispMask'. */
+	uint8_t opcodeMap;                                     /* The instruction's opcode map. A member of 'NMD_X86_OPCODE_MAP'. */
+	uint8_t encoding;                                      /* The instruction's encoding. A member of 'NMD_X86_INSTRUCTION_ENCODING'. */
+	NMD_X86Vex vex;                                        /* VEX prefix. */
+	NMD_X86CpuFlags modifiedFlags;                         /* Cpu flags modified by the instruction. */
+	NMD_X86CpuFlags testedFlags;                           /* Cpu flags tested by the instruction. */
+	NMD_X86CpuFlags setFlags;                              /* Cpu flags set by the instruction. */
+	NMD_X86CpuFlags clearedFlags;                          /* Cpu flags cleared by the instruction. */
+	NMD_X86CpuFlags undefinedFlags;                        /* Cpu flags whose state is undefined. */
+	uint8_t rex;                                           /* REX prefix. */
+	uint8_t segmentOverride;                               /* The segment override prefix closest to the opcode. A member of 'NMD_X86_PREFIXES'. */
+	uint16_t simdPrefix;                                   /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
 } NMD_X86Instruction;
 
 typedef union NMD_X86Register
