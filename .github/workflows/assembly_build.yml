@@ -1,4 +1,4 @@
-name: Compile nmd_assembly.h
+name: Build nmd_assembly.h
 
 on: 
   push:
@@ -17,5 +17,5 @@ jobs:
     - name: Merge files
       run: python ./assembly/merge_files.py
       
-    - name: Compile nmd_assembly.h
+    - name: Build nmd_assembly.h
       run: gcc -std=c89 examples/assembly_example.c
