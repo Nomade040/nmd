@@ -597,9 +597,9 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 		size_t i = 0;
 		for (; i < instruction->length; i++)
 		{
-			uint8_t num = instruction->fullInstruction[i] >> 4;
+			uint8_t num = instruction->buffer[i] >> 4;
 			*si.buffer++ = (char)((num > 9 ? 0x37 : '0') + num);
-			num = instruction->fullInstruction[i] & 0xf;
+			num = instruction->buffer[i] & 0xf;
 			*si.buffer++ = (char)((num > 9 ? 0x37 : '0') + num);
 			*si.buffer++ = ' ';
 		}
@@ -620,7 +620,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 	if (instruction->prefixes & NMD_X86_PREFIXES_LOCK)
 		appendString(&si, "lock ");
 
-	const bool operandSize = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || instruction->mode == NMD_X86_MODE_16;
+	const bool operandSize = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE;
 
 	if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_DEFAULT)
 	{
@@ -1433,13 +1433,27 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					const char* str = 0;
 					switch (instruction->opcode)
 					{
-					case 0x9c: str = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? "pushfq" : (operandSize ? "pushf" : "pushfd"); break;
-					case 0x9d: str = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? "popfq" : (operandSize ? "popf" : "popfd"); break;
+					case 0x9c: 
+					{
+						if (operandSize)
+							str = (instruction->mode == NMD_X86_MODE_16) ? "pushfd" : "pushf";
+						else
+							str = (instruction->mode == NMD_X86_MODE_16) ? "pushf" : ((instruction->mode == NMD_X86_MODE_32) ? "pushfd" : "pushfq");
+						break;
+					}
+					case 0x9d:
+					{
+						if (operandSize)
+							str = (instruction->mode == NMD_X86_MODE_16) ? "popfd" : "popf";
+						else
+							str = (instruction->mode == NMD_X86_MODE_16) ? "popf" : ((instruction->mode == NMD_X86_MODE_32) ? "popfd" : "popfq");
+						break;
+					}
 					case 0x60:
 					case 0x61:
 						str = operandSize ? (instruction->opcode == 0x60 ? "pusha" : "popa") : (instruction->opcode == 0x60 ? "pushad" : "popad");
 						break;
-					case 0xcb: str = "ret far"; break;
+					case 0xcb: str = "retf"; break;
 					case 0xc9: str = "leave"; break;
 					case 0xf1: str = "int1"; break;
 					case 0x06: str = "push es"; break;

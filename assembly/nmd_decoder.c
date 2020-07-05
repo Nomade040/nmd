@@ -1525,7 +1525,12 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 					else
 						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_PUSHF : ((mode == NMD_X86_MODE_32) ? NMD_X86_INSTRUCTION_PUSHFD : NMD_X86_INSTRUCTION_PUSHFQ);
 					break;
-				case 0x9d: instruction->id = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? NMD_X86_INSTRUCTION_POPFQ : (operandSize ? NMD_X86_INSTRUCTION_POPF : NMD_X86_INSTRUCTION_POPFD); break;
+				case 0x9d: 
+					if (operandSize)
+						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_POPFD : NMD_X86_INSTRUCTION_POPF;
+					else
+						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_POPF : ((mode == NMD_X86_MODE_32) ? NMD_X86_INSTRUCTION_POPFD : NMD_X86_INSTRUCTION_POPFQ);
+					break;
 				case 0x60:
 				case 0x61:
 					instruction->id = operandSize ? (instruction->opcode == 0x60 ? NMD_X86_INSTRUCTION_PUSHA : NMD_X86_INSTRUCTION_POPA) : (instruction->opcode == 0x60 ? NMD_X86_INSTRUCTION_PUSHAD : NMD_X86_INSTRUCTION_POPAD);
@@ -1648,7 +1653,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
 		{
-			if (op == 0xcc || op == 0xcd || op == 0xce || op == 0xf1) /* int3,int,into,int1 */
+			if (op == 0xcc || op == 0xcd || op == 0xce) /* int3,int,into */
 			{
 				instruction->clearedFlags.eflags = NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_RF;
 				instruction->testedFlags.eflags = NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_VM;
@@ -1693,11 +1698,13 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			}
 			else if (op == 0x27 || op == 0x2f) /* daa,das */
 			{
-				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
+				instruction->testedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_AF;
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
 				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF;
 			}
 			else if (op == 0x37 || op == 0x3f) /* aaa,aas */
 			{
+				instruction->testedFlags.eflags = NMD_X86_EFLAGS_AF;
 				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF;
 				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
 			}
@@ -2282,7 +2289,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 
 	instruction->length = (uint8_t)((ptrdiff_t)(++b + (size_t)instruction->immMask) - (ptrdiff_t)(buffer));
 	for (i = 0; i < instruction->length; i++)
-		instruction->fullInstruction[i] = ((const uint8_t*)(buffer))[i];
+		instruction->buffer[i] = ((const uint8_t*)(buffer))[i];
 
 	for (i = 0; i < (size_t)instruction->immMask; i++)
 		((uint8_t*)(&instruction->immediate))[i] = b[i];

@@ -266,13 +266,31 @@ size_t assembleSingle(AssembleInfo* ai)
 		}
 		else if (nmd_strcmp(ai->s, "pushfd"))
 		{
-			ai->b[0] = 0x9c;
-			return 1;
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x9c;
+				return 2;
+			}
+			else
+			{
+				ai->b[0] = 0x9c;
+				return 1;
+			}
 		}
 		else if (nmd_strcmp(ai->s, "popfd"))
 		{
-			ai->b[0] = 0x9d;
-			return 1;
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x9d;
+				return 2;
+			}
+			else
+			{
+				ai->b[0] = 0x9d;
+				return 1;
+			}
 		}
 		else if (nmd_strstr(ai->s, "inc ") == ai->s || nmd_strstr(ai->s, "dec ") == ai->s)
 		{
@@ -300,13 +318,31 @@ size_t assembleSingle(AssembleInfo* ai)
 
 	if (nmd_strcmp(ai->s, "pushf"))
 	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0x9c;
+		if (ai->mode == NMD_X86_MODE_16)
+		{
+			ai->b[0] = 0x9c;
+			return 1;
+		}
+		else
+		{
+			ai->b[0] = 0x66;
+			ai->b[1] = 0x9c;
+			return 2;
+		}
 	}
 	else if (nmd_strcmp(ai->s, "popf"))
 	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0x9d;
+		if (ai->mode == NMD_X86_MODE_16)
+		{
+			ai->b[0] = 0x9d;
+			return 1;
+		}
+		else
+		{
+			ai->b[0] = 0x66;
+			ai->b[1] = 0x9d;
+			return 2;
+		}
 	}
 
 	typedef struct NMD_StringBytePair { const char* s; uint8_t b; } NMD_StringBytePair;
