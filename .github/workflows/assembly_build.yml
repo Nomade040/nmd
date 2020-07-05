@@ -1,0 +1,21 @@
+name: C/C++ CI
+
+on: 
+  push:
+    paths:
+      - 'assembly/'
+  pull_request:
+    paths:
+      - 'assembly/'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Merge files
+      run: python ./assembly/merge_files.py
+      
+    - name: Compile nmd_assembly.h
+      run: gcc -std=c89 examples/assembly_example.c
