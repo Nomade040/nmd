@@ -64,8 +64,6 @@ TEST(FirstTest, TestAllInstructions)
 	char formattedInstruction[128];
 	uint8_t buffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];
 
-	EXPECT_EQ(1, 2);
-
 	// Test all instructions in the array above.
 	for (size_t i = 0; i < NMD_NUM_ELEMENTS(instructions); i++)
 	{
