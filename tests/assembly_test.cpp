@@ -2,7 +2,7 @@
 #include <string>
 
 #define NMD_ASSEMBLY_IMPLEMENTATION
-#include "../md_assembly.h"
+#include "../nmd_assembly.h"
 
 struct TestInstruction
 {
