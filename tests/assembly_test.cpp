@@ -63,6 +63,8 @@ TEST(FirstTest, TestAllInstructions)
 	NMD_X86Instruction instruction;
 	char formattedInstruction[128];
 	uint8_t buffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];
+
+	// Test all instructions in the array above.
 	for (size_t i = 0; i < NMD_NUM_ELEMENTS(instructions); i++)
 	{
 		SCOPED_TRACE("INDEX=" + std::to_string(i));
