@@ -1,4 +1,4 @@
-name: nmd_assembly.h test
+name: Test nmd_assembly.h
 
 on: 
   push:
