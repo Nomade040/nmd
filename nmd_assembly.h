@@ -2352,36 +2352,35 @@ typedef union NMD_X86InstructionFlags
 
 typedef struct NMD_X86Instruction
 {
-	NMD_X86InstructionFlags flags;                               /* The instruction's flags. See the 'NMD_X86InstructionFlags' union. */
-	uint8_t fullInstruction[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH]; /* A buffer containing the full instruction. */
-	uint16_t id;                                                 /* The instruction's identifier. A member of 'NMD_X86_INSTRUCTION'. */
-	uint16_t prefixes;                                           /* A mask of prefixes. See 'NMD_X86_PREFIXES'. */
-	NMD_X86CpuFlags modifiedFlags;                               /* Cpu flags modified by the instruction. */
-	NMD_X86CpuFlags testedFlags;                                 /* Cpu flags tested by the instruction. */
-	NMD_X86CpuFlags setFlags;                                    /* Cpu flags set by the instruction. */
-	NMD_X86CpuFlags clearedFlags;                                /* Cpu flags cleared by the instruction. */
-	NMD_X86CpuFlags undefinedFlags;                              /* Cpu flags whose state is undefined. */
-	NMD_X86Operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS];       /* Operands. */
-	uint8_t length;                                              /* The instruction's length in bytes. */
-	uint8_t opcodeMap;                                           /* The instruction's opcode map. A member of 'NMD_X86_OPCODE_MAP'. */
-	uint8_t encoding;                                            /* The instruction's encoding. A member of 'NMD_X86_INSTRUCTION_ENCODING'. */
-	uint8_t numPrefixes;                                         /* Number of prefixes. */
-	uint8_t opcode;                                              /* Opcode byte. */
-	uint8_t opcodeSize;                                          /* The opcode's size in bytes. */
-	uint8_t numOperands;                                         /* The number of operands. */
-	uint8_t rex;                                                 /* REX prefix. */
-	uint8_t opcodeOffset;                                        /* The number of bytes before the opcode. */
-	uint8_t mode;                                                /* The mode the instruction was parsed. A member of 'NMD_X86_MODE'. */
-	NMD_Modrm modrm;                                             /* The Mod/RM byte. Check 'flags.fields.hasModrm'. */
-	NMD_SIB sib;                                                 /* The SIB byte. Check 'flags.fields.hasSIB'. */
-	uint8_t segmentOverride;                                     /* The segment override prefix closest to the opcode. A member of 'NMD_X86_PREFIXES'. */
-	uint8_t group;                                               /* The instruction's group(e.g. jmp, prvileged...). A member of 'NMD_X86_GROUP'. */
-	uint8_t immMask;                                             /* A mask of one or more members of 'NMD_X86_IMM'. */
-	uint8_t dispMask;                                            /* A mask of one or more members of 'NMD_X86_DISP'. */
-	uint16_t simdPrefix;                                         /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
-	NMD_X86Vex vex;                                              /* VEX prefix. */
-	uint32_t displacement;                                       /* Displacement. Check 'dispMask'. */
-	uint64_t immediate;                                          /* Immediate. Check 'immMask'. */
+	NMD_X86InstructionFlags flags;                         /* The instruction's flags. See the 'NMD_X86InstructionFlags' union. */
+	uint8_t mode;                                          /* The decoding mode. A member of 'NMD_X86_MODE'. */
+	uint8_t length;                                        /* The instruction's length in bytes. */
+	uint8_t opcode;                                        /* Opcode byte. */
+	uint8_t opcodeSize;                                    /* The opcode's size in bytes. */
+	uint16_t id;                                           /* The instruction's identifier. A member of 'NMD_X86_INSTRUCTION'. */
+	uint16_t prefixes;                                     /* A mask of prefixes. See 'NMD_X86_PREFIXES'. */
+	uint8_t numPrefixes;                                   /* Number of prefixes. */
+	uint8_t numOperands;                                   /* The number of operands. */
+	uint8_t group;                                         /* The instruction's group(e.g. jmp, prvileged...). A member of 'NMD_X86_GROUP'. */
+	uint8_t buffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];    /* A buffer containing the full instruction. */
+	NMD_X86Operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS]; /* Operands. */
+	NMD_Modrm modrm;                                       /* The Mod/RM byte. Check 'flags.fields.hasModrm'. */
+	NMD_SIB sib;                                           /* The SIB byte. Check 'flags.fields.hasSIB'. */
+	uint8_t immMask;                                       /* A mask of one or more members of 'NMD_X86_IMM'. */
+	uint8_t dispMask;                                      /* A mask of one or more members of 'NMD_X86_DISP'. */
+	uint64_t immediate;                                    /* Immediate. Check 'immMask'. */
+	uint32_t displacement;                                 /* Displacement. Check 'dispMask'. */
+	uint8_t opcodeMap;                                     /* The instruction's opcode map. A member of 'NMD_X86_OPCODE_MAP'. */
+	uint8_t encoding;                                      /* The instruction's encoding. A member of 'NMD_X86_INSTRUCTION_ENCODING'. */
+	NMD_X86Vex vex;                                        /* VEX prefix. */
+	NMD_X86CpuFlags modifiedFlags;                         /* Cpu flags modified by the instruction. */
+	NMD_X86CpuFlags testedFlags;                           /* Cpu flags tested by the instruction. */
+	NMD_X86CpuFlags setFlags;                              /* Cpu flags set by the instruction. */
+	NMD_X86CpuFlags clearedFlags;                          /* Cpu flags cleared by the instruction. */
+	NMD_X86CpuFlags undefinedFlags;                        /* Cpu flags whose state is undefined. */
+	uint8_t rex;                                           /* REX prefix. */
+	uint8_t segmentOverride;                               /* The segment override prefix closest to the opcode. A member of 'NMD_X86_PREFIXES'. */
+	uint16_t simdPrefix;                                   /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
 } NMD_X86Instruction;
 
 typedef union NMD_X86Register
@@ -2544,6 +2543,7 @@ void nmd_x86_decompile(const NMD_X86Instruction instructions[], size_t numInstru
 */
 
 #endif /* NMD_ASSEMBLY_H */
+
 
 #ifdef NMD_ASSEMBLY_IMPLEMENTATION
 
@@ -3005,13 +3005,31 @@ size_t assembleSingle(AssembleInfo* ai)
 		}
 		else if (nmd_strcmp(ai->s, "pushfd"))
 		{
-			ai->b[0] = 0x9c;
-			return 1;
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x9c;
+				return 2;
+			}
+			else
+			{
+				ai->b[0] = 0x9c;
+				return 1;
+			}
 		}
 		else if (nmd_strcmp(ai->s, "popfd"))
 		{
-			ai->b[0] = 0x9d;
-			return 1;
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x9d;
+				return 2;
+			}
+			else
+			{
+				ai->b[0] = 0x9d;
+				return 1;
+			}
 		}
 		else if (nmd_strstr(ai->s, "inc ") == ai->s || nmd_strstr(ai->s, "dec ") == ai->s)
 		{
@@ -3039,13 +3057,31 @@ size_t assembleSingle(AssembleInfo* ai)
 
 	if (nmd_strcmp(ai->s, "pushf"))
 	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0x9c;
+		if (ai->mode == NMD_X86_MODE_16)
+		{
+			ai->b[0] = 0x9c;
+			return 1;
+		}
+		else
+		{
+			ai->b[0] = 0x66;
+			ai->b[1] = 0x9c;
+			return 2;
+		}
 	}
 	else if (nmd_strcmp(ai->s, "popf"))
 	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0x9d;
+		if (ai->mode == NMD_X86_MODE_16)
+		{
+			ai->b[0] = 0x9d;
+			return 1;
+		}
+		else
+		{
+			ai->b[0] = 0x66;
+			ai->b[1] = 0x9d;
+			return 2;
+		}
 	}
 
 	typedef struct NMD_StringBytePair { const char* s; uint8_t b; } NMD_StringBytePair;
@@ -3677,7 +3713,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			return false;
 
 		b++;
-		instruction->opcodeOffset = instruction->numPrefixes;
 
 		if (*b == 0x38 || *b == 0x3A) /* 3 byte opcode. */
 		{
@@ -4849,8 +4884,18 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				case 0xe4: case 0xe5: case 0xec: case 0xed: instruction->id = NMD_X86_INSTRUCTION_IN; break;
 				case 0xe6: case 0xe7: case 0xee: case 0xef: instruction->id = NMD_X86_INSTRUCTION_OUT; break;
 				case 0xea: instruction->id = NMD_X86_INSTRUCTION_LJMP; break;
-				case 0x9c: instruction->id = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? NMD_X86_INSTRUCTION_PUSHFQ : (operandSize ? NMD_X86_INSTRUCTION_PUSHF : NMD_X86_INSTRUCTION_PUSHFD); break;
-				case 0x9d: instruction->id = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? NMD_X86_INSTRUCTION_POPFQ : (operandSize ? NMD_X86_INSTRUCTION_POPF : NMD_X86_INSTRUCTION_POPFD); break;
+				case 0x9c:
+					if (operandSize)
+						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_PUSHFD : NMD_X86_INSTRUCTION_PUSHF;
+					else
+						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_PUSHF : ((mode == NMD_X86_MODE_32) ? NMD_X86_INSTRUCTION_PUSHFD : NMD_X86_INSTRUCTION_PUSHFQ);
+					break;
+				case 0x9d: 
+					if (operandSize)
+						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_POPFD : NMD_X86_INSTRUCTION_POPF;
+					else
+						instruction->id = (mode == NMD_X86_MODE_16) ? NMD_X86_INSTRUCTION_POPF : ((mode == NMD_X86_MODE_32) ? NMD_X86_INSTRUCTION_POPFD : NMD_X86_INSTRUCTION_POPFQ);
+					break;
 				case 0x60:
 				case 0x61:
 					instruction->id = operandSize ? (instruction->opcode == 0x60 ? NMD_X86_INSTRUCTION_PUSHA : NMD_X86_INSTRUCTION_POPA) : (instruction->opcode == 0x60 ? NMD_X86_INSTRUCTION_PUSHAD : NMD_X86_INSTRUCTION_POPAD);
@@ -4973,7 +5018,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
 		{
-			if (op == 0xcc || op == 0xcd || op == 0xce || op == 0xf1) /* int3,int,into,int1 */
+			if (op == 0xcc || op == 0xcd || op == 0xce) /* int3,int,into */
 			{
 				instruction->clearedFlags.eflags = NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_RF;
 				instruction->testedFlags.eflags = NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_VM;
@@ -5018,11 +5063,13 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			}
 			else if (op == 0x27 || op == 0x2f) /* daa,das */
 			{
-				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
+				instruction->testedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_AF;
+				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
 				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF;
 			}
 			else if (op == 0x37 || op == 0x3f) /* aaa,aas */
 			{
+				instruction->testedFlags.eflags = NMD_X86_EFLAGS_AF;
 				instruction->modifiedFlags.eflags = NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_CF;
 				instruction->undefinedFlags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_PF;
 			}
@@ -5163,8 +5210,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 		/* Check if instruction is EVEX. */
 		if (featureFlags & NMD_X86_FEATURE_FLAGS_EVEX && op == 0x62 && modrm.fields.mod == 0b11)
 		{
-			instruction->opcodeOffset = instruction->numPrefixes + 4;
-
 			instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
 		}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_EVEX */
@@ -5184,7 +5229,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				instruction->vex.R = byte1 & 0b10000000;
 				if (instruction->vex.vex[1] == 0xc4)
 				{
-					instruction->opcodeOffset = instruction->numPrefixes + 3;
 
 					instruction->vex.X = (byte1 & 0b01000000) == 0b01000000;
 					instruction->vex.B = (byte1 & 0b00100000) == 0b00100000;
@@ -5217,7 +5261,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				}
 				else /* 0xc5 */
 				{
-					instruction->opcodeOffset = instruction->numPrefixes + 3;
 
 					instruction->vex.vvvv = (uint8_t)(byte1 & 0b01111000);
 					instruction->vex.L = byte1 & 0b00000100;
@@ -5236,8 +5279,6 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			else
 #endif
 			{
-				instruction->opcodeOffset = instruction->numPrefixes;
-
 				/* Check for immediate */		
 				if (nmd_findByte(op1imm32, sizeof(op1imm32), op) || (NMD_R(op) < 4 && (NMD_C(op) == 5 || NMD_C(op) == 0xD)) || (NMD_R(op) == 0xB && NMD_C(op) >= 8) || (op == 0xF7 && !(*(b + 1) & 48))) /* imm32,16 */
 				{
@@ -5613,7 +5654,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 
 	instruction->length = (uint8_t)((ptrdiff_t)(++b + (size_t)instruction->immMask) - (ptrdiff_t)(buffer));
 	for (i = 0; i < instruction->length; i++)
-		instruction->fullInstruction[i] = ((const uint8_t*)(buffer))[i];
+		instruction->buffer[i] = ((const uint8_t*)(buffer))[i];
 
 	for (i = 0; i < (size_t)instruction->immMask; i++)
 		((uint8_t*)(&instruction->immediate))[i] = b[i];
@@ -6237,9 +6278,9 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 		size_t i = 0;
 		for (; i < instruction->length; i++)
 		{
-			uint8_t num = instruction->fullInstruction[i] >> 4;
+			uint8_t num = instruction->buffer[i] >> 4;
 			*si.buffer++ = (char)((num > 9 ? 0x37 : '0') + num);
-			num = instruction->fullInstruction[i] & 0xf;
+			num = instruction->buffer[i] & 0xf;
 			*si.buffer++ = (char)((num > 9 ? 0x37 : '0') + num);
 			*si.buffer++ = ' ';
 		}
@@ -6260,7 +6301,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 	if (instruction->prefixes & NMD_X86_PREFIXES_LOCK)
 		appendString(&si, "lock ");
 
-	const bool operandSize = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || instruction->mode == NMD_X86_MODE_16;
+	const bool operandSize = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE;
 
 	if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_DEFAULT)
 	{
@@ -7073,13 +7114,27 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 					const char* str = 0;
 					switch (instruction->opcode)
 					{
-					case 0x9c: str = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? "pushfq" : (operandSize ? "pushf" : "pushfd"); break;
-					case 0x9d: str = instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? "popfq" : (operandSize ? "popf" : "popfd"); break;
+					case 0x9c: 
+					{
+						if (operandSize)
+							str = (instruction->mode == NMD_X86_MODE_16) ? "pushfd" : "pushf";
+						else
+							str = (instruction->mode == NMD_X86_MODE_16) ? "pushf" : ((instruction->mode == NMD_X86_MODE_32) ? "pushfd" : "pushfq");
+						break;
+					}
+					case 0x9d:
+					{
+						if (operandSize)
+							str = (instruction->mode == NMD_X86_MODE_16) ? "popfd" : "popf";
+						else
+							str = (instruction->mode == NMD_X86_MODE_16) ? "popf" : ((instruction->mode == NMD_X86_MODE_32) ? "popfd" : "popfq");
+						break;
+					}
 					case 0x60:
 					case 0x61:
 						str = operandSize ? (instruction->opcode == 0x60 ? "pusha" : "popa") : (instruction->opcode == 0x60 ? "pushad" : "popad");
 						break;
-					case 0xcb: str = "ret far"; break;
+					case 0xcb: str = "retf"; break;
 					case 0xc9: str = "leave"; break;
 					case 0xf1: str = "int1"; break;
 					case 0x06: str = "push es"; break;
