@@ -1,5 +1,3 @@
-compiler error
-
 /* This is a platform independent C89 x86 assembler(in development), disassembler(almost done) and emulator(in development) library.
 
 Features:
