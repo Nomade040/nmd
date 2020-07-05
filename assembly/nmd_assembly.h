@@ -2266,7 +2266,7 @@ typedef union NMD_X86CpuFlags
 		uint8_t IF   : 1; /* Bit  9.    Interrupt Enable Flag (IF) */
 		uint8_t DF   : 1; /* Bit 10.    Direction Flag (DF) */
 		uint8_t OF   : 1; /* Bit 11.    Overflow Flag (OF) */
-		uint8_t IOPL : 2; /* Bit 12-13. I/O Privilege Level (IOPL) */
+		uint8_t IOPL : 2; /* Bit 12,13. I/O Privilege Level (IOPL) */
 		uint8_t NT   : 1; /* Bit 14.    Nested Task (NT) */
 		uint8_t B15  : 1; /* Bit 15.    Reserved */
 		uint8_t RF   : 1; /* Bit 16.    Resume Flag (RF) */
