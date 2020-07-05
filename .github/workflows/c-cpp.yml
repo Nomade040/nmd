@@ -16,3 +16,24 @@ jobs:
       
     - name: Compile nmd_assembly.h
       run: gcc -std=c89 tests/assembly_sample.c
+      
+    - name: Install gtest
+      run: sudo apt install libgtest-dev cmake
+      
+    - name: Configure gtest
+      working-directory: /usr/src/gtest
+      run: sudo cmake CMakeLists.txt
+        
+    - name: Build gtest
+      working-directory: /usr/src/gtest
+      run: sudo make
+        
+    - name: Copy gtest libraries
+      working-directory: /usr/src/gtest
+      run: sudo cp *.a /usr/lib
+        
+    - name: Compile assembly_test.cpp 
+      run: g++ -Wall -g -pthread tests/assembly_test.cpp -lgtest_main -lgtest -lpthread -o assembly_test
+        
+    - name: Run assembly_test
+      run: ./assembly_test
