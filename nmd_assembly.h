@@ -70,36 +70,6 @@ the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' i
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES: the formatter does not support comma spaces.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_OPERATOR_SPACES: the formatter does not support operator spaces.
 
-Sample program:
-Expected output:
- xor eax, eax
- inc eax
- ret
- mov esp, [ebp - 18h]
-
-#define NMD_ASSEMBLY_IMPLEMENTATION
-#include "nmd_assembly.h"
-#include <stdio.h>
-int main()
-{
-	const uint8_t buffer[] = { 0x33, 0xC0, 0x40, 0xC3, 0x8B, 0x65, 0xE8 };
-	const uint8_t* const bufferEnd = buffer + sizeof(buffer);
-
-	NMD_X86Instruction instruction;
-	char formattedInstruction[128];
-
-	size_t i = 0;
-	for (; i < sizeof(buffer); i += instruction.length)
-	{
-		if (!nmd_x86_decode_buffer(buffer + i, bufferEnd - (buffer + i), &instruction, NMD_X86_MODE_32, NMD_X86_FEATURE_FLAGS_MINIMAL))
-			break;
-
-		nmd_x86_format_instruction(&instruction, formattedInstruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_FORMAT_FLAGS_DEFAULT);
-
-		printf("%s\n", formattedInstruction);
-	}
-}
-
 TODO:
  Short-Term
   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.

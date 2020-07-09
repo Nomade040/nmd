@@ -7,7 +7,6 @@ set of single-header libraries for C/C++
 - C89 x86 disassembler: [nmd_assembly.h](nmd_assembly.h)
 - C89 length disassembler: [nmd_ldisasm.h](nmd_ldisasm.h)
 - C++ memory library for windows: [nmd_memory.hpp](nmd_memory.hpp)
-- C++ retained mode gui: [nmd_gui.hpp](nmd_gui.hpp) [not under heavy development]
 
 **The documentation is at the start of each library(i.e. header file).**
 
