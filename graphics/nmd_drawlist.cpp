@@ -1,4 +1,5 @@
 #include "nmd_common.hpp"
+#include "stb_truetype.h"
 
 namespace nmd
 {
@@ -480,40 +481,47 @@ namespace nmd
         PathStroke(color, false, thickness);
     }
 
-    //void DrawList::AddText(const Vec2& pos, Color color, const char* text, const char* textEnd)
-    //{
-    //    AddText(NULL, 0.0f, pos, color, text, textEnd);
-    //}
-    //
-    //void DrawList::AddText(const Font* font, float fontSize, const Vec2& pos, Color color, const char* text, const char* textEnd, float wrapWidth)
-    //{
-    //    //if (!color.a || text == textEnd)
-    //    //    return;
-    //    //
-    //    //if (!textEnd)
-    //    //    textEnd = text + strlen(text);
-    //    //
-    //    //while (text < textEnd)
-    //    //{
-    //    //    const Glyph* glyph = font->FindGlyph(*text);
-    //    //
-    //    //    const size_t nextIndex = vertices.size();
-    //    //    vertices.emplace_back(Vec2(glyph->x0, glyph->y0), color, Vec2(glyph->u0, glyph->v0));
-    //    //    vertices.emplace_back(Vec2(glyph->x1, glyph->y0), color, Vec2(glyph->u1, glyph->v0));
-    //    //    vertices.emplace_back(Vec2(glyph->x1, glyph->y1), color, Vec2(glyph->u1, glyph->v1));
-    //    //    vertices.emplace_back(Vec2(glyph->x0, glyph->y1), color, Vec2(glyph->u0, glyph->v1));
-    //    //
-    //    //    indices.push_back(nextIndex + 0);
-    //    //    indices.push_back(nextIndex + 1);
-    //    //    indices.push_back(nextIndex + 2);
-    //    //
-    //    //    indices.push_back(nextIndex + 0);
-    //    //    indices.push_back(nextIndex + 2);
-    //    //    indices.push_back(nextIndex + 3);
-    //    //
-    //    //    text++;
-    //    //}
-    //}
+    void DrawList::AddText(const Vec2& pos, Color color, const char* text, size_t textLength)
+    {
+        AddText(NULL, 0.0f, pos, color, text, textLength);
+    }
+    
+    void DrawList::AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth)
+    {
+        if (!color.a)
+            return;
+        
+        const char* const textEnd = text + textLength;
+        
+        float x = pos.x;
+        float y = pos.y;
+
+        while (text < textEnd)
+        {
+            //const Glyph* glyph = font->FindGlyph(*text);
+        
+            //stbtt_aligned_quad q;
+            //stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
+            //
+            //const size_t nextIndex = vertices.size();
+            //vertices.emplace_back(Vec2(glyph->x0, glyph->y0), color, Vec2(glyph->u0, glyph->v0));
+            //vertices.emplace_back(Vec2(glyph->x1, glyph->y0), color, Vec2(glyph->u1, glyph->v0));
+            //vertices.emplace_back(Vec2(glyph->x1, glyph->y1), color, Vec2(glyph->u1, glyph->v1));
+            //vertices.emplace_back(Vec2(glyph->x0, glyph->y1), color, Vec2(glyph->u0, glyph->v1));
+        
+            const IndexType nextIndex = static_cast<IndexType>(vertices.size());
+
+            indices.push_back(nextIndex + 0);
+            indices.push_back(nextIndex + 1);
+            indices.push_back(nextIndex + 2);
+        
+            indices.push_back(nextIndex + 0);
+            indices.push_back(nextIndex + 2);
+            indices.push_back(nextIndex + 3);
+        
+            text++;
+        }
+    }
 
     void DrawList::AddImage(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1, const Vec2& uv2, Color color)
     {

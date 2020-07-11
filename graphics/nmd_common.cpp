@@ -22,4 +22,8 @@ namespace nmd
 	Vec2 Vec2::Max(const Vec2& lhs, const Vec2& rhs) { return Vec2(NMD_MAX(lhs.x, rhs.x), NMD_MAX(lhs.y, rhs.y)); }
 
 	bool IsPointInRect(const Vec4& rect, const Vec2& p) { return p.x >= rect.pos.x && p.x <= rect.pos.x + rect.size.x && p.y >= rect.pos.y && p.y <= rect.pos.y + rect.size.y; }
+
+#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_FONT
+	extern const uint8_t karla_ttf_regular[14824];
+#endif // NMD_GRAPHICS_DISABLE_DEFAULT_FONT
 } // namespace nmd

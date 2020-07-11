@@ -5,6 +5,10 @@ Define the 'NMD_GRAPHICS_IMPLEMENTATION' macro in one source file before the inc
 #define NMD_GRAPHICS_IMPLEMENTATION
 #include "nmd_graphics.hpp"
 
+Default fonts:
+The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the font at
+compile time. By doing so at least 15KB of code & data will be saved.
+
 Low level overview:
 The nmd::Context(acessible by nmd::GetContext()) global variable holds the state of the entire library, it
 contains a nmd::DrawList variable(the only one used by the library) which holds the vertex, index and commands
@@ -77,6 +81,7 @@ namespace nmd
 #ifdef NMD_GRAPHICS_D3D9
     void D3D9SetDevice(LPDIRECT3DDEVICE9 pDevice);
     void D3D9Render();
+    void D3D9Resize(int width, int height);
 #endif
 
 #ifdef NMD_GRAPHICS_D3D11
@@ -243,8 +248,8 @@ namespace nmd
 
         void AddBezierCurve(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, Color color, float thickness = 1.0f, size_t numSegments = 0);
 
-        //void AddText(const Vec2& pos, Color color, const char* text, const char* textEnd = NULL);
-        //void AddText(const Font* font, float fontSize, const Vec2& pos, Color color, const char* text, const char* textEnd = NULL, float wrapWidth = 0.0f);
+        void AddText(const Vec2& pos, Color color, const char* text, size_t textLength);
+        void AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth = 0.0f);
 
         void AddImage(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
         void AddImageQuad(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 0), const Vec2& uv3 = Vec2(1, 1), const Vec2& uv4 = Vec2(0, 1), Color color = Color::White);

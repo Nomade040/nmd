@@ -14,4 +14,11 @@
 #define CIRCLE_AUTO_SEGMENT_MAX 512
 #define CIRCLE_AUTO_SEGMENT_CALC(radius, maxError) NMD_CLAMP(NMD_2PI / acosf((radius - maxError) / radius), CIRCLE_AUTO_SEGMENT_MIN, CIRCLE_AUTO_SEGMENT_MAX)
 
+namespace nmd
+{
+#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_FONT
+	extern const uint8_t karla_ttf_regular[14824];
+#endif // NMD_GRAPHICS_DISABLE_DEFAULT_FONT
+} // namespace nmd
+
 #endif NMD_COMMON_H // NMD_COMMON_H
