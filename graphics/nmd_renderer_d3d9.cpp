@@ -2,13 +2,13 @@
 
 namespace nmd
 {
-
 #ifdef NMD_GRAPHICS_D3D9
     static LPDIRECT3DDEVICE9 g_pD3D9Device = nullptr;
     static LPDIRECT3DVERTEXBUFFER9 g_pD3D9VertexBuffer = nullptr;
     static LPDIRECT3DINDEXBUFFER9 g_pD3D9IndexBuffer = nullptr;
-    //static LPDIRECT3DTEXTURE9 g_pFontTexture = nullptr;
+    static LPDIRECT3DTEXTURE9 g_pFontTexture = nullptr;
     static size_t g_D3D9VertexBufferSize, g_D3D9IndexBufferSize;
+    static D3DMATRIX projectionMatrix;
 
     struct CustomVertex
     {
@@ -26,15 +26,46 @@ namespace nmd
 
     void D3D9SetDevice(LPDIRECT3DDEVICE9 pD3D9Device) { g_pD3D9Device = pD3D9Device; }
 
+    void D3D9Resize(int width, int height)
+    {
+        const float L = 0.5f;
+        const float R = (float)width + 0.5f;
+        const float T = 0.5f;
+        const float B = (float)height + 0.5f;
+        float matrix[4][4] = {
+            {    2.0f / (R - L),              0.0f, 0.0f, 0.0f },
+            {              0.0f,    2.0f / (T - B), 0.0f, 0.0f },
+            {              0.0f,              0.0f, 0.0f, 0.0f },
+            { (R + L) / (L - R), (T + B) / (B - T), 0.0f, 1.0f },
+        };
+        memcpy(&projectionMatrix, matrix, sizeof(matrix));
+    }
+
+    bool D3D9CreateFontTexture()
+    {
+        if (g_pFontTexture)
+            g_pFontTexture->Release();
+
+        //if (g_pD3D9Device->CreateTexture(width, height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &g_pFontTexture, NULL) < 0)
+        //    return false;
+        //
+        //D3DLOCKED_RECT lockedRect;
+        //if (g_pFontTexture->LockRect(0, &lockedRect, NULL, 0) != D3D_OK)
+        //    return false;
+        //
+        //for (int y = 0; y < height; y++)
+        //    memcpy((uint8_t*)lockedRect.pBits + lockedRect.Pitch * y, pixels + (width * bpp) * y, (width * bpp));
+        //
+        //g_pFontTexture->UnlockRect(0);
+
+        return true;
+    }
+
     void D3D9Render()
     {
         const Context& context = GetContext();
 
-        // Don't render if screen is minimized.
-        //if (context.io.displaySize.x <= 0.0f || context.io.displaySize.y <= 0.0f)
-        //    return;
-
-        // Create/recreate vertex/index buffer if it doesn't exist or more space is needed.
+        // Create/recreate vertex buffer if it doesn't exist or more space is needed.
         if (!g_pD3D9VertexBuffer || g_D3D9VertexBufferSize < context.drawList.vertices.size())
         {
             if (g_pD3D9VertexBuffer)
@@ -45,6 +76,7 @@ namespace nmd
                 return;
         }
 
+        // Create/recreate index buffer if it doesn't exist or more space is needed.
         if (!g_pD3D9IndexBuffer || g_D3D9IndexBufferSize < context.drawList.indices.size())
         {
             if (g_pD3D9IndexBuffer)
@@ -73,14 +105,10 @@ namespace nmd
         
         // Backup current render state.
         IDirect3DStateBlock9* stateBlock;
-        D3DMATRIX lastWorldTransform, lastViewTransform, lastProjectionTransform;
-
-        if (g_pD3D9Device->CreateStateBlock(D3DSBT_ALL, &stateBlock) != D3D_OK)
+        D3DMATRIX lastProjectionMatrix;
+        if (g_pD3D9Device->CreateStateBlock(D3DSBT_ALL, &stateBlock) != D3D_OK ||
+            g_pD3D9Device->GetTransform(D3DTS_PROJECTION, &lastProjectionMatrix) != D3D_OK)
             return;
-
-        g_pD3D9Device->GetTransform(D3DTS_WORLD, &lastWorldTransform);
-        g_pD3D9Device->GetTransform(D3DTS_VIEW, &lastViewTransform);
-        g_pD3D9Device->GetTransform(D3DTS_PROJECTION, &lastProjectionTransform);
         
         // Set render state.
         g_pD3D9Device->SetStreamSource(0, g_pD3D9VertexBuffer, 0, sizeof(CustomVertex));
@@ -107,42 +135,21 @@ namespace nmd
         g_pD3D9Device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
         g_pD3D9Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
         g_pD3D9Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-
-        float L = 0.5f;
-        float R = 800.5f; //context.io.displaySize.x + 0.5f;
-        float T = 0.5f;
-        float B = 600.5f; // context.io.displaySize.y + 0.5f;
-        D3DMATRIX mat_identity = { 1.0f, 0.0f, 0.0f, 0.0f,  0.0f, 1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f, 0.0f,  0.0f, 0.0f, 0.0f, 1.0f };
-        D3DMATRIX mat_projection = {
-            2.0f / (R - L),    0.0f,              0.0f,  0.0f,
-            0.0f,              2.0f / (T - B),    0.0f,  0.0f,
-            0.0f,              0.0f,              0.5f,  0.0f,
-            (L + R) / (L - R), (T + B) / (B - T), 0.5f,  1.0f
-        };
-        g_pD3D9Device->SetTransform(D3DTS_WORLD, &mat_identity);
-        g_pD3D9Device->SetTransform(D3DTS_VIEW, &mat_identity);
-        g_pD3D9Device->SetTransform(D3DTS_PROJECTION, &mat_projection);
+        g_pD3D9Device->SetTransform(D3DTS_PROJECTION, &projectionMatrix);
         
-        
-        // Issue draw calls to the GPU.
+        // Issue draw calls.
         size_t vertexBufferOffset = 0, indexBufferOffset = 0;
         for (auto& drawCommand : context.drawList.drawCommands)
         {
-            //g_pD3D9Device->SetTexture(0, reinterpret_cast<LPDIRECT3DTEXTURE9>(drawCommand.userTextureId));
-            //const RECT rect = {0,0,230+asasi,300};
-            //g_pD3D9Device->SetScissorRect(&rect);
+            g_pD3D9Device->SetTexture(0, reinterpret_cast<LPDIRECT3DTEXTURE9>(drawCommand.userTextureId));
             g_pD3D9Device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, static_cast<UINT>(drawCommand.numVertices), static_cast<UINT>(indexBufferOffset), static_cast<UINT>(drawCommand.numIndices / 3));
             vertexBufferOffset += drawCommand.numVertices, indexBufferOffset += drawCommand.numIndices;
         }
 
         // Restore render state.
-        g_pD3D9Device->SetTransform(D3DTS_WORLD, &lastWorldTransform);
-        g_pD3D9Device->SetTransform(D3DTS_VIEW, &lastViewTransform);
-        g_pD3D9Device->SetTransform(D3DTS_PROJECTION, &lastProjectionTransform);
-
+        g_pD3D9Device->SetTransform(D3DTS_PROJECTION, &lastProjectionMatrix);
         stateBlock->Apply();
         stateBlock->Release();
     }
 #endif // NMD_GRAPHICS_D3D9
-
 } // namespace nmd

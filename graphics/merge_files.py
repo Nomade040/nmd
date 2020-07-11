@@ -10,6 +10,8 @@ file_names = [
     'nmd_renderer_d3d9.cpp',
     'nmd_renderer_d3d11.cpp',
     'nmd_renderer_opengl.cpp',
+    'nmd_default_font.cpp',
+    'stb_truetype.h'
 ]
 
 file_contents = []
