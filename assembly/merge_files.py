@@ -6,6 +6,7 @@ file_names = [
     'nmd_common.c', # common macros, functions, structs...
     'nmd_x86_assembler.c',
     'nmd_x86_decoder.c',
+    'nmd_x86_ldisasm.c',
     'nmd_x86_formatter.c',
     'nmd_x86_emulator.c'
 ]
