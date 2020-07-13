@@ -256,13 +256,13 @@ bool parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction, const 
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
-  buffer       [in]  A pointer to a buffer containing a encoded instruction.
-  bufferSize   [in]  The buffer's size in bytes.
-  instruction  [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
-  mode         [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-  featureFlags [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_FEATURE_FLAGS_MINIMAL'.
+  buffer      [in]  A pointer to a buffer containing a encoded instruction.
+  bufferSize  [in]  The buffer's size in bytes.
+  instruction [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+  mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+  flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
 */
-bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NMD_X86Instruction* const instruction, const NMD_X86_MODE mode, const uint32_t featureFlags)
+bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NMD_X86Instruction* const instruction, const NMD_X86_MODE mode, const uint32_t flags)
 {
 	if (bufferSize == 0)
 		return false;
@@ -363,7 +363,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_0F_38)
 			{
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
+				if (flags & NMD_X86_DECODER_FLAGS_VALIDITY_CHECK)
 				{
 					/* Check if the instruction is invalid. */
 					if (op == 0x36)
@@ -420,7 +420,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
+				if (flags & NMD_X86_DECODER_FLAGS_INSTRUCTION_ID)
 				{
 					if (NMD_R(op) == 0x00)
 						instruction->id = NMD_X86_INSTRUCTION_PSHUFB + op;
@@ -454,7 +454,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
 				
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
+				if (flags & NMD_X86_DECODER_FLAGS_CPU_FLAGS)
 				{
 					if (op == 0x80 || op == 0x81) /* invept,invvpid */
 					{
@@ -472,7 +472,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
+				if (flags & NMD_X86_DECODER_FLAGS_OPERANDS)
 				{
 					instruction->numOperands = 2;
 					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
@@ -531,7 +531,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				instruction->immMask = NMD_X86_IMM8;
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
+				if (flags & NMD_X86_DECODER_FLAGS_VALIDITY_CHECK)
 				{
 					/* Check if the instruction is invalid. */
 					if ((op >= 0x8 && op <= 0xe) || (op >= 0x14 && op <= 0x17) || (op >= 0x20 && op <= 0x22) || (op >= 0x40 && op <= 0x42) || op == 0x44 || (op >= 0x60 && op <= 0x63) || op == 0xdf || op == 0xce || op == 0xcf)
@@ -550,7 +550,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
+				if (flags & NMD_X86_DECODER_FLAGS_INSTRUCTION_ID)
 				{
 					if (NMD_R(op) == 0)
 						instruction->id = NMD_X86_INSTRUCTION_ROUNDPS + (op - 8);
@@ -577,7 +577,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
+				if (flags & NMD_X86_DECODER_FLAGS_OPERANDS)
 				{
 					instruction->numOperands = 3;
 					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
@@ -625,9 +625,16 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 					return false;
 			}
 
+#ifndef NMD_ASSEMBLY_DISABLE_DECODER_3DNOW
+			if (flags & NMD_X86_DECODER_FLAGS_3DNOW)
+			{
+
+			}
+#endif /* NMD_ASSEMBLY_DISABLE_DECODER_3DNOW */
+
 			const NMD_Modrm modrm = instruction->modrm;
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
-			if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
+			if (flags & NMD_X86_DECODER_FLAGS_VALIDITY_CHECK)
 			{
 				/* Check if the instruction is invalid. */
 				if (nmd_findByte(invalid2op, sizeof(invalid2op), op))
@@ -762,7 +769,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
-			if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
+			if (flags & NMD_X86_DECODER_FLAGS_INSTRUCTION_ID)
 			{
 				if (NMD_R(op) == 8)
 					instruction->id = NMD_X86_INSTRUCTION_JO + NMD_C(op);
@@ -919,7 +926,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
-			if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
+			if (flags & NMD_X86_DECODER_FLAGS_CPU_FLAGS)
 			{
 				if (NMD_R(op) == 4 || NMD_R(op) == 8 || NMD_R(op) == 9) /* Conditional Move (CMOVcc),Conditional jump(Jcc),Byte set on condition(SETcc) */
 					decodeConditionalFlag(instruction, NMD_C(op));
@@ -990,7 +997,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 			
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_GROUP
 			/* Parse the instruction's group. */
-			if (featureFlags & NMD_X86_FEATURE_FLAGS_GROUP)
+			if (flags & NMD_X86_DECODER_FLAGS_GROUP)
 			{
 				if (NMD_R(op) == 8)
 					instruction->group = NMD_GROUP_JUMP | NMD_GROUP_CONDITIONAL_BRANCH | NMD_GROUP_RELATIVE_ADDRESSING;
@@ -1002,7 +1009,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_GROUP */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
-			if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
+			if (flags & NMD_X86_DECODER_FLAGS_OPERANDS)
 			{
 				if (op == 0x2 || op == 0x3 || (op >= 0x10 && op <= 0x17) || NMD_R(op) == 2 || (NMD_R(op) >= 4 && NMD_R(op) <= 7) || op == 0xa3 || op == 0xab || op == 0xaf || (NMD_R(op) >= 0xc && op != 0xc7 && op != 0xff))
 					instruction->numOperands = 2;
@@ -1398,7 +1405,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_EVEX
 		/* Check if instruction is EVEX. */
-		if (featureFlags & NMD_X86_FEATURE_FLAGS_EVEX && op == 0x62 && !instruction->flags.fields.hasModrm)
+		if (flags & NMD_X86_DECODER_FLAGS_EVEX && op == 0x62 && !instruction->flags.fields.hasModrm)
 		{
 			instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_EVEX;
 		}
@@ -1409,7 +1416,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VEX
 			/* Check if instruction is VEX. */
-			if (featureFlags & NMD_X86_FEATURE_FLAGS_VEX && (op == 0xc4 || op == 0xc5) && !instruction->flags.fields.hasModrm)
+			if (flags & NMD_X86_DECODER_FLAGS_VEX && (op == 0xc4 || op == 0xc5) && !instruction->flags.fields.hasModrm)
 			{
 				instruction->encoding = NMD_X86_INSTRUCTION_ENCODING_VEX;
 
@@ -1473,7 +1480,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 				const NMD_Modrm modrm = instruction->modrm;
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 				/* Check if the instruction is invalid. */
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK)
+				if (flags & NMD_X86_DECODER_FLAGS_VALIDITY_CHECK)
 				{
 					if (op == 0xC6 || op == 0xC7)
 					{
@@ -1588,7 +1595,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 							
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID)
+				if (flags & NMD_X86_DECODER_FLAGS_INSTRUCTION_ID)
 				{
 					const bool operandSize = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE;
 					if ((op >= 0x88 && op <= 0x8c) || (op >= 0xa0 && op <= 0xa3) || NMD_R(op) == 0xb || op == 0x8e)
@@ -1796,7 +1803,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_CPU_FLAGS)
+				if (flags & NMD_X86_DECODER_FLAGS_CPU_FLAGS)
 				{
 					if (op == 0xcc || op == 0xcd || op == 0xce) /* int3,int,into */
 					{
@@ -1988,7 +1995,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_GROUP
 				/* Parse the instruction's group. */
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_GROUP)
+				if (flags & NMD_X86_DECODER_FLAGS_GROUP)
 				{
 					if (NMD_R(op) == 7 || op == 0xe3)
 						instruction->group = NMD_GROUP_JUMP | NMD_GROUP_CONDITIONAL_BRANCH | NMD_GROUP_RELATIVE_ADDRESSING;
@@ -2014,7 +2021,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_GROUP */
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
-				if (featureFlags & NMD_X86_FEATURE_FLAGS_OPERANDS)
+				if (flags & NMD_X86_DECODER_FLAGS_OPERANDS)
 				{
 					if (op >= 0xd8 && op <= 0xdf)
 					{
