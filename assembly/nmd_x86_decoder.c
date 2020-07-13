@@ -628,7 +628,7 @@ bool nmd_x86_decode_buffer(const void* const buffer, const size_t bufferSize, NM
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_3DNOW
 			if (flags & NMD_X86_DECODER_FLAGS_3DNOW)
 			{
-
+					
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_3DNOW */
 
