@@ -1804,10 +1804,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, cha
 
 				*si.buffer++ = ' ';
 
-				if (si.instruction->modrm.fields.mod == 0b11)
-					appendString(&si, (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? reg16 : reg32)[si.instruction->modrm.fields.rm]);
-				else
-					appendModRmUpper(&si, "byte");
+				appendModRmUpper(&si, "byte");
 			}
 		}	
 		else if (op == 0x18)
