@@ -132,7 +132,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const uint64_t entryPoint, const siz
 			if (NMD_R(instruction.opcode) == 8 && check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r32 */
 				cpu->rip += (int32_t)(instruction.immediate);
 		}
-		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F_38)
+		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F38)
 		{
 
 		}

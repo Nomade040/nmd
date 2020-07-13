@@ -44,11 +44,11 @@ Interfaces(a.k.a the functions you call from your application):
     void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
 
 Using absolutely no dependencies(other headers...):
- Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
- Be aware: This macro uses platform dependent macros. 
+Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
+Be aware: This macro uses platform dependent macros. 
 
 Enabling and disabling features of the decoder:
-To dynamically choose which features are used by the decoder, use the 'featureFlags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
+To dynamically choose which features are used by the decoder, use the 'flags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
 faster the decoder runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
 the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
  - 'NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK': the decoder does not check if the instruction is invalid.
@@ -70,6 +70,9 @@ the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' i
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_UPPERCASE: the formatter does not support uppercase.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES: the formatter does not support comma spaces.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_OPERATOR_SPACES: the formatter does not support operator spaces.
+ - 'NMD_ASSEMBLY_DISABLE_FORMATTER_VEX': the formatter does not support VEX instructions.
+ - 'NMD_ASSEMBLY_DISABLE_FORMATTER_EVEX': the formatter does not support EVEX instructions.
+ - 'NMD_ASSEMBLY_DISABLE_FORMATTER_3DNOW': the formatter does not support 3DNow! instructions.
 
 Enabling and disabling feature of the length disassembler:
 Use the following macros to disable features at compile-time:
@@ -91,6 +94,7 @@ References:
    - Appendix A Opcode Map.
    - Appendix B.16 Instruction and Formats and Encoding.
  - 3DNow! Technology Manual.
+ - AMD Extensions to the 3DNow! and MMX Instruction Sets Manual.
  - Intel Architecture Instruction Set Extensions and Future Features Programming Reference.
  - Capstone Engine.
  - Zydis Disassembler.
@@ -163,7 +167,7 @@ typedef unsigned long long uint64_t;
 #define NMD_X86_MAXIMUM_NUM_OPERANDS 4
 
 /* These flags specify how the formatter should work. */
-enum NMD_X86_FORMATTER_FEATURES
+enum NMD_X86_FORMATTER_FLAGS
 {
 	NMD_X86_FORMAT_FLAGS_HEX                       = (1 << 0),  /* If set, numbers are displayed in hex base, otherwise they are displayed in decimal base. */
 	NMD_X86_FORMAT_FLAGS_POINTER_SIZE              = (1 << 1),  /* Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed. */
@@ -182,7 +186,7 @@ enum NMD_X86_FORMATTER_FEATURES
 	NMD_X86_FORMAT_FLAGS_BYTES                     = (1 << 14), /* The instruction's bytes are displayed before the instructions. */
 	NMD_X86_FORMAT_FLAGS_ATT_SYNTAX                = (1 << 15), /* AT&T syntax is used instead of Intel's. */
 
-	/* These are not actual format flags, but actually masks of format flags, they're just here for simplicity. */
+	/* The formatter's default formatting style. */
 	NMD_X86_FORMAT_FLAGS_DEFAULT  = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
 };
 
@@ -240,6 +244,7 @@ enum NMD_X86_DISP
 	NMD_X86_DISP8            = 1,
 	NMD_X86_DISP16           = 2,
 	NMD_X86_DISP32           = 4,
+	NMD_X86_DISP64           = 8,
 	NMD_X86_DISP_ANY         = (NMD_X86_DISP8 | NMD_X86_DISP16 | NMD_X86_DISP32)
 };
 
@@ -265,18 +270,6 @@ typedef union NMD_SIB
 	uint8_t sib;
 } NMD_SIB;
 
-/* You may use this enum to construct a mask and check against NMD_X86InstructionFlags::flags. */
-enum NMD_X86_INSTRUCTION_FLAGS
-{
-	NMD_X86_INSTRUCTION_FLAGS_VALID           = (1 << 0),
-	NMD_X86_INSTRUCTION_FLAGS_X86_64          = (1 << 1),
-	NMD_X86_INSTRUCTION_FLAGS_HAS_MODRM       = (1 << 2),
-	NMD_X86_INSTRUCTION_FLAGS_HAS_SIB         = (1 << 3),
-	NMD_X86_INSTRUCTION_FLAGS_IS_3OP_38H      = (1 << 4),
-	NMD_X86_INSTRUCTION_FLAGS_OPERAND_SIZE_64 = (1 << 5),
-	NMD_X86_INSTRUCTION_FLAGS_REPEAT_PREFIX   = (1 << 6),
-};
-
 typedef enum NMD_X86_MODE
 {
 	NMD_X86_MODE_NONE = 0, /* Invalid mode. */
@@ -287,20 +280,23 @@ typedef enum NMD_X86_MODE
 
 enum NMD_X86_OPCODE_MAP
 {
+	NMD_X86_OPCODE_MAP_NONE = 0,
 	NMD_X86_OPCODE_MAP_DEFAULT,
 	NMD_X86_OPCODE_MAP_0F,
-	NMD_X86_OPCODE_MAP_0F_38,
-	NMD_X86_OPCODE_MAP_0F_3A
+	NMD_X86_OPCODE_MAP_0F38,
+	NMD_X86_OPCODE_MAP_0F3A,
+	NMD_X86_OPCODE_MAP_0F0F
 };
 
-enum NMD_X86_INSTRUCTION_ENCODING
+enum NMD_X86_ENCODING
 {
-	NMD_X86_INSTRUCTION_ENCODING_LEGACY,  /* Legacy encoding. */
-	NMD_X86_INSTRUCTION_ENCODING_3DNOW,   /* AMD's 3DNow! extension. [TODO] */
-	NMD_X86_INSTRUCTION_ENCODING_XOP,     /* AMD's XOP(eXtended Operations) instruction set. [TODO] */
-	NMD_X86_INSTRUCTION_ENCODING_VEX,     /* Intel's VEX(vector extensions) coding scheme. [TODO] */
-	NMD_X86_INSTRUCTION_ENCODING_EVEX,    /* Intel's EVEX(Enhanced vector extension) coding scheme. [TODO] */
-	/*NMD_X86_INSTRUCTION_ENCODING_MVEX,  /* MVEX used by Intel's "Xeon Phi" ISA. */
+	NMD_X86_ENCODING_NONE = 0,
+	NMD_X86_ENCODING_LEGACY,  /* Legacy encoding. */
+	NMD_X86_ENCODING_VEX,     /* Intel's VEX(vector extensions) coding scheme. */
+	NMD_X86_ENCODING_EVEX,    /* Intel's EVEX(Enhanced vector extension) coding scheme. */
+	NMD_X86_ENCODING_3DNOW,   /* AMD's 3DNow! extension. */
+	NMD_X86_ENCODING_XOP,     /* AMD's XOP(eXtended Operations) instruction set. */
+	/*NMD_X86_ENCODING_MVEX,  /* MVEX used by Intel's "Xeon Phi" ISA. */
 };
 
 typedef struct NMD_X86Vex
@@ -2314,23 +2310,14 @@ enum NMD_X86_FPU_FLAGS
 	NMD_X86_FPU_FLAGS_C3 = (1 << 14)
 };
 
-typedef union NMD_X86InstructionFlags
-{
-	struct
-	{
-		bool valid         : 1; /* If true, the instruction is valid. */
-		bool hasModrm      : 1; /* If true, the instruction has a modrm byte. */
-		bool hasSIB        : 1; /* If true, the instruction has an SIB byte. */
-		bool hasRex        : 1; /* If true, the instruction has a REX prefix */
-		bool operandSize64 : 1; /* If true, a REX.W prefix is closer to the opcode than a operand size override prefix. */
-		bool repeatPrefix  : 1; /* If true, a 'repeat'(F3h) prefix is closer to the opcode than a 'repeat not zero'(F2h) prefix. */
-	} fields;
-	uint8_t flags;
-} NMD_X86InstructionFlags;
-
 typedef struct NMD_X86Instruction
 {
-	NMD_X86InstructionFlags flags;                         /* The instruction's flags. See the 'NMD_X86InstructionFlags' union. */
+	bool valid : 1;                                        /* If true, the instruction is valid. */
+	bool hasModrm : 1;                                     /* If true, the instruction has a modrm byte. */
+	bool hasSIB : 1;                                       /* If true, the instruction has an SIB byte. */
+	bool hasRex : 1;                                       /* If true, the instruction has a REX prefix */
+	bool operandSize64 : 1;                                /* If true, a REX.W prefix is closer to the opcode than a operand size override prefix. */
+	bool repeatPrefix : 1;                                 /* If true, a 'repeat'(F3h) prefix is closer to the opcode than a 'repeat not zero'(F2h) prefix. */
 	uint8_t mode;                                          /* The decoding mode. A member of 'NMD_X86_MODE'. */
 	uint8_t length;                                        /* The instruction's length in bytes. */
 	uint8_t opcode;                                        /* Opcode byte. */

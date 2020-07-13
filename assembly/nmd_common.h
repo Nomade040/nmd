@@ -51,6 +51,7 @@ const uint8_t op1imm8[13];
 const uint8_t op1imm32[7];
 const uint8_t invalid2op[7];
 const uint8_t twoOpcodes[6];
+const uint8_t valid3DNowOpcodes[24];
 
 bool nmd_findByte(const uint8_t* arr, const size_t N, const uint8_t x);
 
