@@ -10,7 +10,7 @@ typedef struct AssembleInfo
 
 size_t assembleReg(AssembleInfo* ai, uint8_t baseByte)
 {
-	size_t i = 0;
+	uint8_t i = 0;
 	if (ai->mode == NMD_X86_MODE_64)
 	{
 		for (i = 0; i < NMD_NUM_ELEMENTS(reg64); i++)
@@ -170,7 +170,7 @@ size_t assembleSingle(AssembleInfo* ai)
 			if (num < 0 || num > 0xff)
 				return 0;
 
-			ai->b[i++] = num;
+			ai->b[i++] = (uint8_t)num;
 
 			offset += numDigits;
 			if (ai->s[offset] == ' ')
@@ -181,13 +181,13 @@ size_t assembleSingle(AssembleInfo* ai)
 
 	/* Parse prefixes */
 	if (nmd_strstr(ai->s, "lock ") == (const char*)ai->s)
-		lockPrefix = NMD_X86_PREFIXES_LOCK, ai->s += 5;
+		lockPrefix = true, ai->s += 5;
 	else if (nmd_strstr(ai->s, "rep ") == (const char*)ai->s)
-		repeatPrefix = NMD_X86_PREFIXES_REPEAT, ai->s += 4;
+		repeatPrefix = true, ai->s += 4;
 	else if (nmd_strstr(ai->s, "repe ") == (const char*)ai->s || nmd_strstr(ai->s, "repz ") == (const char*)ai->s)
-		repeatZeroPrefix = NMD_X86_PREFIXES_REPEAT, ai->s += 5;
+		repeatZeroPrefix = true, ai->s += 5;
 	else if (nmd_strstr(ai->s, "repne ") == (const char*)ai->s || nmd_strstr(ai->s, "repnz ") == (const char*)ai->s)
-		repeatNotZeroPrefix = NMD_X86_PREFIXES_REPEAT_NOT_ZERO, ai->s += 6;
+		repeatNotZeroPrefix = true, ai->s += 6;
 
 	if (nmd_strstr(ai->s, "xacquire ") == (const char*)ai->b)
 	{
@@ -299,7 +299,7 @@ size_t assembleSingle(AssembleInfo* ai)
 			{
 				if (nmd_strcmp(ai->s, reg32[i]))
 				{
-					ai->b[0] = (*(ai->s - 4) == 'i' ? 0x40 : 0x48) + i;
+					ai->b[0] = (*(ai->s - 4) == 'i' ? 0x40 : 0x48) + (uint8_t)i;
 					return 1;
 				}
 			}
@@ -309,7 +309,7 @@ size_t assembleSingle(AssembleInfo* ai)
 				if (nmd_strcmp(ai->s, reg16[i]))
 				{
 					ai->b[0] = 0x66;
-					ai->b[1] = (*(ai->s - 4) == 'i' ? 0x40 : 0x48) + i;
+					ai->b[1] = (*(ai->s - 4) == 'i' ? 0x40 : 0x48) + (uint8_t)i;
 					return 2;
 				}
 			}
@@ -517,14 +517,14 @@ size_t assembleSingle(AssembleInfo* ai)
 				const int64_t delta = num - ai->runtimeAddress;
 				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
 				{
-					ai->b[0] = 0x70 + i;
+					ai->b[0] = 0x70 + (uint8_t)i;
 					*(int8_t*)(ai->b + 1) = (int8_t)(delta - 2);
 					return 2;
 				}
 				else if (delta >= -(1 << 31) + 6 && delta <= ((size_t)(1) << 31) - 1 + 6)
 				{
 					ai->b[0] = 0x0f;
-					ai->b[1] = 0x80 + i;
+					ai->b[1] = 0x80 + (uint8_t)i;
 					*(int32_t*)(ai->b + 2) = (int32_t)(delta - 6);
 					return 6;
 				}

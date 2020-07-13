@@ -46,6 +46,12 @@ const char* const escapeOpcodesDD[8];
 const char* const escapeOpcodesDF[8];
 const char* const* escapeOpcodes[8];
 
+const uint8_t op1modrm[16];
+const uint8_t op1imm8[13];
+const uint8_t op1imm32[7];
+const uint8_t invalid2op[7];
+const uint8_t twoOpcodes[6];
+
 bool nmd_findByte(const uint8_t* arr, const size_t N, const uint8_t x);
 
 /* Returns a pointer to the first occurrence of 'c' in 's', or a null pointer if 'c' is not present. */

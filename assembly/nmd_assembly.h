@@ -51,13 +51,14 @@ Enabling and disabling features of the decoder:
 To dynamically choose which features are used by the decoder, use the 'featureFlags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
 faster the decoder runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
 the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
- - 'NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK': the decoder does not check if the instruction is valid.
+ - 'NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK': the decoder does not check if the instruction is invalid.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID': the decoder does not fill the 'id' variable.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS': the decoder does not fill the 'cpuFlags' variable.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS': the decoder does not fill the 'numOperands' and 'operands' variable.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_GROUP': the decoder does not fill the 'group' variable.
- - 'NMD_ASSEMBLY_DISABLE_DECODER_VEX': the assembler and decoder do not support VEX instructions.
- - 'NMD_ASSEMBLY_DISABLE_DECODER_EVEX': the assembler and decoder do not support EVEX instructions.
+ - 'NMD_ASSEMBLY_DISABLE_DECODER_VEX': the decoder does not support VEX instructions.
+ - 'NMD_ASSEMBLY_DISABLE_DECODER_EVEX': the decoder does not support EVEX instructions.
+ - 'NMD_ASSEMBLY_DISABLE_DECODER_3DNOW': the decoder does not support 3DNow! instructions.
 
 Enabling and disabling features of the formatter:
 To dynamically choose which features are used by the formatter, use the 'formatFlags' parameter of nmd_x86_format_instruction(). The less features specified in the mask, the
@@ -69,6 +70,11 @@ the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' i
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_UPPERCASE: the formatter does not support uppercase.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES: the formatter does not support comma spaces.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_OPERATOR_SPACES: the formatter does not support operator spaces.
+
+Enabling and disabling feature of the length disassembler:
+Use the following macros to disable features at compile-time:
+ - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK': the length disassembler does not check if the instruction is invalid.
+ - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VEX': the length disassembler does not support VEX instructions.
 
 TODO:
  Short-Term
@@ -84,6 +90,7 @@ References:
    - Chapter 3-5 Instruction set reference.
    - Appendix A Opcode Map.
    - Appendix B.16 Instruction and Formats and Encoding.
+ - 3DNow! Technology Manual.
  - Intel Architecture Instruction Set Extensions and Future Features Programming Reference.
  - Capstone Engine.
  - Zydis Disassembler.
@@ -2464,6 +2471,15 @@ Parameters:
   count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
 */
 size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uint64_t runtimeAddress, NMD_X86_MODE mode, size_t* const count);
+
+/*
+Returns the instruction's length if it's valid, zero otherwise.
+Parameters:
+  buffer     [in] A pointer to a buffer containing a encoded instruction.
+  bufferSize [in] The buffer's size in bytes.
+  mode       [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+*/
+size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode);
 
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
