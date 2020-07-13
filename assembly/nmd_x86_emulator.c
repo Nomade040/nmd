@@ -42,10 +42,9 @@ void* getRealAddress(const NMD_X86Cpu* const cpu, uint64_t address)
 }
 
 /*
-Emulates x86 code. It might be a good idea to clear(i.e. memset(&cpu, 0, sizeof(cpu) ) the 'cpu'.
-If you wish to use the stack, you have to change the esp register and set it to the stack's address.
-Before calling this function you must fill the following variables of 'NMD_X86Cpu':
- - mode: A member of 'NMD_X86_MODE'.
+Emulates x86 code. If you wish to use the stack, you have to change the esp register and set it to the stack's address.
+Before calling this function you must fill the following variables of 'NMD_X86Cpu'(cpu):
+ - mode: The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - memoryBlock: A pointer to a block of memory. You may use a buffer on the stack, on the heap or wherever you want.
  - memoryBlockSize: The size of the memory block in bytes.
  - address: The base address of the memory block. This address can be any value.
@@ -75,7 +74,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const uint64_t entryPoint, const siz
 
 		NMD_X86Instruction instruction;
 		const uintptr_t relativeAddress = (cpu->rip - cpu->address);
-		if (!nmd_x86_decode_buffer((uint8_t*)cpu->memoryBlock + relativeAddress, endAddress - relativeAddress, &instruction, cpu->mode, NMD_X86_FEATURE_FLAGS_MINIMAL))
+		if (!nmd_x86_decode_buffer((uint8_t*)cpu->memoryBlock + relativeAddress, endAddress - relativeAddress, &instruction, cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
 			break;
 
 		cpu->rip += instruction.length;

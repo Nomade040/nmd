@@ -162,8 +162,8 @@ typedef unsigned long long uint64_t;
 #define NMD_X86_MAXIMUM_INSTRUCTION_LENGTH 15
 #define NMD_X86_MAXIMUM_NUM_OPERANDS 4
 
-/* These format flags specify how a string that represents an instruction should be constructed. */
-enum NMD_X86_FORMAT_FLAGS
+/* These flags specify how the formatter should work. */
+enum NMD_X86_FORMATTER_FEATURES
 {
 	NMD_X86_FORMAT_FLAGS_HEX                       = (1 << 0),  /* If set, numbers are displayed in hex base, otherwise they are displayed in decimal base. */
 	NMD_X86_FORMAT_FLAGS_POINTER_SIZE              = (1 << 1),  /* Pointer sizes(e.g. 'dword ptr', 'byte ptr') are displayed. */
@@ -186,20 +186,21 @@ enum NMD_X86_FORMAT_FLAGS
 	NMD_X86_FORMAT_FLAGS_DEFAULT  = (NMD_X86_FORMAT_FLAGS_HEX | NMD_X86_FORMAT_FLAGS_H_SUFFIX | NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW | NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC),
 };
 
-enum NMD_X86_FEATURE_FLAGS
+enum NMD_X86_DECODER_FLAGS
 {
-	NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK = (1 << 0), /* The decoder checks if the instruction is valid. */
-	NMD_X86_FEATURE_FLAGS_INSTRUCTION_ID = (1 << 1), /* The decoder fills the 'id' variable. */
-	NMD_X86_FEATURE_FLAGS_CPU_FLAGS      = (1 << 2), /* The decoder fills the 'cpuFlags' variable. */
-	NMD_X86_FEATURE_FLAGS_OPERANDS       = (1 << 3), /* The decoder fills the 'numOperands' and 'operands' variable. */
-	NMD_X86_FEATURE_FLAGS_GROUP          = (1 << 4), /* The decoder fills 'group' variable. */
-	NMD_X86_FEATURE_FLAGS_VEX            = (1 << 5), /* VEX instructions are parsed. */
-	NMD_X86_FEATURE_FLAGS_EVEX           = (1 << 6), /* EVEX instructions are parsed. */
+	NMD_X86_DECODER_FLAGS_VALIDITY_CHECK = (1 << 0), /* The decoder checks if the instruction is valid. */
+	NMD_X86_DECODER_FLAGS_INSTRUCTION_ID = (1 << 1), /* The decoder fills the 'id' variable. */
+	NMD_X86_DECODER_FLAGS_CPU_FLAGS      = (1 << 2), /* The decoder fills the 'cpuFlags' variable. */
+	NMD_X86_DECODER_FLAGS_OPERANDS       = (1 << 3), /* The decoder fills the 'numOperands' and 'operands' variable. */
+	NMD_X86_DECODER_FLAGS_GROUP          = (1 << 4), /* The decoder fills 'group' variable. */
+	NMD_X86_DECODER_FLAGS_VEX            = (1 << 5), /* The decoder parses VEX instructions. */
+	NMD_X86_DECODER_FLAGS_EVEX           = (1 << 6), /* The decoder parses EVEX instructions. */
+	NMD_X86_DECODER_FLAGS_3DNOW          = (1 << 7), /* The decoder parses 3DNow! instructions. */
 
 	/* These are not actual features, but rather masks of features. */
-	NMD_X86_FEATURE_FLAGS_NONE    = 0,
-	NMD_X86_FEATURE_FLAGS_MINIMAL = (NMD_X86_FEATURE_FLAGS_VALIDITY_CHECK | NMD_X86_FEATURE_FLAGS_VEX | NMD_X86_FEATURE_FLAGS_EVEX), /* Mask that specifies minimal features to provide acurate results in any environment. */
-	NMD_X86_FEATURE_FLAGS_ALL     = (1 << 7) - 1, /* Mask that specifies all features. */
+	NMD_X86_DECODER_FLAGS_NONE    = 0,
+	NMD_X86_DECODER_FLAGS_MINIMAL = (NMD_X86_DECODER_FLAGS_VALIDITY_CHECK | NMD_X86_DECODER_FLAGS_VEX | NMD_X86_DECODER_FLAGS_EVEX), /* Mask that specifies minimal features to provide acurate results in any environment. */
+	NMD_X86_DECODER_FLAGS_ALL     = (1 << 8) - 1, /* Mask that specifies all features. */
 };
 
 enum NMD_X86_PREFIXES
@@ -2484,13 +2485,13 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
-  buffer       [in]  A pointer to a buffer containing a encoded instruction.
-  bufferSize   [in]  The buffer's size in bytes.
-  instruction  [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
-  mode         [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-  featureFlags [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_FEATURE_FLAGS_MINIMAL'.
+  buffer      [in]  A pointer to a buffer containing a encoded instruction.
+  bufferSize  [in]  The buffer's size in bytes.
+  instruction [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+  mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+  flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
 */
-bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t featureFlags);
+bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
@@ -2503,10 +2504,9 @@ Parameters:
 void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
 
 /*
-Emulates x86 code. It might be a good idea to clear(i.e. memset(&cpu, 0, sizeof(cpu) ) the 'cpu'.
-If you wish to use the stack, you have to change the esp register and set it to the stack's address.
-Before calling this function you must fill the following variables of 'NMD_X86Cpu':
- - mode: A member of 'NMD_X86_MODE'.
+Emulates x86 code. If you wish to use the stack, you have to change the esp register and set it to the stack's address.
+Before calling this function you must fill the following variables of 'NMD_X86Cpu'(cpu):
+ - mode: The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - memoryBlock: A pointer to a block of memory. You may use a buffer on the stack, on the heap or wherever you want.
  - memoryBlockSize: The size of the memory block in bytes.
  - address: The base address of the memory block. This address can be any value.
@@ -2516,16 +2516,5 @@ Parameters:
   maxCount   [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
 */
 bool nmd_x86_emulate(NMD_X86Cpu* const cpu, uint64_t entryPoint, const size_t maxCount);
-
-/*
-Decompiles a sequence of instructions into source code in C.
-Parameters:
-  instructions    [in]  A pointer to an array of 'NMD_X86Instruction'.
-  numInstructions [in]  The number of elements in the 'instructions' array.
-  buffer          [out] A pointer to a buffer that recieves the source code.
-*/
-/*
-void nmd_x86_decompile(const NMD_X86Instruction instructions[], size_t numInstructions, char buffer[]);
-*/
 
 #endif /* NMD_ASSEMBLY_H */
