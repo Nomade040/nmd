@@ -80,7 +80,7 @@ TEST(FirstTest, TestAllInstructions)
 		SCOPED_TRACE("INDEX=" + std::to_string(i));
 
 		// Test decoder
-		EXPECT_EQ(nmd_x86_decode_buffer(&instructions[i].i.buffer, instructions[i].i.length, &instruction, (NMD_X86_MODE)instructions[i].i.mode, NMD_X86_FEATURE_FLAGS_ALL), instructions[i].i.flags.fields.valid);
+		EXPECT_EQ(nmd_x86_decode_buffer(&instructions[i].i.buffer, instructions[i].i.length, &instruction, (NMD_X86_MODE)instructions[i].i.mode, NMD_X86_DECODER_FLAGS_ALL), instructions[i].i.flags.fields.valid);
 		if (instructions[i].i.flags.fields.valid)
 		{
 			// Test decoder
