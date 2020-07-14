@@ -42,4 +42,4 @@ namespace nmd
 
 #endif // NMD_GRAPHICS_OPENGL
 
-} // namespace
+} // namespace nmd

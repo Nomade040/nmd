@@ -19,11 +19,8 @@ Supported rendering APIs: Direct3D 9(D3D9), Direct3D 11(D3D11).
 To use a specific rendering api define the macro 'NMD_GRAPHICS_{RENDERING API}' before including "nmd_graphics.hpp".
 
 Usage:
-
- - Windows:
-    - Call nmd::Win32Init() on initialization.
-    - Call nmd::WindowProc() in the window's procedure.
-
+ - General:
+    - Call api functions between nmd::Begin() and nmd::End()
  - D3D9:
     - Call nmd::D3D9SetDevice() on initialization.
     - Call nmd::D3D9Render() after nmd::End().
