@@ -234,17 +234,19 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 				if (remainingSize < 5)
 					return false;
 
-				//if (!parseModrm(&b, instruction, remainingSize - 2))
-				//	return false;
-				//
-				//instruction->encoding = NMD_X86_ENCODING_3DNOW;
-				//instruction->opcode = 0x0f;
-				//instruction->immMask = NMD_X86_IMM8; /* The real opcode is encoded as the immediate byte. */
-				//instruction->immediate = *(b + 1);
+				/*
+				if (!parseModrm(&b, instruction, remainingSize - 2))
+					return false;
+				
+				instruction->encoding = NMD_X86_ENCODING_3DNOW;
+				instruction->opcode = 0x0f;
+				instruction->immMask = NMD_X86_IMM8; 
+				instruction->immediate = *(b + 1);
+				*/
 
 #ifndef NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK
-				//if (!nmd_findByte(valid3DNowOpcodes, sizeof(valid3DNowOpcodes), (uint8_t)instruction->immediate))
-				//	return false;
+				/*if (!nmd_findByte(valid3DNowOpcodes, sizeof(valid3DNowOpcodes), (uint8_t)instruction->immediate))
+					return false;*/
 #endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK */
 #else /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW */
 			return false;
