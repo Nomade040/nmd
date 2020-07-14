@@ -36,45 +36,40 @@ bool isParityEven8(uint8_t x)
 	return !(x & 1);
 }
 
-void* getRealAddress(const NMD_X86Cpu* const cpu, uint64_t address)
-{
-	return (uint8_t*)cpu->memoryBlock + (address - cpu->address);
-}
+#define NMD_GET_PHYSICAL_ADDRESS(address) (uint8_t*)((uint64_t)(cpu->physicalMemory)+(address-cpu->virtualAddress))
 
 /*
-Emulates x86 code. If you wish to use the stack, you have to change the esp register and set it to the stack's address.
-Before calling this function you must fill the following variables of 'NMD_X86Cpu'(cpu):
- - mode: The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
- - memoryBlock: A pointer to a block of memory. You may use a buffer on the stack, on the heap or wherever you want.
- - memoryBlockSize: The size of the memory block in bytes.
- - address: The base address of the memory block. This address can be any value.
+Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
+function: 'cpu->mode', 'cpu->physicalMemory', 'cpu->physicalMemorySize', 'cpu->virtualAddress' and 'cpu->rip'.
+You may optionally initialize 'cpu->rsp' if a stack is desirable. Below is a short description of each variable:
+ - 'cpu->mode': The emulator's operating architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+ - 'cpu->physicalMemory': A pointer to a buffer used as the emulator's memory.
+ - 'cpu->physicalMemorySize': The size of the buffer pointer by 'physicalMemory' in bytes.
+ - 'cpu->virtualAddress': The starting address of the emulator's virtual address space.
+ - 'cpu->rip': The virtual address where emulation starts.
+ - 'cpu->rsp': The virtual address of the bottom of the stack.
 Parameters:
-  cpu        [in] A pointer to a variable of type 'NMD_X86CpuState' that holds the cpu's state.
-  entryPoint [in] The address where emulation starts.
-  maxCount   [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
+ - cpu      [in] A pointer to a variable of type 'NMD_X86Cpu' that holds the state of the cpu.
+ - maxCount [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const uint64_t entryPoint, const size_t maxCount)
+bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 {
 	if (cpu->mode == NMD_X86_MODE_NONE)
 		return false;
 
-	const uintptr_t endAddress = cpu->address + cpu->memoryBlockSize;
-	if (!(entryPoint >= cpu->address && entryPoint <= endAddress))
-		return false;
-
-	cpu->rip = entryPoint;
+	const uint64_t endVirtualAddress = cpu->virtualAddress + cpu->physicalMemorySize;
 	size_t count = 0;
-
 	cpu->running = true;
 
-	while (cpu->rip < endAddress && cpu->running)
+	while (cpu->rip >= cpu->virtualAddress && cpu->rip < endVirtualAddress && cpu->running)
 	{
-		NMD_X86Register* r0 = 0; /* first operand(register) */
-		NMD_X86Register* r1 = 0; /* second operand(register) */
+		NMD_X86Register* r0; /* first operand(register) */
+		NMD_X86Register* r1; /* second operand(register) */
 
 		NMD_X86Instruction instruction;
-		const uintptr_t relativeAddress = (cpu->rip - cpu->address);
-		if (!nmd_x86_decode_buffer((uint8_t*)cpu->memoryBlock + relativeAddress, endAddress - relativeAddress, &instruction, cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
+		
+		const uint64_t relativeAddress = (cpu->rip - cpu->virtualAddress);
+		if (!nmd_x86_decode_buffer((uint8_t*)cpu->physicalMemory + relativeAddress, endVirtualAddress - cpu->rip, &instruction, cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
 			break;
 
 		cpu->rip += instruction.length;
@@ -99,20 +94,35 @@ bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const uint64_t entryPoint, const siz
 			else if (NMD_R(instruction.opcode) == 4) /* inc/dec [40,4f] */
 			{
 				r0 = &cpu->rax + (instruction.opcode % 8);
-				if (instruction.opcode >= 0x48)
-					r0->l64--;
-				else
+				if (instruction.opcode < 0x48) /* inc */
 					r0->l64++;
+				else /* dec */
+					r0->l64--;
 			}
 			else if (NMD_R(instruction.opcode) == 5) /* push,pop [50,5f] */
 			{
 				r0 = &cpu->rax + (instruction.opcode % 8);
-				cpu->rsp.l64 -= (int)cpu->mode;
-				void* addr = getRealAddress(cpu, cpu->rsp.l64);
-				if (instruction.opcode >= 0x58)
-					r0->l64--;
-				else
-					r0->l64++;
+				void* dst, *src;
+
+				if (instruction.opcode < 0x58) /* push */
+				{
+					cpu->rsp.l64 -= (int8_t)cpu->mode;
+					dst = NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64);
+					src = r0;
+				}
+				else /* pop */
+				{
+					src = NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64);
+					cpu->rsp.l64 += (int8_t)cpu->mode;
+					dst = r0;
+				}
+
+				if (cpu->mode == NMD_X86_MODE_32)
+					*(uint32_t*)(dst) = *(uint32_t*)(src);
+				else if (cpu->mode == NMD_X86_MODE_64)
+					*(uint64_t*)(dst) = *(uint64_t*)(src);
+				else /* if (cpu->mode == NMD_X86_MODE_32) */
+					*(uint16_t*)(dst) = *(uint16_t*)(src);
 			}
 			else if (NMD_R(instruction.opcode) == 7 && check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r8 */
 				cpu->rip += (int8_t)(instruction.immediate);
@@ -124,7 +134,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const uint64_t entryPoint, const siz
 				*r0 = tmp;
 				r0 = 0; /* Prevent flag modification */
 			}
-			else if (instruction.opcode == 0xf4) /* HLT */
+			else if (instruction.opcode == 0xf4) /* hlt */
 				break;
 		}
 		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F)
@@ -141,12 +151,14 @@ bool nmd_x86_emulate(NMD_X86Cpu* const cpu, const uint64_t entryPoint, const siz
 
 		}
 
+		/*
 		if (r0)
 		{
 			cpu->flags.fields.ZF = (r0->l64 == 0);
 			cpu->flags.fields.PF = isParityEven8(r0->l8);
-			/* OF,SF,CF*/
+			
 		}
+		*//* OF,SF,CF*/
 
 		if (maxCount > 0 && ++count >= maxCount)
 			return true;

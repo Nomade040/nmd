@@ -575,12 +575,12 @@ char* formatOperandToAtt(char* operand, StringInfo* si)
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 Parameters:
-  instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
-  buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
-  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
+ - instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
+ - buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
+ - runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+ - formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
-void nmd_x86_format_instruction(const NMD_X86Instruction* const instruction, char buffer[], const uint64_t runtimeAddress, const uint32_t formatFlags)
+void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char* buffer, uint64_t runtimeAddress, uint32_t formatFlags)
 {
 	if (!instruction->valid)
 		return;

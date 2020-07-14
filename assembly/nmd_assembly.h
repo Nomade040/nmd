@@ -1,4 +1,4 @@
-/* This is a platform independent C89 x86 assembler(in development), disassembler(almost done) and emulator(in development) library.
+/* This is a platform independent C89 x86 assembler(in development), disassembler(almost done), emulator(in development) and length disassembler library.
 
 Features:
  - Suppport for Intel and AT&T syntax.
@@ -13,6 +13,10 @@ Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the inc
 #define NMD_ASSEMBLY_IMPLEMENTATION
 #include "nmd_assembly.h"
 
+Using absolutely no dependencies(other headers...):
+Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
+Be aware: This feature uses platform dependent macros.
+
 Interfaces(a.k.a the functions you call from your application):
  - The assembler is represented by the following function:
     Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
@@ -22,30 +26,49 @@ Interfaces(a.k.a the functions you call from your application):
      - bufferSize     [in]         The size of the buffer in bytes.
      - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
      - mode           [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-     - count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
+     - count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be zero.
     size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uint64_t runtimeAddress, NMD_X86_MODE mode, size_t* const count);
- 
+
  - The disassembler is composed of a decoder and a formatter represented by these two functions respectively:
-    Decodes an instruction. Returns true if the instruction is valid, false otherwise.
-    Parameters:
-     - buffer       [in]  A pointer to a buffer containing a encoded instruction.
-     - bufferSize   [in]  The buffer's size in bytes.
-     - instruction  [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
-     - mode         [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-     - featureFlags [in]  A mask of 'NMD_X86_FEATURE_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_FEATURE_FLAGS_MINIMAL'.
-    bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t featureFlags);
+	- Decodes an instruction. Returns true if the instruction is valid, false otherwise.
+      Parameters:
+       - buffer      [in]  A pointer to a buffer containing a encoded instruction.
+       - bufferSize  [in]  The buffer's size in bytes.
+       - instruction [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+       - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+       - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
+      bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
 
-    Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
-    Parameters:
-     - instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
-     - buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
-     - runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-     - formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
-    void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
+    - Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
+      Parameters:
+       - instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
+       - buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
+       - runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+       - formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
+      void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
 
-Using absolutely no dependencies(other headers...):
-Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
-Be aware: This macro uses platform dependent macros. 
+ - The emulator is represented by the following function:
+    Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
+    function: 'cpu->mode', 'cpu->physicalMemory', 'cpu->physicalMemorySize', 'cpu->virtualAddress' and 'cpu->rip'.
+    You may optionally initialize 'cpu->rsp' if a stack is desirable. Below is a short description of each variable:
+     - 'cpu->mode': The emulator's operating architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+     - 'cpu->physicalMemory': A pointer to a buffer used as the emulator's memory.
+     - 'cpu->physicalMemorySize': The size of the buffer pointer by 'physicalMemory' in bytes.
+     - 'cpu->virtualAddress': The starting address of the emulator's virtual address space.
+     - 'cpu->rip': The virtual address where emulation starts.
+     - 'cpu->rsp': The virtual address of the bottom of the stack.
+    Parameters:
+     - cpu      [in] A pointer to a variable of type 'NMD_X86Cpu' that holds the state of the cpu.
+     - maxCount [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
+    bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount);
+
+ - The length disassembler is represented by the following function:
+    Returns the instruction's length if it's valid, zero otherwise.
+    Parameters:
+     - buffer     [in] A pointer to a buffer containing a encoded instruction.
+     - bufferSize [in] The buffer's size in bytes.
+     - mode       [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+    size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode);
 
 Enabling and disabling features of the decoder:
 To dynamically choose which features are used by the decoder, use the 'flags' parameter of nmd_x86_decode_buffer(). The less features specified in the mask, the
@@ -78,13 +101,14 @@ Enabling and disabling feature of the length disassembler:
 Use the following macros to disable features at compile-time:
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK': the length disassembler does not check if the instruction is invalid.
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VEX': the length disassembler does not support VEX instructions.
+ - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW': the length disassembler does not support 3DNow! instructions.
 
 TODO:
  Short-Term
   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
-  - Implement x86 Assembler.
+  - Implement x86 assembler and emulator.
  Long-Term
-  - Implement decompiler and emulator for x86.
+  - Implement decompiler.
   - Add support for other architectures(ARM, MIPS and PowerPC ?).
 
 References:
@@ -2368,13 +2392,14 @@ typedef struct NMD_X86Cpu
 {
 	bool running; /* If true, the emulator is running, false otherwise. */
 
-	NMD_X86_MODE mode; /* Emulation mode. A member of 'NMD_X86_MODE'. */
+	NMD_X86_MODE mode; /* The emulator's architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'. */
 
-	void* memoryBlock; /* A pointer to a block of memory used as the emulator's virtual address space. */
-	size_t memoryBlockSize; /* The size of the memory block in bytes. */
-	uint64_t address; /* The block's base address. */
+	void* physicalMemory; /* A pointer to a buffer used as the emulator's memory. */
+	size_t physicalMemorySize; /* The size of the buffer pointer by 'physicalMemory' in bytes. */
 
-	uint64_t rip;
+	uint64_t virtualAddress; /* The starting address of the emulator's virtual address space. This address can be any value. */
+
+	uint64_t rip; /* The address of the next instruction to be executed(emulated). */
 
 	NMD_X86CpuFlags flags;
 
@@ -2451,57 +2476,59 @@ typedef struct NMD_X86Cpu
 /*
 Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
 Parameters:
-  string         [in]         A pointer to a string that represents a instruction in assembly language.
-  buffer         [out]        A pointer to a buffer that receives the encoded instructions.
-  bufferSize     [in]         The size of the buffer in bytes.
-  runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  mode           [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-  count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
+ - string         [in]         A pointer to a string that represents a instruction in assembly language.
+ - buffer         [out]        A pointer to a buffer that receives the encoded instructions.
+ - bufferSize     [in]         The size of the buffer in bytes.
+ - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+ - mode           [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+ - count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be zero.
 */
-size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uint64_t runtimeAddress, NMD_X86_MODE mode, size_t* const count);
-
-/*
-Returns the instruction's length if it's valid, zero otherwise.
-Parameters:
-  buffer     [in] A pointer to a buffer containing a encoded instruction.
-  bufferSize [in] The buffer's size in bytes.
-  mode       [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-*/
-size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode);
+size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uint64_t runtimeAddress, NMD_X86_MODE mode, size_t* count);
 
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
-  buffer      [in]  A pointer to a buffer containing a encoded instruction.
-  bufferSize  [in]  The buffer's size in bytes.
-  instruction [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
-  mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-  flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
+ - buffer      [in]  A pointer to a buffer containing a encoded instruction.
+ - bufferSize  [in]  The buffer's size in bytes.
+ - instruction [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+ - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+ - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
 */
 bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 Parameters:
-  instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
-  buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
-  runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
+ - instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
+ - buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
+ - runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+ - formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
-void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
+void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char* buffer, uint64_t runtimeAddress, uint32_t formatFlags);
 
 /*
-Emulates x86 code. If you wish to use the stack, you have to change the esp register and set it to the stack's address.
-Before calling this function you must fill the following variables of 'NMD_X86Cpu'(cpu):
- - mode: The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
- - memoryBlock: A pointer to a block of memory. You may use a buffer on the stack, on the heap or wherever you want.
- - memoryBlockSize: The size of the memory block in bytes.
- - address: The base address of the memory block. This address can be any value.
+Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
+function: 'cpu->mode', 'cpu->physicalMemory', 'cpu->physicalMemorySize', 'cpu->virtualAddress' and 'cpu->rip'.
+You may optionally initialize 'cpu->rsp' if a stack is desirable. Below is a short description of each variable:
+ - 'cpu->mode': The emulator's operating architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+ - 'cpu->physicalMemory': A pointer to a buffer used as the emulator's memory.
+ - 'cpu->physicalMemorySize': The size of the buffer pointer by 'physicalMemory' in bytes.
+ - 'cpu->virtualAddress': The starting address of the emulator's virtual address space.
+ - 'cpu->rip': The virtual address where emulation starts.
+ - 'cpu->rsp': The virtual address of the bottom of the stack.
 Parameters:
-  cpu        [in] A pointer to a variable of type 'NMD_X86CpuState' that holds the cpu's state.
-  entryPoint [in] The address where emulation starts.
-  maxCount   [in] The maximum number of instruction to be executed, or 0(zero) for unlimited instructions.
+ - cpu      [in] A pointer to a variable of type 'NMD_X86Cpu' that holds the state of the cpu.
+ - maxCount [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-bool nmd_x86_emulate(NMD_X86Cpu* const cpu, uint64_t entryPoint, const size_t maxCount);
+bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount);
+
+/*
+Returns the instruction's length if it's valid, zero otherwise.
+Parameters:
+ - buffer     [in] A pointer to a buffer containing a encoded instruction.
+ - bufferSize [in] The buffer's size in bytes.
+ - mode       [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+*/
+size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode);
 
 #endif /* NMD_ASSEMBLY_H */

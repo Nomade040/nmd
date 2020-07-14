@@ -62,9 +62,9 @@ bool ldisasm_parseModrm(const uint8_t** b, bool addressPrefix, NMD_X86_MODE mode
 /*
 Returns the instruction's length if it's valid, zero otherwise.
 Parameters:
-  buffer     [in] A pointer to a buffer containing a encoded instruction.
-  bufferSize [in] The buffer's size in bytes.
-  mode       [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+ - buffer     [in] A pointer to a buffer containing a encoded instruction.
+ - bufferSize [in] The buffer's size in bytes.
+ - mode       [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
 */
 size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 {
@@ -227,6 +227,28 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 					return 0;
 #endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK */
 			}
+		}
+		else if (*b == 0x0f) /* 3DNow! opcode map*/
+		{
+#ifndef NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW
+				if (remainingSize < 5)
+					return false;
+
+				//if (!parseModrm(&b, instruction, remainingSize - 2))
+				//	return false;
+				//
+				//instruction->encoding = NMD_X86_ENCODING_3DNOW;
+				//instruction->opcode = 0x0f;
+				//instruction->immMask = NMD_X86_IMM8; /* The real opcode is encoded as the immediate byte. */
+				//instruction->immediate = *(b + 1);
+
+#ifndef NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK
+				//if (!nmd_findByte(valid3DNowOpcodes, sizeof(valid3DNowOpcodes), (uint8_t)instruction->immediate))
+				//	return false;
+#endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK */
+#else /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW */
+			return false;
+#endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW */
 		}
 		else /* 2 byte opcode. */
 		{
