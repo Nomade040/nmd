@@ -55,6 +55,8 @@ const uint8_t valid3DNowOpcodes[24];
 
 bool nmd_findByte(const uint8_t* arr, const size_t N, const uint8_t x);
 
+void nmd_memcpy(void* dst, void* src, size_t size);
+
 /* Returns a pointer to the first occurrence of 'c' in 's', or a null pointer if 'c' is not present. */
 const char* nmd_strchr(const char* s, char c);
 

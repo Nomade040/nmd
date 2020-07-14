@@ -546,14 +546,14 @@ size_t assembleSingle(AssembleInfo* ai)
 /*
 Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
 Parameters:
-  string         [in]         A pointer to a string that represents a instruction in assembly language.
-  buffer         [out]        A pointer to a buffer that receives the encoded instructions.
-  bufferSize     [in]         The size of the buffer in bytes.
-  runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
-  mode           [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-  count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
+ - string         [in]         A pointer to a string that represents a instruction in assembly language.
+ - buffer         [out]        A pointer to a buffer that receives the encoded instructions.
+ - bufferSize     [in]         The size of the buffer in bytes.
+ - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+ - mode           [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
+ - count          [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
 */
-size_t nmd_x86_assemble(const char* string, void* const buffer, const size_t bufferSize, const uint64_t runtimeAddress, const NMD_X86_MODE mode, size_t* const count)
+size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uint64_t runtimeAddress, NMD_X86_MODE mode, size_t* count)
 {
 	char parsedString[128];
 	const uint8_t* const bufferEnd = (uint8_t*)buffer + bufferSize;
