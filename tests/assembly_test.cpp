@@ -74,7 +74,7 @@ TEST(FirstTest, TestAllInstructions)
 	// Test all instructions in the array above.
 	for (size_t i = 0; i < NMD_NUM_ELEMENTS(instructions); i++)
 	{
-		SCOPED_TRACE("INDEX=" + std::to_string(i));
+		SCOPED_TRACE("INDEX:" + std::to_string(i) + '(' + instructions[i].s + ')');
 
 		// Test decoder
 		EXPECT_EQ(nmd_x86_decode_buffer(&instructions[i].i.buffer, instructions[i].i.length, &instruction, (NMD_X86_MODE)instructions[i].i.mode, NMD_X86_DECODER_FLAGS_ALL), instructions[i].i.valid);

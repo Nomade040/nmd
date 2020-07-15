@@ -2342,7 +2342,7 @@ typedef struct NMD_X86Instruction
 	bool hasRex : 1;                                       /* If true, the instruction has a REX prefix */
 	bool operandSize64 : 1;                                /* If true, a REX.W prefix is closer to the opcode than a operand size override prefix. */
 	bool repeatPrefix : 1;                                 /* If true, a 'repeat'(F3h) prefix is closer to the opcode than a 'repeat not zero'(F2h) prefix. */
-	uint8_t mode : 2;                                      /* The decoding mode. A member of 'NMD_X86_MODE'. */
+	uint8_t mode;                                          /* The decoding mode. A member of 'NMD_X86_MODE'. */
 	uint8_t length;                                        /* The instruction's length in bytes. */
 	uint8_t opcode;                                        /* Opcode byte. */
 	uint8_t opcodeSize;                                    /* The opcode's size in bytes. */
