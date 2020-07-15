@@ -155,7 +155,7 @@ typedef signed long long   int64_t;
 typedef unsigned long long uint64_t;
 
 #if defined(_WIN64) && defined(_MSC_VER)
-	typedef unsigned __int64 size_t
+	typedef unsigned __int64 size_t;
 	typedef __int64          ptrdiff_t;
 #elif (defined(_WIN32) || defined(WIN32)) && defined(_MSC_VER)
 	typedef unsigned __int32 size_t
@@ -2342,7 +2342,7 @@ typedef struct NMD_X86Instruction
 	bool hasRex : 1;                                       /* If true, the instruction has a REX prefix */
 	bool operandSize64 : 1;                                /* If true, a REX.W prefix is closer to the opcode than a operand size override prefix. */
 	bool repeatPrefix : 1;                                 /* If true, a 'repeat'(F3h) prefix is closer to the opcode than a 'repeat not zero'(F2h) prefix. */
-	uint8_t mode;                                          /* The decoding mode. A member of 'NMD_X86_MODE'. */
+	uint8_t mode : 2;                                      /* The decoding mode. A member of 'NMD_X86_MODE'. */
 	uint8_t length;                                        /* The instruction's length in bytes. */
 	uint8_t opcode;                                        /* Opcode byte. */
 	uint8_t opcodeSize;                                    /* The opcode's size in bytes. */
@@ -2404,14 +2404,14 @@ typedef struct NMD_X86Cpu
 {
 	bool running; /* If true, the emulator is running, false otherwise. */
 
-	NMD_X86_MODE mode; /* The emulator's architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'. */
+	uint8_t mode; /* The emulator's architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'. */
 
 	void* physicalMemory; /* A pointer to a buffer used as the emulator's memory. */
 	size_t physicalMemorySize; /* The size of the buffer pointer by 'physicalMemory' in bytes. */
 
 	uint64_t virtualAddress; /* The starting address of the emulator's virtual address space. This address can be any value. */
 
-	void (*callback)(struct NMD_X86Cpu* cpu, NMD_X86_EMULATOR_EXCEPTION exception, int);
+	void (*callback)(struct NMD_X86Cpu* cpu, const NMD_X86Instruction* instruction, NMD_X86_EMULATOR_EXCEPTION exception);
 
 	void* userdata;
 
