@@ -35,7 +35,7 @@ bool ldisasm_parseModrm(const uint8_t** b, bool addressPrefix, NMD_X86_MODE mode
 		else
 		{
 			/* Check for SIB byte */
-			uint8_t sib;
+			uint8_t sib = 0;
 			if (modrm.modrm < 0xC0 && modrm.fields.rm == 0b100 && (!addressPrefix || (addressPrefix && mode == NMD_X86_MODE_64)))
 			{
 				if (remainingSize < 2)
@@ -77,11 +77,11 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 	bool rexW = false;
 	bool lockPrefix = false;
 	uint16_t simdPrefix = NMD_X86_PREFIXES_NONE;
-	uint8_t op;
-	uint8_t opcodeSize;
+	uint8_t op = 0;
+	uint8_t opcodeSize = 0;
 
 	bool hasModrm = false;
-	NMD_Modrm modrm;
+	NMD_Modrm modrm = { 0,0,0 };
 
 	size_t offset = 0;
 

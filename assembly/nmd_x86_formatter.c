@@ -462,15 +462,15 @@ char* formatOperandToAtt(char* operand, StringInfo* si)
 	if (memoryOperand && memoryOperand < operandEnd)
 	{
 		memoryOperand++;
-		const char* segmentReg = nmd_strchr(operand, ':');
-		if (segmentReg)
+		const char* segReg = nmd_strchr(operand, ':');
+		if (segReg)
 		{
-			if (segmentReg == operand + 2)
+			if (segReg == operand + 2)
 				nmd_insert_char(operand, '%'), si->buffer++, operand += 4;
 			else
 			{
 				*operand++ = '%';
-				*operand++ = *(segmentReg - 2);
+				*operand++ = *(segReg - 2);
 				*operand++ = 's';
 				*operand++ = ':';
 			}
