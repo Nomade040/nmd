@@ -320,7 +320,7 @@ enum NMD_X86_ENCODING
 	NMD_X86_ENCODING_EVEX,    /* Intel's EVEX(Enhanced vector extension) coding scheme. */
 	NMD_X86_ENCODING_3DNOW,   /* AMD's 3DNow! extension. */
 	NMD_X86_ENCODING_XOP,     /* AMD's XOP(eXtended Operations) instruction set. */
-	/*NMD_X86_ENCODING_MVEX,  /* MVEX used by Intel's "Xeon Phi" ISA. */
+	/* NMD_X86_ENCODING_MVEX,     MVEX used by Intel's "Xeon Phi" ISA. */
 };
 
 typedef struct NMD_X86Vex

@@ -320,7 +320,7 @@ enum NMD_X86_ENCODING
 	NMD_X86_ENCODING_EVEX,    /* Intel's EVEX(Enhanced vector extension) coding scheme. */
 	NMD_X86_ENCODING_3DNOW,   /* AMD's 3DNow! extension. */
 	NMD_X86_ENCODING_XOP,     /* AMD's XOP(eXtended Operations) instruction set. */
-	/*NMD_X86_ENCODING_MVEX,  /* MVEX used by Intel's "Xeon Phi" ISA. */
+	/* NMD_X86_ENCODING_MVEX,     MVEX used by Intel's "Xeon Phi" ISA. */
 };
 
 typedef struct NMD_X86Vex
@@ -2387,11 +2387,11 @@ typedef enum NMD_X86_EMULATOR_EXCEPTION
 
 typedef union NMD_X86Register
 {
-	uint8_t  h8;
-	uint8_t  l8;
-	uint16_t l16;
-	uint32_t l32;
-	uint64_t l64;
+	int8_t  h8;
+	int8_t  l8;
+	int16_t l16;
+	int32_t l32;
+	int64_t l64;
 } NMD_X86Register;
 
 typedef union NMD_X86Register512
@@ -2883,9 +2883,9 @@ bool parseNumber(const char* string, int64_t* num, size_t* numDigits)
 			/* Return false if number is greater than 2^64-1 */
 			if (*numDigits > 16 && i >= 15)
 			{
-				if ((base == NMD_NUMBER_BASE_DECIMAL && numTemp >= 1844674407370955162) || /* ceiling((2^64-1) / 10) */
-					(base == NMD_NUMBER_BASE_HEXADECIMAL && numTemp >= 1152921504606846976) || /* *ceiling((2^64-1) / 16) */
-					(base == NMD_NUMBER_BASE_BINARY && numTemp >= 9223372036854775808)) /* ceiling((2^64-1) / 2) */
+				if ((base == NMD_NUMBER_BASE_DECIMAL && (uint64_t)numTemp >= (uint64_t)1844674407370955162) || /* ceiling((2^64-1) / 10) */
+					(base == NMD_NUMBER_BASE_HEXADECIMAL && (uint64_t)numTemp >= (uint64_t)1152921504606846976) || /* *ceiling((2^64-1) / 16) */
+					(base == NMD_NUMBER_BASE_BINARY && (uint64_t)numTemp >= (uint64_t)9223372036854775808)) /* ceiling((2^64-1) / 2) */
 				{
 					return false;
 				}
@@ -2910,7 +2910,7 @@ size_t assembleSingle(AssembleInfo* ai)
 {
 	size_t i = 0;
 
-	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false, repeatNotZeroPrefix = false;
+	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false , repeatNotZeroPrefix = false;
 
 	if (nmd_strstr(ai->s, "emit ") == (const char*)ai->s)
 	{
@@ -3600,7 +3600,7 @@ bool parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction, const 
 			else if (instruction->modrm.fields.mod == 0b01)
 				instruction->dispMask = NMD_X86_DISP8;
 		}
-		else /*if (!addressPrefix || /*(addressPrefix && **b >= 0x40) || (addressPrefix && instruction->mode == NMD_X86_MODE_64)) */
+		else /*if (!addressPrefix || (addressPrefix && **b >= 0x40) || (addressPrefix && instruction->mode == NMD_X86_MODE_64)) */
 		{
 			/* Check for SIB byte */
 			if (instruction->modrm.modrm < 0xC0 && instruction->modrm.fields.rm == 0b100 && (!addressPrefix || (addressPrefix && instruction->mode == NMD_X86_MODE_64)))
@@ -5703,7 +5703,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruc
 								else
 								{
 									instruction->operands[0].type = instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
-									instruction->operands[0].fields.reg = instruction->operands[0].fields.reg = NMD_X86_REG_DX;
+									instruction->operands[0].fields.reg = instruction->operands[1].fields.reg = NMD_X86_REG_DX;
 								}
 
 								if (op % 2 == 0)
@@ -6308,7 +6308,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 					offset += rexW ? 8 : (operandPrefix || (mode == NMD_X86_MODE_16 && !operandPrefix) ? 2 : 4);
 				else
 				{
-					if (mode == NMD_X86_MODE_16 && operandPrefix || mode != NMD_X86_MODE_16 && !operandPrefix)
+					if ((mode == NMD_X86_MODE_16 && operandPrefix) || (mode != NMD_X86_MODE_16 && !operandPrefix))
 						offset += NMD_X86_IMM32;
 					else
 						offset += NMD_X86_IMM16;
@@ -6433,7 +6433,7 @@ void appendSignedNumberMemoryView(StringInfo* const si)
 
 void appendRelativeAddress8(StringInfo* const si)
 {
-	if (si->runtimeAddress == NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtimeAddress == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		appendSignedNumber(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
@@ -6453,7 +6453,7 @@ void appendRelativeAddress8(StringInfo* const si)
 
 void appendRelativeAddress16_32(StringInfo* const si)
 {
-	if (si->runtimeAddress == NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtimeAddress == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		appendSignedNumber(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
@@ -9513,19 +9513,21 @@ bool isParityEven8(uint8_t x)
 	return !(x & 1);
 }
 
+void copyByMode(void* dst, void* src, NMD_X86_MODE mode)
+{
+	if (mode == NMD_X86_MODE_32)
+		*(int32_t*)(dst) = *(int32_t*)(src);
+	else if (mode == NMD_X86_MODE_64)
+		*(int64_t*)(dst) = *(int64_t*)(src);
+	else /* (mode == NMD_X86_MODE_16) */
+		*(int16_t*)(dst) = *(int16_t*)(src);
+}
+
 #define NMD_GET_GREG(index) (&cpu->rax + (index)) /* general register */
 #define NMD_GET_RREG(index) (&cpu->r8 + (index)) /* r8,r9...r15 */
 #define NMD_GET_PHYSICAL_ADDRESS(address) (uint8_t*)((uint64_t)(cpu->physicalMemory)+((address)-cpu->virtualAddress))
 #define NMD_IN_BOUNDARIES(address) (address >= cpu->physicalMemory && address < endPhysicalMemory)
-#define NMD_TEST(value, bit) ((value&(1<<bit))==(1<<bit))
-
-#define NMD_COPY_BY_MODE(dst, src) \
-if (instruction.mode == NMD_X86_MODE_32) \
-	*(int32_t*)(dst) = *(int32_t*)(src); \
-else if (instruction.mode == NMD_X86_MODE_64) \
-	*(int64_t*)(dst) = *(int64_t*)(src); \
-else /* (instruction.mode == NMD_X86_MODE_16) */ \
-	*(int16_t*)(dst) = *(int16_t*)(src); \
+/* #define NMD_TEST(value, bit) ((value&(1<<bit))==(1<<bit)) */
 
 /*
 Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
@@ -9585,13 +9587,13 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					*(int8_t*)(addr) = r0->l8;
 				else if (instruction.opcode == 0x89)
 				{
-					NMD_COPY_BY_MODE(addr, r0);
+					copyByMode(addr, r0, (NMD_X86_MODE)cpu->mode);
 				}
 				else if (instruction.opcode == 0x8a)
 					r0->l8 = *(int8_t*)(addr);
 				else /* if (instruction.opcode == 0x8b) */
 				{
-					NMD_COPY_BY_MODE(r0, addr);
+					copyByMode(r0, addr, (NMD_X86_MODE)cpu->mode);
 				}
 			}
 			else if (NMD_R(instruction.opcode) == 5) /* push,pop [50,5f] */
@@ -9612,20 +9614,33 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					dst = r0;
 				}
 
-				NMD_COPY_BY_MODE(dst, src);
+				copyByMode(dst, src, (NMD_X86_MODE)cpu->mode);
 			}
 			else if (instruction.opcode == 0xe8) /* call */
 			{
 				/* push the instruction pointer onto the stack. */
 				cpu->rsp.l64 -= (int8_t)cpu->mode;
-				NMD_COPY_BY_MODE(NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64), &cpu->rip);
+				copyByMode(NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64), &cpu->rip, (NMD_X86_MODE)cpu->mode);
 
 				/* jump */
 				cpu->rip += (int32_t)instruction.immediate;
 			}
+			else if (instruction.opcode == 0xc3) /* ret */
+			{
+				/* pop rip */
+				copyByMode(&cpu->rip, NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64), (NMD_X86_MODE)cpu->mode);
+				cpu->rsp.l64 += (int8_t)cpu->mode;
+			}
+			else if (instruction.opcode == 0xc2) /* ret imm8 */
+			{
+				/* pop rip */
+				copyByMode(&cpu->rip, NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64), (NMD_X86_MODE)cpu->mode);
+				cpu->rsp.l64 += (int8_t)(cpu->mode + instruction.immediate);
+			}
 			else if (instruction.opcode == 0x8d) /* lea */
 			{
-				/*NMD_X86Register* r0 = NMD_GET_GREG(instruction.modrm.fields.reg);*/
+				NMD_X86Register* r0 = NMD_GET_GREG(instruction.modrm.fields.reg);
+				r0->l64 = 0;
 				/* compute... */
 			}
 			else if (instruction.opcode == 0xe9) /* jmp r32 */
@@ -9655,6 +9670,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 			else if (instruction.opcode == 0x60) /* pusha,pushad */
 			{
 				void* stack = NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l32);
+				cpu->rsp.l32 -= cpu->mode * 8;
 				if (instruction.mode == NMD_X86_MODE_32) /* pushad */
 				{
 					((uint32_t*)(stack))[0] = cpu->rax.l32;
@@ -9666,7 +9682,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					((uint32_t*)(stack))[6] = cpu->rsi.l32;
 					((uint32_t*)(stack))[7] = cpu->rdi.l32;
 				}
-				else /* if (instruction.mode == NMD_X86_MODE_16) /* pusha */
+				else /* if (instruction.mode == NMD_X86_MODE_16) pusha */
 				{
 					((uint16_t*)(stack))[0] = cpu->rax.l16;
 					((uint16_t*)(stack))[1] = cpu->rcx.l16;
@@ -9677,11 +9693,9 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					((uint16_t*)(stack))[6] = cpu->rsi.l16;
 					((uint16_t*)(stack))[7] = cpu->rdi.l16;
 				}
-				cpu->rsp.l32 -= cpu->mode * 8;
 			}
 			else if (instruction.opcode == 0x61) /* popa,popad */
 			{
-				cpu->rsp.l32 += cpu->mode * 8;
 				void* stack = NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l32);
 				if (instruction.mode == NMD_X86_MODE_32) /* popad */
 				{
@@ -9694,7 +9708,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					cpu->rsi.l32 = ((uint32_t*)(stack))[6];
 					cpu->rdi.l32 = ((uint32_t*)(stack))[7];
 				}
-				else /* if (instruction.mode == NMD_X86_MODE_16) /* popa */
+				else /* if (instruction.mode == NMD_X86_MODE_16) popa */
 				{
 					cpu->rax.l16 = ((uint16_t*)(stack))[0];
 					cpu->rcx.l16 = ((uint16_t*)(stack))[1];
@@ -9705,6 +9719,13 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					cpu->rsi.l16 = ((uint16_t*)(stack))[6];
 					cpu->rdi.l16 = ((uint16_t*)(stack))[7];
 				}
+				cpu->rsp.l32 += cpu->mode * 8;
+			}
+			else if (NMD_R(instruction.opcode) == 0xb) /* mov reg, imm */
+			{
+				const uint8_t width = (instruction.prefixes & NMD_X86_PREFIXES_REX_W && instruction.opcode >= 0xb8) ? 8 : instruction.mode;
+				NMD_X86Register* r0 = instruction.prefixes & NMD_X86_PREFIXES_REX_B ? NMD_GET_RREG(NMD_C(instruction.opcode)) : NMD_GET_GREG(NMD_C(instruction.opcode));
+				copyByMode(r0, &instruction.immediate, (NMD_X86_MODE)width);
 			}
 			else if (instruction.opcode == 0x90)
 			{

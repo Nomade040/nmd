@@ -131,9 +131,9 @@ bool parseNumber(const char* string, int64_t* num, size_t* numDigits)
 			/* Return false if number is greater than 2^64-1 */
 			if (*numDigits > 16 && i >= 15)
 			{
-				if ((base == NMD_NUMBER_BASE_DECIMAL && numTemp >= 1844674407370955162) || /* ceiling((2^64-1) / 10) */
-					(base == NMD_NUMBER_BASE_HEXADECIMAL && numTemp >= 1152921504606846976) || /* *ceiling((2^64-1) / 16) */
-					(base == NMD_NUMBER_BASE_BINARY && numTemp >= 9223372036854775808)) /* ceiling((2^64-1) / 2) */
+				if ((base == NMD_NUMBER_BASE_DECIMAL && (uint64_t)numTemp >= (uint64_t)1844674407370955162) || /* ceiling((2^64-1) / 10) */
+					(base == NMD_NUMBER_BASE_HEXADECIMAL && (uint64_t)numTemp >= (uint64_t)1152921504606846976) || /* *ceiling((2^64-1) / 16) */
+					(base == NMD_NUMBER_BASE_BINARY && (uint64_t)numTemp >= (uint64_t)9223372036854775808)) /* ceiling((2^64-1) / 2) */
 				{
 					return false;
 				}
@@ -158,7 +158,7 @@ size_t assembleSingle(AssembleInfo* ai)
 {
 	size_t i = 0;
 
-	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false, repeatNotZeroPrefix = false;
+	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false , repeatNotZeroPrefix = false;
 
 	if (nmd_strstr(ai->s, "emit ") == (const char*)ai->s)
 	{

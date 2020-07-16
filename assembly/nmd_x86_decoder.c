@@ -222,7 +222,7 @@ bool parseModrm(const uint8_t** b, NMD_X86Instruction* const instruction, const 
 			else if (instruction->modrm.fields.mod == 0b01)
 				instruction->dispMask = NMD_X86_DISP8;
 		}
-		else /*if (!addressPrefix || /*(addressPrefix && **b >= 0x40) || (addressPrefix && instruction->mode == NMD_X86_MODE_64)) */
+		else /*if (!addressPrefix || (addressPrefix && **b >= 0x40) || (addressPrefix && instruction->mode == NMD_X86_MODE_64)) */
 		{
 			/* Check for SIB byte */
 			if (instruction->modrm.modrm < 0xC0 && instruction->modrm.fields.rm == 0b100 && (!addressPrefix || (addressPrefix && instruction->mode == NMD_X86_MODE_64)))
@@ -2325,7 +2325,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruc
 								else
 								{
 									instruction->operands[0].type = instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
-									instruction->operands[0].fields.reg = instruction->operands[0].fields.reg = NMD_X86_REG_DX;
+									instruction->operands[0].fields.reg = instruction->operands[1].fields.reg = NMD_X86_REG_DX;
 								}
 
 								if (op % 2 == 0)
