@@ -2301,6 +2301,7 @@ typedef union NMD_X86CpuFlags
 		uint8_t C3  : 1; /* Bit 14.    Condition code 3 (C3) */
 		uint8_t B   : 1; /* Bit 15.    FPU Busy (B) */
 	} fpuFields;
+	uint8_t l8;
 	uint32_t eflags;
 	uint16_t fpuFlags;
 } NMD_X86CpuFlags;
@@ -9516,6 +9517,7 @@ bool isParityEven8(uint8_t x)
 #define NMD_GET_RREG(index) (&cpu->r8 + (index)) /* r8,r9...r15 */
 #define NMD_GET_PHYSICAL_ADDRESS(address) (uint8_t*)((uint64_t)(cpu->physicalMemory)+((address)-cpu->virtualAddress))
 #define NMD_IN_BOUNDARIES(address) (address >= cpu->physicalMemory && address < endPhysicalMemory)
+#define NMD_TEST(value, bit) ((value&(1<<bit))==(1<<bit))
 
 #define NMD_COPY_BY_MODE(dst, src) \
 if (instruction.mode == NMD_X86_MODE_32) \
@@ -9650,6 +9652,71 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 				cpu->rax = *r0;
 				*r0 = tmp;
 			}
+			else if (instruction.opcode == 0x60) /* pusha,pushad */
+			{
+				void* stack = NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l32);
+				if (instruction.mode == NMD_X86_MODE_32) /* pushad */
+				{
+					((uint32_t*)(stack))[0] = cpu->rax.l32;
+					((uint32_t*)(stack))[1] = cpu->rcx.l32;
+					((uint32_t*)(stack))[2] = cpu->rdx.l32;
+					((uint32_t*)(stack))[3] = cpu->rbx.l32;
+					((uint32_t*)(stack))[4] = cpu->rsp.l32;
+					((uint32_t*)(stack))[5] = cpu->rbp.l32;
+					((uint32_t*)(stack))[6] = cpu->rsi.l32;
+					((uint32_t*)(stack))[7] = cpu->rdi.l32;
+				}
+				else /* if (instruction.mode == NMD_X86_MODE_16) /* pusha */
+				{
+					((uint16_t*)(stack))[0] = cpu->rax.l16;
+					((uint16_t*)(stack))[1] = cpu->rcx.l16;
+					((uint16_t*)(stack))[2] = cpu->rdx.l16;
+					((uint16_t*)(stack))[3] = cpu->rbx.l16;
+					((uint16_t*)(stack))[4] = cpu->rsp.l16;
+					((uint16_t*)(stack))[5] = cpu->rbp.l16;
+					((uint16_t*)(stack))[6] = cpu->rsi.l16;
+					((uint16_t*)(stack))[7] = cpu->rdi.l16;
+				}
+				cpu->rsp.l32 -= cpu->mode * 8;
+			}
+			else if (instruction.opcode == 0x61) /* popa,popad */
+			{
+				cpu->rsp.l32 += cpu->mode * 8;
+				void* stack = NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l32);
+				if (instruction.mode == NMD_X86_MODE_32) /* popad */
+				{
+					cpu->rax.l32 = ((uint32_t*)(stack))[0];
+					cpu->rcx.l32 = ((uint32_t*)(stack))[1];
+					cpu->rdx.l32 = ((uint32_t*)(stack))[2];
+					cpu->rbx.l32 = ((uint32_t*)(stack))[3];
+					cpu->rsp.l32 = ((uint32_t*)(stack))[4];
+					cpu->rbp.l32 = ((uint32_t*)(stack))[5];
+					cpu->rsi.l32 = ((uint32_t*)(stack))[6];
+					cpu->rdi.l32 = ((uint32_t*)(stack))[7];
+				}
+				else /* if (instruction.mode == NMD_X86_MODE_16) /* popa */
+				{
+					cpu->rax.l16 = ((uint16_t*)(stack))[0];
+					cpu->rcx.l16 = ((uint16_t*)(stack))[1];
+					cpu->rdx.l16 = ((uint16_t*)(stack))[2];
+					cpu->rbx.l16 = ((uint16_t*)(stack))[3];
+					cpu->rsp.l16 = ((uint16_t*)(stack))[4];
+					cpu->rbp.l16 = ((uint16_t*)(stack))[5];
+					cpu->rsi.l16 = ((uint16_t*)(stack))[6];
+					cpu->rdi.l16 = ((uint16_t*)(stack))[7];
+				}
+			}
+			else if (instruction.opcode == 0x90)
+			{
+				if (instruction.simdPrefix == NMD_X86_PREFIXES_REPEAT) /* pause */
+				{
+					/* spin-wait loop ahead? */
+				}
+			}
+			else if (instruction.opcode == 0x9e) /* sahf */
+				cpu->flags.l8 = cpu->rax.l8;
+			else if (instruction.opcode == 0x9f) /* lahf */
+				cpu->rax.l8 = cpu->flags.l8;
 			else if (instruction.opcode == 0xcc) /* int3 */
 			{
 				if (cpu->callback)
@@ -9672,6 +9739,20 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 			}
 			else if (instruction.opcode == 0xf4) /* hlt */
 				cpu->running = false;
+			else if (instruction.opcode == 0xf5) /* cmc */
+				cpu->flags.fields.CF = ~cpu->flags.fields.CF;
+			else if(instruction.opcode == 0xf8) /* clc */
+				cpu->flags.fields.CF = 0;
+			else if (instruction.opcode == 0xf9) /* stc */
+				cpu->flags.fields.CF = 1;
+			else if (instruction.opcode == 0xfa) /* cli */
+				cpu->flags.fields.IF = 0;
+			else if (instruction.opcode == 0xfb) /* sti */
+				cpu->flags.fields.IF = 1;
+			else if (instruction.opcode == 0xfc) /* cld */
+				cpu->flags.fields.DF = 0;
+			else if (instruction.opcode == 0xfd) /* std */
+				cpu->flags.fields.DF = 1;
 		}
 		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F)
 		{
