@@ -36,19 +36,21 @@ bool isParityEven8(uint8_t x)
 	return !(x & 1);
 }
 
+void copyByMode(void* dst, void* src, NMD_X86_MODE mode)
+{
+	if (mode == NMD_X86_MODE_32)
+		*(int32_t*)(dst) = *(int32_t*)(src);
+	else if (mode == NMD_X86_MODE_64)
+		*(int64_t*)(dst) = *(int64_t*)(src);
+	else /* (mode == NMD_X86_MODE_16) */
+		*(int16_t*)(dst) = *(int16_t*)(src);
+}
+
 #define NMD_GET_GREG(index) (&cpu->rax + (index)) /* general register */
 #define NMD_GET_RREG(index) (&cpu->r8 + (index)) /* r8,r9...r15 */
 #define NMD_GET_PHYSICAL_ADDRESS(address) (uint8_t*)((uint64_t)(cpu->physicalMemory)+((address)-cpu->virtualAddress))
 #define NMD_IN_BOUNDARIES(address) (address >= cpu->physicalMemory && address < endPhysicalMemory)
-#define NMD_TEST(value, bit) ((value&(1<<bit))==(1<<bit))
-
-#define NMD_COPY_BY_MODE(dst, src) \
-if (instruction.mode == NMD_X86_MODE_32) \
-	*(int32_t*)(dst) = *(int32_t*)(src); \
-else if (instruction.mode == NMD_X86_MODE_64) \
-	*(int64_t*)(dst) = *(int64_t*)(src); \
-else /* (instruction.mode == NMD_X86_MODE_16) */ \
-	*(int16_t*)(dst) = *(int16_t*)(src); \
+/* #define NMD_TEST(value, bit) ((value&(1<<bit))==(1<<bit)) */
 
 /*
 Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
@@ -108,13 +110,13 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					*(int8_t*)(addr) = r0->l8;
 				else if (instruction.opcode == 0x89)
 				{
-					NMD_COPY_BY_MODE(addr, r0);
+					copyByMode(addr, r0, cpu->mode);
 				}
 				else if (instruction.opcode == 0x8a)
 					r0->l8 = *(int8_t*)(addr);
 				else /* if (instruction.opcode == 0x8b) */
 				{
-					NMD_COPY_BY_MODE(r0, addr);
+					copyByMode(r0, addr, cpu->mode);
 				}
 			}
 			else if (NMD_R(instruction.opcode) == 5) /* push,pop [50,5f] */
@@ -135,20 +137,33 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					dst = r0;
 				}
 
-				NMD_COPY_BY_MODE(dst, src);
+				copyByMode(dst, src, cpu->mode);
 			}
 			else if (instruction.opcode == 0xe8) /* call */
 			{
 				/* push the instruction pointer onto the stack. */
 				cpu->rsp.l64 -= (int8_t)cpu->mode;
-				NMD_COPY_BY_MODE(NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64), &cpu->rip);
+				copyByMode(NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64), &cpu->rip, cpu->mode);
 
 				/* jump */
 				cpu->rip += (int32_t)instruction.immediate;
 			}
+			else if (instruction.opcode == 0xc3) /* ret */
+			{
+				/* pop rip */
+				copyByMode(&cpu->rip, NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64), cpu->mode);
+				cpu->rsp.l64 += (int8_t)cpu->mode;
+			}
+			else if (instruction.opcode == 0xc2) /* ret imm8 */
+			{
+				/* pop rip */
+				copyByMode(&cpu->rip, NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l64), cpu->mode);
+				cpu->rsp.l64 += (int8_t)(cpu->mode + instruction.immediate);
+			}
 			else if (instruction.opcode == 0x8d) /* lea */
 			{
-				/*NMD_X86Register* r0 = NMD_GET_GREG(instruction.modrm.fields.reg);*/
+				NMD_X86Register* r0 = NMD_GET_GREG(instruction.modrm.fields.reg);
+				r0->l64 = 0;
 				/* compute... */
 			}
 			else if (instruction.opcode == 0xe9) /* jmp r32 */
@@ -178,6 +193,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 			else if (instruction.opcode == 0x60) /* pusha,pushad */
 			{
 				void* stack = NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l32);
+				cpu->rsp.l32 -= cpu->mode * 8;
 				if (instruction.mode == NMD_X86_MODE_32) /* pushad */
 				{
 					((uint32_t*)(stack))[0] = cpu->rax.l32;
@@ -200,11 +216,9 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					((uint16_t*)(stack))[6] = cpu->rsi.l16;
 					((uint16_t*)(stack))[7] = cpu->rdi.l16;
 				}
-				cpu->rsp.l32 -= cpu->mode * 8;
 			}
 			else if (instruction.opcode == 0x61) /* popa,popad */
 			{
-				cpu->rsp.l32 += cpu->mode * 8;
 				void* stack = NMD_GET_PHYSICAL_ADDRESS(cpu->rsp.l32);
 				if (instruction.mode == NMD_X86_MODE_32) /* popad */
 				{
@@ -228,6 +242,13 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 					cpu->rsi.l16 = ((uint16_t*)(stack))[6];
 					cpu->rdi.l16 = ((uint16_t*)(stack))[7];
 				}
+				cpu->rsp.l32 += cpu->mode * 8;
+			}
+			else if (NMD_R(instruction.opcode) == 0xb) /* mov reg, imm */
+			{
+				const uint8_t width = (instruction.prefixes & NMD_X86_PREFIXES_REX_W && instruction.opcode >= 0xb8) ? 8 : instruction.mode;
+				NMD_X86Register* r0 = instruction.prefixes & NMD_X86_PREFIXES_REX_B ? NMD_GET_RREG(NMD_C(instruction.opcode)) : NMD_GET_GREG(NMD_C(instruction.opcode));
+				copyByMode(r0, &instruction.immediate, width);
 			}
 			else if (instruction.opcode == 0x90)
 			{

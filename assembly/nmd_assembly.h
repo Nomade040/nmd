@@ -2387,11 +2387,11 @@ typedef enum NMD_X86_EMULATOR_EXCEPTION
 
 typedef union NMD_X86Register
 {
-	uint8_t  h8;
-	uint8_t  l8;
-	uint16_t l16;
-	uint32_t l32;
-	uint64_t l64;
+	int8_t  h8;
+	int8_t  l8;
+	int16_t l16;
+	int32_t l32;
+	int64_t l64;
 } NMD_X86Register;
 
 typedef union NMD_X86Register512
