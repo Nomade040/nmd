@@ -2301,6 +2301,7 @@ typedef union NMD_X86CpuFlags
 		uint8_t C3  : 1; /* Bit 14.    Condition code 3 (C3) */
 		uint8_t B   : 1; /* Bit 15.    FPU Busy (B) */
 	} fpuFields;
+	uint8_t l8;
 	uint32_t eflags;
 	uint16_t fpuFlags;
 } NMD_X86CpuFlags;
