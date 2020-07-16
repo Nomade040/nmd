@@ -540,7 +540,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 					offset += rexW ? 8 : (operandPrefix || (mode == NMD_X86_MODE_16 && !operandPrefix) ? 2 : 4);
 				else
 				{
-					if (mode == NMD_X86_MODE_16 && operandPrefix || mode != NMD_X86_MODE_16 && !operandPrefix)
+					if ((mode == NMD_X86_MODE_16 && operandPrefix) || (mode != NMD_X86_MODE_16 && !operandPrefix))
 						offset += NMD_X86_IMM32;
 					else
 						offset += NMD_X86_IMM16;

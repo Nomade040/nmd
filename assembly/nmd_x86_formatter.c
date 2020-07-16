@@ -91,7 +91,7 @@ void appendSignedNumberMemoryView(StringInfo* const si)
 
 void appendRelativeAddress8(StringInfo* const si)
 {
-	if (si->runtimeAddress == NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtimeAddress == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		appendSignedNumber(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
@@ -111,7 +111,7 @@ void appendRelativeAddress8(StringInfo* const si)
 
 void appendRelativeAddress16_32(StringInfo* const si)
 {
-	if (si->runtimeAddress == NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtimeAddress == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		appendSignedNumber(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
