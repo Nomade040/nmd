@@ -272,7 +272,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruc
 	for (; i < sizeof(NMD_X86Instruction); i++)
 		((uint8_t*)(instruction))[i] = 0x00;
 
-	instruction->mode = mode;
+	instruction->mode = (uint8_t)mode;
 
 	const uint8_t* b = (const uint8_t*)(buffer);
 
