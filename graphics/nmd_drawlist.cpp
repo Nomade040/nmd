@@ -63,8 +63,8 @@ namespace nmd
     {
         for (size_t i = 0; i < 12; i++)
         {
-            //const float angle = (static_cast<float>(i) / 12.0f) * GUI_2PI;
-            const float angle = (static_cast<float>(i) / 6.0f) * NMD_PI; // Simplified version of the line above.
+            //const float angle = (i / 12.0f) * GUI_2PI;
+            const float angle = (i / 6.0f) * NMD_PI; // Simplified version of the line above.
             cachedCircleVertices12[i] = Vec2(cosf(angle), sinf(angle));
         }
 
@@ -75,7 +75,7 @@ namespace nmd
     {
         for (size_t i = 0; i < 64; i++)
         {
-            const size_t segment_count = CIRCLE_AUTO_SEGMENT_CALC(static_cast<float>(i) + 1.0f, maxError);
+            const uint8_t segment_count = static_cast<uint8_t>(CIRCLE_AUTO_SEGMENT_CALC(i + 1.0f, maxError));
             cachedCircleSegmentCounts64[i] = NMD_MIN(segment_count, 255);
         }
     }

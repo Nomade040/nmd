@@ -1,40 +1,38 @@
-/* This is a C++ graphics library.
+/* This is a C++ immediate mode graphics library.
 
 Setup:
 Define the 'NMD_GRAPHICS_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
 #define NMD_GRAPHICS_IMPLEMENTATION
 #include "nmd_graphics.hpp"
 
-Default fonts:
-The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the font at
-compile time. By doing so at least 15KB of code & data will be saved.
-
 Low level overview:
 The nmd::Context(acessible by nmd::GetContext()) global variable holds the state of the entire library, it
-contains a nmd::DrawList variable(the only one used by the library) which holds the vertex, index and commands
-buffers. Each command buffer translate to a call to a rendering's API draw function. The nmd::DrawList class has 
-methods to draw basic geometry shapes(e.g. circles, rectangles and lines).
+contains a nmd::DrawList variable which holds the vertex, index and commands buffers. Each command buffer 
+translate to a call to a rendering's API draw function. The nmd::DrawList class has methods to draw basic 
+geometry shapes(e.g. circles, rectangles and lines).
 
 Supported rendering APIs: Direct3D 9(D3D9), Direct3D 11(D3D11).
 To use a specific rendering api define the macro 'NMD_GRAPHICS_{RENDERING API}' before including "nmd_graphics.hpp".
 
 Usage:
  - General:
-    - Call api functions between nmd::Begin() and nmd::End()
+    - Call API functions between nmd::Begin() and nmd::End()
  - D3D9:
-    - Call nmd::D3D9SetDevice() on initialization.
+    - Call nmd::D3D9SetDevice() and nmd::D3D9Resize() on initialization.
     - Call nmd::D3D9Render() after nmd::End().
 
  - D3D11:
     - Call nmd::D3D11SetDeviceContext() on initialization.
     - Call nmd::D3D11Render() after nmd::End()
 
+Default fonts:
+The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the
+font at compile time. By doing so at least 15KB of code & data will be saved.
+
 TODO:
- - Add support for tetures in Direct3D 11.
- - Embed font rasterizer : https://github.com/nothings/stb/blob/master/stb_truetype.h.
+ - Add support for textures in Direct3D 11.
  - Add AddText() method to DrawList.
- - Implement default widgets.
- - Add support for the remaining Rendering APIs : Direct3D 12, OpenGLand Vulkan.
+ - Add support for the remaining rendering APIs: Direct3D 12, OpenGL and Vulkan.
 
 Credits:
  - imgui - https://github.com/ocornut/imgui

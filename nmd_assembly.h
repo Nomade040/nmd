@@ -3650,7 +3650,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruc
 	for (; i < sizeof(NMD_X86Instruction); i++)
 		((uint8_t*)(instruction))[i] = 0x00;
 
-	instruction->mode = mode;
+	instruction->mode = (uint8_t)mode;
 
 	const uint8_t* b = (const uint8_t*)(buffer);
 
@@ -9556,7 +9556,7 @@ bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount)
 		NMD_X86Instruction instruction;
 		const void* buffer = NMD_GET_PHYSICAL_ADDRESS(cpu->rip);
 		const bool validBuffer = NMD_IN_BOUNDARIES(buffer);
-		if (!validBuffer || !nmd_x86_decode_buffer(buffer, endVirtualAddress - cpu->rip, &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
+		if (!validBuffer || !nmd_x86_decode_buffer(buffer, (size_t)(endVirtualAddress - cpu->rip), &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
 		{
 			if (cpu->callback)
 				cpu->callback(cpu, &instruction, validBuffer ? NMD_X86_EMULATOR_EXCEPTION_BAD_INSTRUCTION : NMD_X86_EMULATOR_EXCEPTION_BAD_MEMORY);
