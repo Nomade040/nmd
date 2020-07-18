@@ -39,6 +39,7 @@ int main()
         return 0;
 
     nmd::D3D9SetDevice(pD3D9Device);
+	nmd::D3D9Resize(800, 600);
 
     while (true)
     {
