@@ -1,3 +1,5 @@
 The development of the single-header library 'nmd_assembly.h' is done here.
 
+If you need to use a macro(e.g. 'NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS') you must tell the compiler in some way, otherwise the macro would just have effect on the current unit file.
+
 Run the 'merge_files.py' python script in order to merge all the files in the current folder into a single-header file "nmd_assembly.h" in the parent folder.

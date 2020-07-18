@@ -1,3 +1,5 @@
 The development of the single-header library 'nmd_graphics.cpp' is done here.
 
+If you need to use a macro(e.g. 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT') you must tell the compiler in some way, otherwise the macro would just have effect on the current unit file.
+
 Run the 'merge_files.py' python script in order to merge all the files in the current folder into a single-header file "nmd_graphics.hpp" in the parent folder.
