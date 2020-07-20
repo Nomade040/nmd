@@ -27,7 +27,7 @@ namespace nmd
             "void main() { outColor = fragColor; }";
 
         int success = 0;
-        
+
         g_vs = glCreateShader(GL_VERTEX_SHADER);
         glShaderSource(g_vs, 1, &vertexShaderSource, NULL);
         glCompileShader(g_vs);
@@ -50,7 +50,7 @@ namespace nmd
         glDeleteShader(g_vs);
         glDeleteShader(g_fs);
 
-        
+
         glGenVertexArrays(1, &g_vao);
         glGenBuffers(1, &g_vbo);
         glGenBuffers(1, &g_ebo);
@@ -62,15 +62,15 @@ namespace nmd
 
         glViewport(0, 0, (GLsizei)width, (GLsizei)height);
         float L = 0;
-        float R = 0 + 640;
+        float R = 0 + width;
         float T = 0;
-        float B = 0 + 480;
+        float B = 0 + height;
         const float ortho_projection[4][4] =
         {
-            { 2.0f / (R - L),   0.0f,         0.0f,   0.0f },
-            { 0.0f,         2.0f / (T - B),   0.0f,   0.0f },
-            { 0.0f,         0.0f,        -1.0f,   0.0f },
-            { (R + L) / (L - R),  (T + B) / (B - T),  0.0f,   1.0f },
+            {    2.0f / (R - L),              0.0f,  0.0f, 0.0f },
+            {              0.0f,    2.0f / (T - B),  0.0f, 0.0f },
+            {              0.0f,              0.0f, -1.0f, 0.0f },
+            { (R + L) / (L - R), (T + B) / (B - T),  0.0f, 1.0f },
         };
         glUseProgram(g_shader);
         glUniformMatrix4fv(glGetUniformLocation(g_shader, "projection"), 1, GL_FALSE, &ortho_projection[0][0]);
@@ -103,9 +103,6 @@ namespace nmd
         {
             glDrawElements(GL_TRIANGLES, cmd.numIndices, sizeof(IndexType) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)offset);
         }
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
     }
 
 #endif // NMD_GRAPHICS_OPENGL
