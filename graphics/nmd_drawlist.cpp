@@ -1,5 +1,4 @@
 #include "nmd_common.hpp"
-//#include "stb_truetype.h"
 
 namespace nmd
 {
