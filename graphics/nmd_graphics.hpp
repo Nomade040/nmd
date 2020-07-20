@@ -52,19 +52,19 @@ Credits:
 
 #ifdef _WIN32
 #include <Windows.h>
-#endif
+#endif // _WIN32
 
 #ifdef NMD_GRAPHICS_D3D9
 #include <d3d9.h>
 #pragma comment(lib, "d3d9.lib")
-#endif
+#endif // NMD_GRAPHICS_D3D9
 
 #ifdef NMD_GRAPHICS_D3D11
 #include <d3d11.h>
 #pragma comment(lib, "d3d11.lib")
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler.lib")
-#endif
+#endif // NMD_GRAPHICS_D3D11
 
 namespace nmd
 {
@@ -72,6 +72,11 @@ namespace nmd
 //    void Win32Init(HWND hwnd);
 //    LRESULT WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 //#endif
+
+#ifdef NMD_GRAPHICS_OPENGL
+    void OpenGLResize(int width, int height);
+    void OpenGLRender();
+#endif // NMD_GRAPHICS_OPENGL
 
 #ifdef NMD_GRAPHICS_D3D9
     void D3D9SetDevice(LPDIRECT3DDEVICE9 pDevice);
