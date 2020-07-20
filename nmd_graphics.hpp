@@ -29,14 +29,17 @@ Default fonts:
 The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the
 font at compile time. By doing so at least 15KB of code & data will be saved.
 
+NOTE: A big part of this library's code has been derived from Imgui's and Nuklear's code. Big credits to both projects.
+
 TODO:
  - Add support for textures in Direct3D 11.
  - Add AddText() method to DrawList.
  - Add support for the remaining rendering APIs: Direct3D 12, OpenGL and Vulkan.
 
 Credits:
- - imgui - https://github.com/ocornut/imgui
- - stb_truetype - https://github.com/nothings/stb/blob/master/stb_truetype.h
+ - imgui: https://github.com/ocornut/imgui
+ - nuklear: https://github.com/Immediate-Mode-UI/Nuklear
+ - stb_truetype: https://github.com/nothings/stb/blob/master/stb_truetype.h
 */
 
 #ifndef NMD_GRAPHICS_H
@@ -322,8 +325,6 @@ namespace nmd
 #endif // NMD_GRAPHICS_DISABLE_DEFAULT_FONT
 } // namespace nmd
 
-
-//#include "stb_truetype.h"
 
 namespace nmd
 {
