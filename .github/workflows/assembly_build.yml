@@ -1,4 +1,4 @@
-name: Build nmd_assembly.h
+name: Build nmd_assembly.h C89
 
 on: 
   push:
