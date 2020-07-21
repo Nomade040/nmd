@@ -1711,7 +1711,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruc
 						case 0x37: instruction->id = NMD_X86_INSTRUCTION_AAA; break;
 						case 0x2f: instruction->id = NMD_X86_INSTRUCTION_DAS; break;
 						case 0x3f: instruction->id = NMD_X86_INSTRUCTION_AAS; break;
-						case 0x9b: instruction->id = NMD_X86_INSTRUCTION_WAIT; break;
+						case 0x9b: instruction->id = NMD_X86_INSTRUCTION_FWAIT; break;
 						case 0x9e: instruction->id = NMD_X86_INSTRUCTION_SAHF; break;
 						case 0x9f: instruction->id = NMD_X86_INSTRUCTION_LAHF; break;
 						case 0xA4: instruction->id = NMD_X86_INSTRUCTION_MOVSB; break;

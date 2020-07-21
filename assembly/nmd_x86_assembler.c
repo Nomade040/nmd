@@ -367,7 +367,7 @@ size_t assembleSingle(AssembleInfo* ai)
 		{ "das",     0x2f },
 		{ "aas",     0x3f },
 		{ "xlat",    0xd7 },
-		{ "wait",    0x9b },
+		{ "fwait",   0x9b },
 		{ "hlt",     0xf4 },
 		{ "cmc",     0xf5 },
 		{ "sahf",    0x9e },
