@@ -1995,7 +1995,7 @@ enum NMD_X86_INSTRUCTION
 	NMD_X86_INSTRUCTION_VUNPCKLPS,
 	NMD_X86_INSTRUCTION_VZEROALL,
 	NMD_X86_INSTRUCTION_VZEROUPPER,
-	NMD_X86_INSTRUCTION_WAIT,
+	NMD_X86_INSTRUCTION_FWAIT,
 	NMD_X86_INSTRUCTION_XABORT,
 	NMD_X86_INSTRUCTION_XACQUIRE,
 	NMD_X86_INSTRUCTION_XBEGIN,
@@ -3119,7 +3119,7 @@ size_t assembleSingle(AssembleInfo* ai)
 		{ "das",     0x2f },
 		{ "aas",     0x3f },
 		{ "xlat",    0xd7 },
-		{ "wait",    0x9b },
+		{ "fwait",   0x9b },
 		{ "hlt",     0xf4 },
 		{ "cmc",     0xf5 },
 		{ "sahf",    0x9e },
@@ -5089,7 +5089,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruc
 						case 0x37: instruction->id = NMD_X86_INSTRUCTION_AAA; break;
 						case 0x2f: instruction->id = NMD_X86_INSTRUCTION_DAS; break;
 						case 0x3f: instruction->id = NMD_X86_INSTRUCTION_AAS; break;
-						case 0x9b: instruction->id = NMD_X86_INSTRUCTION_WAIT; break;
+						case 0x9b: instruction->id = NMD_X86_INSTRUCTION_FWAIT; break;
 						case 0x9e: instruction->id = NMD_X86_INSTRUCTION_SAHF; break;
 						case 0x9f: instruction->id = NMD_X86_INSTRUCTION_LAHF; break;
 						case 0xA4: instruction->id = NMD_X86_INSTRUCTION_MOVSB; break;
@@ -7854,7 +7854,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char* buf
 					case 0x2f: str = "das"; break;
 					case 0x3f: str = "aas"; break;
 					case 0xd7: str = "xlat"; break;
-					case 0x9b: str = "wait"; break;
+					case 0x9b: str = "fwait"; break;
 					case 0xf4: str = "hlt"; break;
 					case 0xf5: str = "cmc"; break;
 					case 0x9e: str = "sahf"; break;

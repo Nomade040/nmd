@@ -1512,7 +1512,7 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char* buf
 					case 0x2f: str = "das"; break;
 					case 0x3f: str = "aas"; break;
 					case 0xd7: str = "xlat"; break;
-					case 0x9b: str = "wait"; break;
+					case 0x9b: str = "fwait"; break;
 					case 0xf4: str = "hlt"; break;
 					case 0xf5: str = "cmc"; break;
 					case 0x9e: str = "sahf"; break;
