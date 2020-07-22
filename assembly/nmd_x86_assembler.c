@@ -373,7 +373,6 @@ size_t assembleSingle(AssembleInfo* ai)
 		{ "sahf",    0x9e },
 		{ "lahf",    0x9f },
 		{ "into",    0xce },
-		{ "iretd",   0xcf },
 		{ "cwde",    0x98 },
 		{ "cdq",     0x99 },
 		{ "salc",    0xd6 },
@@ -436,9 +435,31 @@ size_t assembleSingle(AssembleInfo* ai)
 	}
 	else if (nmd_strcmp(ai->s, "iret"))
 	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0xcf;
-		return 2;
+		if (ai->mode == NMD_X86_MODE_16)
+		{
+			ai->b[0] = 0xcf;
+			return 1;
+		}
+		else
+		{
+			ai->b[0] = 0x66;
+			ai->b[1] = 0xcf;
+			return 2;
+		}
+	}
+	else if (nmd_strcmp(ai->s, "iretd"))
+	{
+		if (ai->mode == NMD_X86_MODE_16)
+		{
+			ai->b[0] = 0x66;
+			ai->b[1] = 0xcf;
+			return 2;
+		}
+		else
+		{
+			ai->b[0] = 0xcf;
+			return 1;
+		}
 	}
 	else if (nmd_strcmp(ai->s, "cbw"))
 	{
