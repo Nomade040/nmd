@@ -1518,7 +1518,14 @@ void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char* buf
 					case 0x9e: str = "sahf"; break;
 					case 0x9f: str = "lahf"; break;
 					case 0xce: str = "into"; break;
-					case 0xcf: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W) ? "iretq" : (operandSize ? "iret" : "iretd"); break;
+					case 0xcf:
+						if (instruction->operandSize64)
+							str = "iretq";
+						else if (instruction->mode == NMD_X86_MODE_16)
+							str = operandSize ? "iretd" : "iret";
+						else
+							str = operandSize ? "iret" : "iretd";
+						break;
 					case 0x98: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cdqe" : (operandSize ? "cbw" : "cwde")); break;
 					case 0x99: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cqo" : (operandSize ? "cwd" : "cdq")); break;
 					case 0xd6: str = "salc"; break;

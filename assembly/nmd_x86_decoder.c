@@ -1686,7 +1686,14 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruc
 						case 0xca: case 0xcb: instruction->id = NMD_X86_INSTRUCTION_RETF; break;
 						case 0xcd: instruction->id = NMD_X86_INSTRUCTION_INT; break;
 						case 0xce: instruction->id = NMD_X86_INSTRUCTION_INTO; break;
-						case 0xcf: instruction->id = (uint16_t)((instruction->prefixes & NMD_X86_PREFIXES_REX_W) ? NMD_X86_INSTRUCTION_IRETQ : (operandSize ? NMD_X86_INSTRUCTION_IRET : NMD_X86_INSTRUCTION_IRETD)); break;
+						case 0xcf: 
+							if (instruction->operandSize64)
+								instruction->id = NMD_X86_INSTRUCTION_IRETQ;
+							else if (mode == NMD_X86_MODE_16)
+								instruction->id = operandSize ? NMD_X86_INSTRUCTION_IRETD : NMD_X86_INSTRUCTION_IRET;
+							else
+								instruction->id = operandSize ? NMD_X86_INSTRUCTION_IRET : NMD_X86_INSTRUCTION_IRETD;
+							break;
 						case 0xe4: case 0xe5: case 0xec: case 0xed: instruction->id = NMD_X86_INSTRUCTION_IN; break;
 						case 0xe6: case 0xe7: case 0xee: case 0xef: instruction->id = NMD_X86_INSTRUCTION_OUT; break;
 						case 0xea: instruction->id = NMD_X86_INSTRUCTION_LJMP; break;
