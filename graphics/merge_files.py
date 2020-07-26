@@ -1,29 +1,29 @@
 file_names = [
     # Header file
-    'nmd_graphics.hpp',
+    'nmd_graphics.h',
 
     # Implementation files
-    'nmd_common.cpp',
-    'nmd_drawlist.cpp',
-    'nmd_graphics.cpp',
-    'nmd_colors.cpp',
+    'nmd_common.c',
+    'nmd_default_font.c',
+    'nmd_graphics.c',
+    'nmd_drawlist.c',
     'nmd_renderer_d3d9.cpp',
     'nmd_renderer_d3d11.cpp',
-    'nmd_renderer_opengl.cpp',
-    'nmd_default_font.cpp',
+    'nmd_renderer_opengl.c',
+    
     'stb_truetype.h'
 ]
 
 file_contents = []
 
-with open('../nmd_graphics.hpp', 'w') as out:
+with open('../nmd_graphics.h', 'w') as out:
     for file_name in file_names:
         with open(file_name, 'r') as file:
             # Read file's content
             content = file.read()
 
             # Remove these include statements
-            content = content.replace('#include "nmd_common.hpp"', '')
+            content = content.replace('#include "nmd_common.h"', '')
 
             # Remove any '\n'(new line) character at the start of the file
             while content[0] == '\n':

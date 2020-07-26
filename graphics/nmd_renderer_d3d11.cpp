@@ -1,7 +1,4 @@
-#include "nmd_common.hpp"
-
-namespace nmd
-{
+#include "nmd_common.h"
 
 #ifdef NMD_GRAPHICS_D3D11
     static ID3D11Device* g_pD3D11Device = NULL;
@@ -261,6 +258,4 @@ namespace nmd
             g_pD3D11DeviceContext->IASetInputLayout(renderState.InputLayout);
         }
     }
-#endif // NMD_GRAPHICS_D3D11
-
-} // namespace nmd
+#endif /* NMD_GRAPHICS_D3D11 */

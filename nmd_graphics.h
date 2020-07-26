@@ -1,9 +1,16 @@
-/* This is a C++ immediate mode graphics library.
+/* This is a C89 platform independent immediate mode 2D graphics library.
 
 Setup:
 Define the 'NMD_GRAPHICS_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
 #define NMD_GRAPHICS_IMPLEMENTATION
-#include "nmd_graphics.hpp"
+#include "nmd_graphics.h"
+
+Defining types manually:
+Define the 'NMD_GRAPHICS_DEFINE_TYPES' macro to tell the library to define(typedef) the required types.
+Be aware: This feature uses platform dependent macros.
+
+Disable default functions:
+Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR' macro to tell the library not to include default allocators.
 
 Low level overview:
 The nmd::Context(acessible by nmd::GetContext()) global variable holds the state of the entire library, it
@@ -29,7 +36,7 @@ Default fonts:
 The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the
 font at compile time. By doing so at least 15KB of code & data will be saved.
 
-NOTE: A big part of this library's code has been derived from Imgui's and Nuklear's code. Big credits to both projects.
+NOTE: A big part of this library's code has been derived from Imgui's and Nuklear's code. Huge credit to both projects.
 
 TODO:
  - Add support for textures in Direct3D 11.
@@ -45,254 +52,303 @@ Credits:
 #ifndef NMD_GRAPHICS_H
 #define NMD_GRAPHICS_H
 
-// Common dependencies
-#include <inttypes.h>
+#ifdef NMD_GRAPHICS_DEFINE_TYPES
+
+#ifndef __cplusplus
+
+#define bool  _Bool
+#define false 0
+#define true  1
+
+#endif /* __cplusplus */
+
+typedef signed char        int8_t;
+typedef unsigned char      uint8_t;
+
+typedef signed short       int16_t;
+typedef unsigned short     uint16_t;
+
+typedef signed int         int32_t;
+typedef unsigned int       uint32_t;
+
+typedef signed long long   int64_t;
+typedef unsigned long long uint64_t;
+
+#if defined(_WIN64) && defined(_MSC_VER)
+	typedef unsigned __int64 size_t;
+	typedef __int64          ptrdiff_t;
+#elif (defined(_WIN32) || defined(WIN32)) && defined(_MSC_VER)
+	typedef unsigned __int32 size_t
+	typedef __int32          ptrdiff_t;
+#elif defined(__GNUC__) || defined(__clang__)
+	#if defined(__x86_64__) || defined(__ppc64__)
+		typedef unsigned long size_t
+		typedef long          ptrdiff_t
+	#else
+		typedef unsigned int size_t
+		typedef int          ptrdiff_t
+	#endif
+#else
+	typedef unsigned long size_t
+	typedef long          ptrdiff_t
+#endif
+
+#else
+
+/* Dependencies */
+#include <stdbool.h>
+#include <stdint.h>
 #include <stddef.h>
-#include <vector>
-#include <unordered_map>
-#include <queue>
+
+#endif /* NMD_GRAPHICS_DEFINE_TYPES */
+
+#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR
+#include <stdlib.h>
+
+#ifndef NMD_MALLOC
+#define NMD_MALLOC malloc
+#endif /* NMD_MALLOC */
+
+#ifndef NMD_REALLOC
+#define NMD_REALLOC realloc
+#endif /* NMD_REALLOC */
+
+#endif /* NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR */
+
+#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_MATH_FUNCTIONS
 #include <math.h>
+
+#ifndef NMD_SQRT
+#define NMD_SQRT sqrt
+#endif /* NMD_SQRT */
+
+#ifndef NMD_ACOS
+#define NMD_ACOS acos
+#endif /* NMD_ACOS */
+
+#ifndef NMD_COS
+#define NMD_COS cos
+#endif /* NMD_COS */
+
+#ifndef NMD_SIN
+#define NMD_SIN sin
+#endif /* NMD_SIN */
+
+#endif /* NMD_GRAPHICS_DISABLE_DEFAULT_MATH_FUNCTIONS */
+
+#ifndef NMD_INITIAL_PATH_BUFFER_SIZE
+#define NMD_INITIAL_PATH_BUFFER_SIZE 256 /* 256B */
+#endif /* NMD_INITIAL_PATH_BUFFER_SIZE */
+
+#ifndef NMD_INITIAL_VERTICES_BUFFER_SIZE
+#define NMD_INITIAL_VERTICES_BUFFER_SIZE 4096 /* 4KB */
+#endif /* NMD_INITIAL_VERTICES_BUFFER_SIZE */
+
+#ifndef NMD_INITIAL_INDICES_BUFFER_SIZE
+#define NMD_INITIAL_INDICES_BUFFER_SIZE 2048 /* 2KB */
+#endif /* NMD_INITIAL_INDICES_BUFFER_SIZE */
+
+#ifndef NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE
+#define NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE 128 /* 128B */
+#endif /* NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE */
 
 #ifdef _WIN32
 #include <Windows.h>
-#endif // _WIN32
+#endif /* _WIN32 */
 
 #ifdef NMD_GRAPHICS_D3D9
 #include <d3d9.h>
 #pragma comment(lib, "d3d9.lib")
-#endif // NMD_GRAPHICS_D3D9
+
+void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pDevice);
+void nmd_d3d9_resize(int width, int height);
+void nmd_d3d9_render();
+#endif /* NMD_GRAPHICS_D3D9 */
 
 #ifdef NMD_GRAPHICS_D3D11
 #include <d3d11.h>
 #pragma comment(lib, "d3d11.lib")
+
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler.lib")
-#endif // NMD_GRAPHICS_D3D11
 
-namespace nmd
-{
-//#ifdef _WIN32
-//    void Win32Init(HWND hwnd);
-//    LRESULT WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-//#endif
+void nmd_d3d11_set_device_context(ID3D11DeviceContext* pDeviceContext);
+void nmd_d3d11_render();
+#endif /* NMD_GRAPHICS_D3D11 */
 
 #ifdef NMD_GRAPHICS_OPENGL
-    void OpenGLResize(int width, int height);
-    void OpenGLRender();
-#endif // NMD_GRAPHICS_OPENGL
+bool nmd_opengl_resize(int width, int height);
+bool nmd_opengl_render();
+#endif /* NMD_GRAPHICS_OPENGL */
 
-#ifdef NMD_GRAPHICS_D3D9
-    void D3D9SetDevice(LPDIRECT3DDEVICE9 pDevice);
-    void D3D9Render();
-    void D3D9Resize(int width, int height);
+/*
+#ifdef _WIN32
+    void Win32Init(HWND hwnd);
+    LRESULT WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 #endif
+*/
 
-#ifdef NMD_GRAPHICS_D3D11
-    void D3D11SetDeviceContext(ID3D11DeviceContext* pDeviceContext);
-    void D3D11Render();
-#endif
-    struct Color
-    {
-        static const Color Black;
-        static const Color White;
-        static const Color Red;
-        static const Color Green;
-        static const Color Blue;
-        static const Color Orange;
-        static const Color Amber;
-        static const Color AndroidGreen;
-        static const Color Azure;
-        static const Color Bronze;
-        static const Color Corn;
-        static const Color Emerald;
-        static const Color LapisLazuli;
-        static const Color Lava;
+enum NMD_CORNER
+{
+    NMD_CORNER_NONE         = (1 << 0),
+    NMD_CORNER_TOP_LEFT     = (1 << 1),
+    NMD_CORNER_TOP_RIGHT    = (1 << 2),
+    NMD_CORNER_BOTTOM_LEFT  = (1 << 3),
+    NMD_CORNER_BOTTOM_RIGHT = (1 << 4),
 
-        union
-        {
-            uint32_t color;
-            struct { uint8_t r, g, b, a; };
-        };
+    /* While these are not actual corners they are nice to have. */
+    NMD_CORNER_TOP          = NMD_CORNER_TOP_LEFT    | NMD_CORNER_TOP_RIGHT,
+    NMD_CORNER_BOTTOM       = NMD_CORNER_BOTTOM_LEFT | NMD_CORNER_BOTTOM_RIGHT,
+    NMD_CORNER_LEFT         = NMD_CORNER_TOP_LEFT    | NMD_CORNER_BOTTOM_LEFT,
+    NMD_CORNER_RIGHT        = NMD_CORNER_TOP_RIGHT   | NMD_CORNER_BOTTOM_RIGHT,
 
-        Color(uint32_t color)
-            : color(color) {}
+    NMD_CORNER_ALL          = (1 << 5) - 1
+};
 
-        Color(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
-            : r(r), g(g), b(b), a(a) {}
+typedef uint16_t IndexType;
+typedef void* TextureId;
 
-        Color() : Color(0) {}
-    };
+typedef struct
+{
+    /* 'numVertices' has the type 'IndexType' because the number of vertices is always less or equal the number of indices. */
+    IndexType numVertices; 
 
-    struct Vec2
-    {
-        float x, y;
+    IndexType numIndices;
+    TextureId userTextureId;
+} nmd_draw_command;
 
-        Vec2() : x(0.0f), y(0.0f) {}
-        Vec2(float xy) : x(xy), y(xy) {}
-        Vec2(float x, float y) : x(x), y(y) {}
+typedef struct
+{
+    float x, y;
+} nmd_vec2;
 
-        Vec2 operator+(const Vec2& other) const;
-        Vec2 operator-(const Vec2& other) const;
-        Vec2 operator*(const Vec2& other) const;
+typedef struct
+{
+    float x, y, z;
+} nmd_vec3;
 
-        static Vec2 Clamp(const Vec2& x, const Vec2& low, const Vec2& high);
-        static Vec2 Min(const Vec2& lhs, const Vec2& rhs);
-        static Vec2 Max(const Vec2& lhs, const Vec2& rhs);
-    };
+typedef struct
+{
+    uint8_t r, g, b, a;
+} nmd_color;
 
-    struct Vec3
-    {
-        float x, y, z;
+typedef struct
+{
+    nmd_vec2 pos;
+    nmd_vec2 uv;
+    nmd_color color;
+} nmd_vertex;
 
-        Vec3() : x(0.0f), y(0.0f), z(0.0f) {}
-        Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
+typedef struct
+{
+    nmd_vec2 cachedCircleVertices12[12];
+    uint8_t cachedCircleSegmentCounts64[64];
+    float curveTessellationTolerance;
 
-        Vec3 operator+(const Vec3& other) { return Vec3(this->x + other.x, this->y + other.y, this->z + other.z); }
-        void operator+=(const Vec3& other) { this->x += other.x; this->y += other.y; this->z += other.z; }
-    };
+    nmd_vec2* path;
+    size_t numPoints; /* number of points('nmd_vec2') in the 'path' buffer. */
+    size_t pathCapacity; /* size of the 'path' buffer in bytes. */
 
-    struct Vec4
-    {
-        union
-        {
-            struct { float x, y, z, w; };
-            struct { float left, top, right, bottom; };
-            struct { Vec2 pos, size; };
-        };
+    nmd_vertex* vertices;
+    size_t numVertices; /* number of vertices in the 'vertices' buffer. */
+    size_t verticesCapacity; /* size of the 'vertices' buffer in bytes. */
 
-        Vec4() : pos(), size() {}
-        Vec4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
-        Vec4(const Vec2& pos, const Vec2& size) : pos(pos), size(size) {}
+    IndexType* indices;
+    size_t numIndices; /* number of indices in the 'indices' buffer. */
+    size_t indicesCapacity; /* size of the 'indices' buffer in bytes. */
 
-        Vec4 operator+(const Vec4& other) { return Vec4(this->x + other.x, this->y + other.y, this->z + other.z, this->w + other.w); }
-        void operator+=(const Vec4& other) { this->x += other.x, this->y + other.y, this->z + other.z, this->w + other.w; }
-    };
+    nmd_draw_command* drawCommands;
+    size_t numDrawCommands; /* number of draw commands in the 'drawCommands' buffer. */
+    size_t drawCommandsCapacity; /* size of the 'drawCommands' buffer in bytes. */
 
-    bool IsPointInRect(const Vec4& rect, const Vec2& p);
+    /*
+    void PushTextureDrawCommand(size_t numVertices, size_t numIndices, TextureId userTextureId);
+    
+    void AddText(const Vec2& pos, Color color, const char* text, size_t textLength);
+    void AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth = 0.0f);
 
-    enum CORNER_FLAGS
-    {
-        CORNER_FLAGS_NONE         = (1 << 0),
-        CORNER_FLAGS_TOP_LEFT     = (1 << 1),
-        CORNER_FLAGS_TOP_RIGHT    = (1 << 2),
-        CORNER_FLAGS_BOTTOM_LEFT  = (1 << 3),
-        CORNER_FLAGS_BOTTOM_RIGHT = (1 << 4),
-        CORNER_FLAGS_ALL          = (1 << 5) - 1,
-        CORNER_FLAGS_TOP          = CORNER_FLAGS_TOP_LEFT | CORNER_FLAGS_TOP_RIGHT,
-        CORNER_FLAGS_BOTTOM       = CORNER_FLAGS_BOTTOM_LEFT | CORNER_FLAGS_BOTTOM_RIGHT,
-        CORNER_FLAGS_LEFT         = CORNER_FLAGS_TOP_LEFT | CORNER_FLAGS_BOTTOM_LEFT,
-        CORNER_FLAGS_RIGHT        = CORNER_FLAGS_TOP_RIGHT | CORNER_FLAGS_BOTTOM_RIGHT
-    };
+    void AddImage(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
+    void AddImageQuad(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 0), const Vec2& uv3 = Vec2(1, 1), const Vec2& uv4 = Vec2(0, 1), Color color = Color::White);
+    void AddImageRounded(TextureId userTextureId, const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags = CORNER_FLAGS_ALL, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
 
-    typedef uint16_t IndexType;
-    typedef void* TextureId;
+    void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);
 
-    struct DrawCommand
-    {
-        IndexType numVertices; //numVertices uses IndexType because the number of vertices is always less or equal the number of indices.
-        IndexType numIndices;
-        TextureId userTextureId;
+    void PrimRectUV(const Vec2& p1, const Vec2& p2, const Vec2& uv1, const Vec2& uv2, Color color);
+    void PrimQuadUV(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1, const Vec2& uv2, const Vec2& uv3, const Vec2& uv4, Color color);
+    */
+} nmd_drawlist;
 
-        DrawCommand(IndexType numVertices, IndexType numIndices, TextureId userTextureId)
-            : numVertices(numVertices), numIndices(numIndices), userTextureId(userTextureId) {}
-    };
+typedef struct
+{
+    nmd_drawlist drawList;
+} nmd_context;
 
-    struct Vertex
-    {
-        Vec2 pos;
-        Color color;
-        Vec2 uv;
+void nmd_path_to(float x0, float y0);
+void nmd_path_rect(float x0, float y0, float x1, float y1, float rounding, uint32_t roundingCorners);
 
-        Vertex() : pos(), color(), uv() {}
-        Vertex(const Vec2& pos, const Color& color, const Vec2& uv) : pos(pos), color(color), uv(uv) {}
-    };
+/*
+'startAtCenter' places the first vertex at the center, this can be used to create a pie chart when using nmd_path_fill_convex().
+This functions uses twelve(12) chached vertices initialized during startup, it should be faster than PathArcTo.
+*/
+void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t startAngleOf12, size_t endAngleOf12, bool startAtCenter);
+void nmd_path_arc_to(float x0, float y0, float radius, float startAngle, float endAngle, size_t numSegments, bool startAtCenter);
 
-    class DrawList
-    {
-    public:
-        DrawList();
-        DrawList(const DrawList&) = delete;
+void nmd_path_fill_convex(nmd_color color);
+void nmd_path_stroke(nmd_color color, bool closed, float thickness);
 
-        Vec2 cachedCircleVertices12[12];
-        uint8_t cachedCircleSegmentCounts64[64];
-        float curveTessellationTolerance;
-        void CalculateCircleSegments(float maxError);
+void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float thickness);
 
-        std::vector<Vec2> path;
+void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags, float thickness);
+void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags);
+void nmd_add_rect_filled_multi_color(float x0, float y0, float x1, float y1, nmd_color colorUpperLeft, nmd_color colorUpperRight, nmd_color colorBottomRight, nmd_color colorBottomLeft);
 
-        std::vector<Vertex> vertices;
-        std::vector<IndexType> indices;
+void nmd_add_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color, float thickness);
+void nmd_add_quad_filled(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color);
 
-        std::vector<DrawCommand> drawCommands;
-        void PushRemainingDrawCommands();
-        void PushTextureDrawCommand(size_t numVertices, size_t numIndices, TextureId userTextureId);
+void nmd_add_triangle(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color, float thickness);
+void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color);
 
-        void AddLine(const Vec2& p1, const Vec2& p2, Color color, float thickness = 1.0f);
+/*
+Set numSegments to zero if you want the function to automatically determine the number of segmnts.
+numSegments = 12
+*/
+void nmd_add_circle(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness);
+void nmd_add_circle_filled(float x0, float y0, float radius, nmd_color color, size_t numSegments);
 
-        void AddRect(const Vec2& p1, const Vec2& p2, Color color, float rounding = 0.0f, uint32_t cornerFlags = CORNER_FLAGS_ALL, float thickness = 1.0f);
-        void AddRectFilled(const Vec2& p1, const Vec2& p2, Color color, float rounding = 0.0f, uint32_t cornerFlags = CORNER_FLAGS_ALL);
-        void AddRectFilledMultiColor(const Vec2& p1, const Vec2& p2, Color colorUpperLeft, Color colorUpperRight, Color colorBottomRight, Color colorBottomLeft);
+void nmd_add_ngon(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness);
+void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size_t numSegments);
 
-        void AddQuad(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, Color color, float thickness = 1.0f);
-        void AddQuadFilled(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, Color color);
+void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color, bool closed, float thickness);
+void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color);
+//void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);
 
-        void AddTriangle(const Vec2& p1, const Vec2& p2, const Vec2& p3, Color color, float thickness = 1.0f);
-        void AddTriangleFilled(const Vec2& p1, const Vec2& p2, const Vec2& p3, Color color);
+nmd_color nmd_rgb(uint8_t r, uint8_t g, uint8_t b);
+nmd_color nmd_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
-        //Set numSegments to zero(0) if you want the function to automatically determine the number of segmnts.
-        void AddCircle(const Vec2& center, float radius, Color color, size_t numSegments = 12, float thickness = 1.0f);
-        void AddCircleFilled(const Vec2& center, float radius, Color color, size_t numSegments = 12);
+nmd_context* nmd_get_context();
 
-        void AddNgon(const Vec2& center, float radius, Color color, size_t numSegments, float thickness = 1.0f);
-        void AddNgonFilled(const Vec2& center, float radius, Color color, size_t numSegments);
+/* Starts a new empty scene. Internally this function clears all vertices, indices and command buffers. */
+void nmd_begin();
 
-        void AddPolyline(const Vec2* points, size_t numPoints, Color color, bool closed = false, float thickness = 1.0f);
-        void AddConvexPolyFilled(const Vec2* points, size_t numPoints, Color color);
+/* Ends a scene, so it can be rendered. Internally this functions creates the remaining draw commands. */
+void nmd_end();
 
-        void AddBezierCurve(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, Color color, float thickness = 1.0f, size_t numSegments = 0);
+#define NMD_COLOR_BLACK         nmd_rgb(0,   0,   0  )
+#define NMD_COLOR_WHITE         nmd_rgb(255, 255, 255)
+#define NMD_COLOR_RED           nmd_rgb(255, 0,   0  )
+#define NMD_COLOR_GREEN         nmd_rgb(0,   255, 0  )
+#define NMD_COLOR_BLUE          nmd_rgb(0,   0,   255)
+#define NMD_COLOR_ORANGE        nmd_rgb(255, 165, 0  )
+#define NMD_COLOR_AMBER         nmd_rgb(255, 191, 0  )
+#define NMD_COLOR_ANDROID_GREEN nmd_rgb(164, 198, 57 )
+#define NMD_COLOR_AZURE         nmd_rgb(0,   127, 255)
+#define NMD_COLOR_BRONZE        nmd_rgb(205, 127, 50 )
+#define NMD_COLOR_CORN          nmd_rgb(251, 236, 93 )
+#define NMD_COLOR_EMERALD       nmd_rgb(80,  200, 120)
+#define NMD_COLOR_LAPIS_LAZULI  nmd_rgb(38,  97,  156)
+#define NMD_COLOR_LAVA          nmd_rgb(207, 16,  32 )
 
-        void AddText(const Vec2& pos, Color color, const char* text, size_t textLength);
-        void AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth = 0.0f);
-
-        void AddImage(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
-        void AddImageQuad(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 0), const Vec2& uv3 = Vec2(1, 1), const Vec2& uv4 = Vec2(0, 1), Color color = Color::White);
-        void AddImageRounded(TextureId userTextureId, const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags = CORNER_FLAGS_ALL, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
-
-        //Path API
-        inline void PathLineTo(const Vec2& pos) { path.push_back(pos); }
-        void PathRect(const Vec2& p1, const Vec2& p2, float rounding, uint32_t rounding_corners);
-
-        //startAtCenter places the first vertex at the center, this can be used to create a pie chart when using PathFillConvex().
-        //This functions uses twelve(12) chached vertices initialized during startup, it should be faster than PathArcTo.
-        void PathArcToCached(const Vec2& center, float radius, size_t startAngleOf12, size_t endAngleOf12, bool startAtCenter = false);
-        void PathArcTo(const Vec2& center, float radius, float startAngle, float endAngle, size_t numSegments = 10, bool startAtCenter = false);
-
-        inline void PathStroke(Color color, bool closed, float thickness = 1.0f) { AddPolyline(path.data(), path.size(), color, closed, thickness); path.clear(); }
-        inline void PathFillConvex(Color color) { AddConvexPolyFilled(path.data(), path.size(), color); path.clear(); }
-
-        void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);
-
-        void PrimRect(const Vec2& p1, const Vec2& p2, Color color);
-        void PrimRectUV(const Vec2& p1, const Vec2& p2, const Vec2& uv1, const Vec2& uv2, Color color);
-        void PrimQuadUV(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1, const Vec2& uv2, const Vec2& uv3, const Vec2& uv4, Color color);
-    };
-
-    struct Context
-    {
-        DrawList drawList;
-    };
-
-    Context& GetContext();
-
-    // Begin() clears all of the vertices, indices and command buffers. Call this function to start a new scene.
-    void Begin();
-
-    // End() calculates the remaining command buffers. Call this function before rendering.
-    void End();
-
-} // namespace nmd
-
-#endif // NMD_GRAPHICS_H
+#endif /* NMD_GRAPHICS_H */
 
 
 #ifdef NMD_GRAPHICS_IMPLEMENTATION
@@ -304,793 +360,939 @@ namespace nmd
 #define NMD_MIN(a, b) (a < b ? a : b)
 #define NMD_MAX(a, b) (a > b ? a : b)
 
-#define CIRCLE_AUTO_SEGMENT_MIN 12
-#define CIRCLE_AUTO_SEGMENT_MAX 512
-#define CIRCLE_AUTO_SEGMENT_CALC(radius, maxError) NMD_CLAMP(NMD_2PI / acosf((radius - maxError) / radius), CIRCLE_AUTO_SEGMENT_MIN, CIRCLE_AUTO_SEGMENT_MAX)
+#define NMD_CIRCLE_AUTO_SEGMENT_MIN 12
+#define NMD_CIRCLE_AUTO_SEGMENT_MAX 512
+#define NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, maxError) NMD_CLAMP(NMD_2PI / NMD_ACOS((radius - maxError) / radius), NMD_CIRCLE_AUTO_SEGMENT_MIN, NMD_CIRCLE_AUTO_SEGMENT_MAX)
 
-namespace nmd
-{
-	Vec2 Vec2::operator+(const Vec2& other) const { return Vec2(this->x + other.x, this->y + other.x); }
-	Vec2 Vec2::operator-(const Vec2& other) const { return Vec2(this->x - other.x, this->y - other.x); }
-	Vec2 Vec2::operator*(const Vec2& other) const { return Vec2(this->x * other.x, this->y * other.x); }
 
-	Vec2 Vec2::Clamp(const Vec2& x, const Vec2& low, const Vec2& high) { return Vec2(NMD_CLAMP(x.x, low.x, high.x), NMD_CLAMP(x.y, low.y, high.y)); }
-	Vec2 Vec2::Min(const Vec2& lhs, const Vec2& rhs) { return Vec2(NMD_MIN(lhs.x, rhs.x), NMD_MIN(lhs.y, rhs.y)); }
-	Vec2 Vec2::Max(const Vec2& lhs, const Vec2& rhs) { return Vec2(NMD_MAX(lhs.x, rhs.x), NMD_MAX(lhs.y, rhs.y)); }
-
-	bool IsPointInRect(const Vec4& rect, const Vec2& p) { return p.x >= rect.pos.x && p.x <= rect.pos.x + rect.size.x && p.y >= rect.pos.y && p.y <= rect.pos.y + rect.size.y; }
+/*
+Uncompressed true type font 'Karla' by Jonny Pinhorn. Licensed under the Open Font License.
+Author's public contact information:
+ - Jonnypinhorn.co.uk
+ - https://github.com/jonpinhorn
+ - https://twitter.com/jonpinhorn_type
+ - jonpinhorn.typedesign@gmail.com
+*/
 
 #ifndef NMD_GRAPHICS_DISABLE_DEFAULT_FONT
-	extern const uint8_t karla_ttf_regular[14824];
-#endif // NMD_GRAPHICS_DISABLE_DEFAULT_FONT
-} // namespace nmd
+const uint8_t nmd_karla_ttf_regular[14824] = { 0,1,0,0,0,15,0,128,0,3,0,112,71,68,69,70,0,17,0,157,0,0,53,116,0,0,0,22,71,80,79,83,3,128,47,117,0,0,53,140,0,0,4,0,71,83,85,66,220,66,234,59,0,0,57,140,0,0,0,92,79,83,47,50,132,55,30,240,0,0,47,176,0,0,0,96,99,109,97,112,78,215,82,232,0,0,48,16,0,0,0,212,103,97,115,112,0,0,0,16,0,0,53,108,0,0,0,8,103,108,121,102,180,71,175,247,0,0,0,252,0,0,42,136,104,101,97,100,249,147,22,70,0,0,44,224,0,0,0,54,104,104,101,97,6,192,3,38,0,0,47,140,0,0,0,36,104,109,116,120,54,142,32,192,0,0,45,24,0,0,2,116,108,111,99,97,16,143,27,140,0,0,43,164,0,0,1,60,109,97,120,112,0,228,0,66,0,0,43,132,0,0,0,32,110,97,109,101,68,55,103,50,0,0,48,236,0,0,3,12,112,111,115,116,67,234,186,24,0,0,51,248,0,0,1,115,112,114,101,112,104,6,140,133,0,0,48,228,0,0,0,7,0,2,0,82,255,247,0,201,2,115,0,3,0,11,0,0,19,51,3,35,22,38,52,54,50,22,20,6,99,83,9,64,6,33,33,51,35,35,2,115,254,61,185,33,47,33,33,47,33,0,0,2,0,28,1,205,1,22,2,169,0,3,0,7,0,0,19,7,35,39,51,7,35,39,110,11,60,11,250,11,60,11,2,169,220,220,220,220,0,2,0,53,0,31,2,74,2,81,0,27,0,31,0,0,37,35,7,35,55,35,55,51,55,35,55,51,55,51,7,51,55,51,7,51,7,35,7,51,7,35,7,35,39,51,55,35,1,124,154,14,74,14,99,5,100,19,101,6,100,15,74,15,154,15,73,15,103,6,102,19,103,6,103,14,74,133,153,19,153,170,139,139,54,178,53,138,138,138,138,53,178,54,139,193,178,0,0,3,0,69,255,165,2,51,2,201,0,31,0,38,0,45,0,0,1,22,22,20,6,7,21,35,53,38,38,53,51,20,23,53,39,38,38,52,54,55,53,51,21,22,22,23,35,38,39,21,23,52,39,39,21,54,54,2,6,20,22,23,23,53,1,161,69,77,114,102,62,95,121,77,139,32,83,85,101,99,62,87,94,11,78,17,97,128,92,36,63,65,247,58,40,45,30,1,74,23,77,133,101,6,81,82,8,103,87,113,13,235,12,26,72,134,89,7,75,76,7,86,68,80,12,215,186,74,29,12,220,5,62,1,178,54,73,41,14,11,199,0,0,5,0,61,255,245,2,155,2,128,0,9,0,19,0,23,0,33,0,45,0,0,18,22,21,20,6,34,38,53,52,54,22,38,34,6,21,20,22,50,54,53,37,51,1,35,1,50,22,20,6,35,34,38,52,54,23,34,6,21,20,22,51,50,54,53,52,38,241,76,75,108,73,74,118,36,58,36,36,58,36,1,25,82,254,89,81,1,170,54,75,75,54,54,73,73,54,29,36,36,29,29,36,36,2,128,76,68,68,75,76,67,67,77,97,44,44,47,47,42,42,47,133,253,139,1,20,75,137,75,76,135,76,53,44,47,47,42,42,47,47,44,0,3,0,89,255,245,3,101,2,127,0,36,0,43,0,55,0,0,1,6,7,23,22,22,50,54,55,51,6,6,35,34,38,39,39,6,35,34,38,52,54,55,39,38,53,52,54,50,22,20,6,7,23,54,55,4,6,20,22,50,55,39,55,52,38,34,6,20,22,23,23,54,55,54,2,213,45,70,43,20,31,49,39,3,74,4,67,64,39,66,39,26,100,128,105,142,95,92,14,77,105,173,103,78,88,158,68,44,254,90,73,83,172,81,186,155,55,99,55,26,30,27,104,16,6,1,94,137,85,37,17,16,37,45,72,79,32,35,22,89,105,148,75,15,13,67,80,63,84,84,119,86,38,139,82,125,102,54,96,69,66,163,200,36,48,55,64,50,26,25,48,52,17,0,0,1,0,27,1,201,0,109,2,165,0,3,0,0,19,7,35,39,109,11,60,11,2,165,220,220,0,1,0,73,255,143,1,72,2,216,0,9,0,0,18,16,23,7,38,38,52,54,55,23,155,173,57,98,100,100,98,57,2,0,254,102,175,40,89,216,231,215,90,41,0,1,0,28,255,143,1,27,2,216,0,9,0,0,54,16,39,55,22,22,20,6,7,39,201,173,57,98,100,100,98,57,102,1,154,175,41,90,215,231,216,89,40,0,0,1,0,56,1,132,1,102,2,172,0,14,0,0,19,39,55,23,39,51,7,55,23,7,23,7,39,7,39,173,117,24,106,10,62,10,106,24,116,90,44,80,80,45,2,4,40,54,54,128,128,54,54,40,89,39,104,104,39,0,0,1,0,18,0,0,1,253,1,235,0,11,0,0,1,21,51,21,35,21,35,53,35,53,51,53,1,47,206,206,79,206,206,1,235,212,67,212,212,67,212,0,0,1,0,30,255,147,0,178,0,97,0,11,0,0,22,38,52,54,50,22,20,6,7,39,54,55,82,30,31,57,38,44,45,59,62,13,3,26,44,30,45,68,71,22,29,30,45,0,0,1,0,38,1,1,1,54,1,69,0,3,0,0,19,33,21,33,38,1,16,254,240,1,69,68,0,1,0,30,255,247,0,148,0,104,0,7,0,0,22,38,52,54,50,22,20,6,63,33,33,51,34,34,9,33,47,33,33,47,33,0,0,1,0,57,255,183,1,132,2,219,0,3,0,0,1,51,3,35,1,52,80,252,79,2,219,252,220,0,0,2,0,51,255,245,2,32,2,128,0,7,0,15,0,0,0,22,16,6,34,38,16,54,4,38,34,6,20,22,50,54,1,156,132,132,228,133,133,1,22,84,161,84,84,161,84,2,128,168,254,197,168,166,1,63,166,203,131,131,245,131,131,0,0,1,0,49,0,0,0,230,2,119,0,8,0,0,19,54,55,51,17,35,17,6,7,49,67,50,64,78,50,53,2,68,9,42,253,137,2,25,32,3,0,1,0,64,0,0,2,1,2,128,0,28,0,0,55,33,21,33,53,52,55,54,55,55,54,53,52,38,34,6,7,35,54,54,50,22,20,6,7,7,6,6,21,143,1,109,254,68,84,27,33,124,96,66,119,75,6,87,5,122,191,120,79,69,127,48,47,73,73,93,111,52,17,13,50,38,87,48,61,50,50,82,88,104,153,90,27,51,20,51,41,0,0,1,0,52,255,245,2,17,2,128,0,33,0,0,1,20,7,22,22,21,20,6,34,38,53,51,22,22,50,54,52,38,35,35,53,51,50,54,52,38,34,6,7,35,54,54,50,22,1,249,110,60,74,126,206,145,82,2,91,140,77,74,83,72,49,72,84,68,112,75,13,82,11,116,183,125,1,212,100,39,17,78,61,83,101,107,97,64,68,67,99,63,63,57,96,62,39,53,83,81,97,0,0,2,0,26,0,0,2,25,2,126,0,10,0,13,0,0,1,17,51,21,35,21,35,53,33,53,1,3,51,17,1,172,109,109,77,254,187,1,73,235,233,2,126,254,94,68,152,152,61,1,169,254,87,1,44,0,0,1,0,65,255,245,1,253,2,117,0,24,0,0,37,52,35,35,19,33,21,33,7,54,51,50,22,20,6,34,38,53,51,20,23,22,51,50,54,1,171,155,169,27,1,93,254,239,17,52,47,103,118,124,196,124,79,84,26,31,64,78,204,119,1,50,72,181,9,91,184,121,99,87,82,25,7,81,0,2,0,51,255,244,2,3,2,128,0,21,0,30,0,0,1,38,34,6,21,20,23,54,54,50,22,20,6,35,34,38,16,54,51,50,22,23,4,6,20,22,50,54,53,52,38,1,169,17,180,97,5,6,101,158,114,118,96,112,138,140,121,84,106,8,254,247,75,74,114,75,75,1,214,98,148,128,53,35,92,83,111,173,107,180,1,37,179,94,76,161,71,110,67,66,58,58,66,0,0,1,0,24,0,0,1,196,2,117,0,6,0,0,1,21,1,35,1,33,53,1,196,254,224,106,1,46,254,176,2,117,73,253,212,2,41,76,0,3,0,55,255,245,2,49,2,128,0,21,0,31,0,42,0,0,19,38,53,52,54,50,22,21,20,6,7,23,22,22,21,20,6,34,38,53,52,54,23,6,6,20,22,50,54,52,38,39,39,20,22,23,23,54,54,52,38,34,6,201,125,124,205,132,69,67,17,69,74,135,229,142,81,140,63,76,96,155,91,48,42,230,44,41,73,60,78,82,130,84,1,62,57,98,75,92,98,77,52,82,10,6,26,71,61,76,92,102,77,62,78,19,7,65,96,60,52,74,45,15,216,27,39,16,28,2,59,95,59,57,0,2,0,66,255,245,2,18,2,128,0,28,0,37,0,0,1,50,22,23,22,21,20,7,6,35,34,38,53,51,22,22,50,55,54,53,52,39,6,6,34,38,53,52,54,22,34,6,21,20,22,50,54,52,1,26,51,92,33,72,136,47,55,103,120,83,2,68,104,32,91,5,10,97,157,114,118,152,114,74,75,113,75,2,128,44,41,88,141,245,69,23,112,85,57,68,19,57,200,41,33,81,80,111,86,87,106,73,66,58,58,66,71,110,0,2,0,56,0,23,0,174,1,186,0,7,0,15,0,0,54,38,52,54,50,22,20,6,2,38,52,54,50,22,20,6,89,33,33,51,34,34,51,33,33,51,34,34,23,33,47,33,33,47,33,1,50,33,47,33,33,47,33,0,0,2,0,57,255,147,0,205,1,186,0,11,0,19,0,0,22,38,52,54,50,22,20,6,7,39,54,55,2,38,52,54,50,22,20,6,109,30,31,57,38,44,45,59,62,13,17,33,33,51,34,34,3,26,44,30,45,68,71,22,29,30,45,1,78,33,47,33,33,47,33,0,0,1,0,40,0,40,1,152,2,60,0,6,0,0,1,5,5,7,37,53,37,1,152,254,224,1,32,52,254,196,1,60,2,0,207,204,61,231,69,232,0,2,0,79,0,117,1,153,1,121,0,3,0,7,0,0,37,21,33,53,37,21,33,53,1,153,254,182,1,74,254,182,185,68,68,192,69,69,0,1,0,47,0,40,1,158,2,60,0,6,0,0,19,5,21,5,39,37,37,98,1,60,254,196,51,1,30,254,226,2,60,232,69,231,61,204,207,0,0,2,0,30,255,245,1,197,2,128,0,25,0,35,0,0,19,34,7,35,54,54,50,22,21,20,6,7,6,6,7,6,21,21,35,53,52,62,2,52,38,3,50,22,20,6,35,34,38,52,54,248,117,17,84,7,108,195,113,52,58,25,34,10,19,78,42,110,38,63,87,26,34,34,26,26,32,32,2,56,92,74,90,96,69,52,69,32,14,22,14,25,47,39,45,63,67,60,45,76,51,254,46,34,47,32,32,47,34,0,0,2,0,67,255,75,3,126,2,128,0,10,0,61,0,0,1,52,35,34,6,21,20,22,50,54,55,23,20,51,50,54,55,54,53,52,38,35,34,6,7,6,16,22,51,21,34,39,38,38,52,62,2,50,30,2,21,20,6,35,34,38,39,39,6,6,35,34,38,53,52,54,51,50,22,21,2,63,59,59,94,55,82,52,23,66,39,20,47,19,46,162,139,82,134,47,100,212,185,213,134,63,68,66,118,163,182,142,100,56,129,86,43,52,5,3,18,60,40,74,95,132,91,60,69,1,33,84,97,74,53,58,47,45,45,51,27,26,61,95,119,154,56,47,100,254,214,185,64,115,54,149,178,152,111,62,54,93,126,67,122,150,36,34,16,38,48,98,75,99,135,72,73,0,0,2,0,26,0,0,2,37,2,117,0,7,0,10,0,0,19,51,19,35,39,35,7,35,55,51,3,242,96,211,82,54,250,54,83,158,209,104,2,117,253,139,160,160,222,1,54,0,0,3,0,101,0,0,2,41,2,117,0,15,0,24,0,32,0,0,19,51,50,22,21,20,6,7,22,22,21,20,7,6,35,35,55,50,54,53,52,38,35,35,21,17,51,50,54,52,38,35,35,101,235,99,107,59,60,59,71,113,42,61,236,234,72,62,68,66,155,154,58,69,67,60,154,2,117,94,71,54,80,14,10,82,52,116,41,15,69,58,48,48,57,211,1,23,57,100,56,0,0,1,0,51,255,245,2,54,2,128,0,22,0,0,1,50,22,23,7,38,38,35,34,6,20,22,51,50,54,53,51,20,6,34,38,16,54,1,63,101,123,23,85,20,85,57,79,104,93,90,75,87,85,135,235,145,150,2,128,101,81,17,59,69,132,235,142,79,65,99,116,180,1,46,169,0,0,2,0,100,0,0,2,86,2,117,0,7,0,16,0,0,1,50,22,16,6,35,35,17,19,51,50,54,53,52,38,35,35,1,29,142,171,171,142,185,79,106,105,124,125,104,106,2,117,171,254,225,171,2,117,253,208,139,107,107,137,0,0,1,0,100,0,0,1,231,2,117,0,11,0,0,19,33,21,33,21,33,21,33,21,33,21,33,100,1,131,254,204,1,34,254,222,1,52,254,125,2,117,68,211,67,214,69,0,1,0,101,0,0,1,227,2,117,0,9,0,0,19,33,21,33,21,33,21,33,17,35,101,1,126,254,209,1,26,254,230,79,2,117,68,209,68,254,228,0,0,1,0,51,255,245,2,59,2,127,0,25,0,0,37,6,34,38,16,54,51,50,22,23,7,38,34,6,20,22,51,50,54,53,53,39,53,51,17,35,1,234,42,242,155,169,126,74,111,40,76,65,174,121,104,88,72,88,158,235,64,108,119,176,1,42,176,60,66,26,81,142,227,138,96,94,2,6,52,254,201,0,0,1,0,101,0,0,2,56,2,117,0,11,0,0,19,17,33,17,51,17,35,17,33,17,35,17,180,1,53,79,79,254,203,79,2,117,254,235,1,21,253,139,1,28,254,228,2,117,0,1,0,101,0,0,0,180,2,117,0,3,0,0,19,51,17,35,101,79,79,2,117,253,139,0,0,1,0,8,255,245,1,68,2,117,0,11,0,0,36,6,34,39,53,22,50,54,53,17,51,17,1,68,93,144,79,70,123,44,79,79,90,42,82,48,60,57,1,191,254,65,0,1,0,101,0,0,2,76,2,117,0,11,0,0,19,17,1,51,1,1,35,3,7,21,35,17,181,1,25,109,254,237,1,36,102,243,62,80,2,117,254,221,1,35,254,229,254,166,1,35,64,227,2,117,0,1,0,101,0,0,1,204,2,117,0,5,0,0,55,33,21,33,17,51,180,1,24,254,153,79,69,69,2,117,0,1,0,101,0,0,2,235,2,117,0,12,0,0,27,2,51,17,35,17,3,35,3,17,35,17,214,212,210,111,79,216,53,219,79,2,117,254,86,1,170,253,139,2,5,254,74,1,189,253,244,2,117,0,0,1,0,99,0,0,2,72,2,117,0,9,0,0,19,1,17,51,17,35,1,17,35,17,193,1,56,79,88,254,195,80,2,117,254,7,1,249,253,139,2,0,254,0,2,117,0,2,0,51,255,245,2,84,2,128,0,10,0,20,0,0,1,50,22,16,6,35,34,38,53,52,54,23,34,6,20,22,51,50,54,52,38,1,67,122,151,150,123,123,149,149,123,88,102,102,88,88,103,103,2,128,167,254,193,165,167,158,159,167,71,132,248,128,128,248,132,0,0,2,0,99,0,0,2,3,2,117,0,9,0,17,0,0,0,22,20,6,35,35,21,35,17,51,17,50,54,52,38,35,35,21,1,150,109,109,104,124,79,203,65,67,67,65,124,2,117,105,178,103,243,2,117,254,194,66,115,69,250,0,0,2,0,51,255,89,2,84,2,128,0,21,0,31,0,0,5,6,35,34,39,39,38,38,16,54,51,50,22,21,20,6,7,23,22,23,50,55,1,34,6,20,22,51,50,54,52,38,2,84,40,44,85,61,47,121,147,149,123,122,151,106,91,31,29,40,43,54,254,239,88,102,102,88,88,103,103,148,19,89,67,2,166,1,60,167,167,159,132,161,23,44,39,2,25,2,119,132,248,128,128,248,132,0,0,2,0,101,0,0,2,43,2,117,0,12,0,20,0,0,0,6,7,19,35,3,35,17,35,17,51,50,22,7,50,54,52,38,35,35,21,2,27,83,81,180,102,163,110,79,219,106,113,225,71,73,71,67,140,1,115,96,14,254,251,1,1,254,255,2,117,102,215,69,113,67,249,0,0,1,0,69,255,245,2,24,2,128,0,31,0,0,1,38,35,34,6,20,22,23,23,22,22,20,6,34,38,39,51,20,22,50,54,52,38,39,39,38,38,52,54,50,22,23,1,180,17,118,63,68,42,47,131,67,79,124,208,133,2,77,87,137,80,49,48,111,78,80,112,202,107,8,1,220,92,55,77,40,15,45,23,80,145,99,105,95,62,66,61,83,48,16,41,26,72,139,93,89,75,0,0,1,0,6,0,0,1,239,2,117,0,7,0,0,19,33,21,35,17,35,17,35,6,1,233,205,79,205,2,117,68,253,207,2,49,0,0,1,0,87,255,245,2,53,2,117,0,16,0,0,19,17,20,22,51,50,54,53,17,51,17,20,6,34,38,53,17,166,88,72,72,88,79,130,219,129,2,117,254,110,88,78,78,88,1,146,254,110,118,120,120,118,1,146,0,1,0,18,0,0,2,33,2,117,0,6,0,0,27,2,51,3,35,3,101,180,181,83,223,82,222,2,117,253,239,2,17,253,139,2,117,0,0,1,0,14,0,0,3,112,2,117,0,12,0,0,27,2,51,19,19,51,3,35,3,3,35,3,102,153,155,53,154,176,87,222,83,137,142,83,199,2,117,253,245,1,202,254,54,2,11,253,139,1,147,254,109,2,117,0,0,1,0,47,0,0,2,81,2,117,0,11,0,0,33,35,39,7,35,19,3,51,19,19,51,3,2,81,98,182,169,96,222,223,95,180,166,95,217,251,251,1,56,1,61,254,255,1,1,254,196,0,0,1,0,10,0,0,2,27,2,117,0,8,0,0,27,2,51,3,17,35,17,3,104,169,173,93,226,80,223,2,117,254,223,1,33,254,141,254,254,1,2,1,115,0,0,1,0,73,0,0,2,23,2,117,0,9,0,0,55,1,37,53,33,21,1,5,21,33,73,1,107,254,149,1,206,254,149,1,107,254,50,71,1,227,3,72,71,254,29,3,72,0,0,1,0,101,255,154,1,43,2,219,0,7,0,0,19,51,21,35,17,51,21,35,101,198,119,119,198,2,219,70,253,75,70,0,0,1,0,45,255,183,1,120,2,219,0,3,0,0,19,51,19,35,45,79,252,80,2,219,252,220,0,1,255,242,255,154,0,184,2,219,0,7,0,0,23,35,53,51,17,35,53,51,184,198,119,119,198,102,70,2,181,70,0,1,0,21,0,245,1,178,2,74,0,6,0,0,55,19,51,19,35,39,7,21,176,61,176,88,119,117,245,1,85,254,171,246,246,0,0,1,0,55,255,132,2,159,255,200,0,3,0,0,23,33,21,33,55,2,104,253,152,56,68,0,0,1,0,24,2,165,1,36,3,92,0,3,0,0,19,23,7,39,57,235,23,245,3,92,133,50,113,0,0,2,0,70,255,245,1,219,1,234,0,24,0,33,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,1,141,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,58,83,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,83,0,0,2,0,101,255,245,2,22,2,169,0,13,0,23,0,0,19,54,50,22,20,6,35,34,38,39,7,35,17,51,18,6,7,21,20,22,50,54,52,38,180,48,184,122,124,89,48,77,22,18,55,79,78,76,2,79,112,82,81,1,151,83,137,225,139,48,47,84,2,169,254,251,73,65,78,66,79,99,164,98,0,1,0,50,255,245,1,205,1,234,0,21,0,0,0,22,23,7,38,38,35,34,6,20,22,50,54,53,51,20,6,35,34,38,52,54,1,89,100,15,80,13,58,35,64,79,77,115,57,81,107,86,91,127,126,1,234,87,65,7,42,47,96,165,100,53,49,77,95,138,229,134,0,2,0,60,255,245,1,236,2,169,0,13,0,23,0,0,1,17,51,17,35,39,6,6,35,34,38,52,54,50,6,6,20,22,50,54,55,53,52,38,1,158,78,64,10,23,76,45,91,123,121,185,146,79,80,112,79,2,78,1,151,1,18,253,87,80,45,46,140,225,136,70,98,164,99,75,63,78,67,78,0,2,0,50,255,245,1,215,1,234,0,16,0,24,0,0,37,50,55,51,6,6,35,34,38,52,54,50,22,7,33,20,22,19,38,35,34,6,7,51,52,1,10,99,14,81,11,105,78,96,120,121,201,99,15,254,185,72,123,23,33,61,71,6,255,53,87,72,79,137,228,136,156,112,74,95,1,106,12,83,62,100,0,1,0,49,0,0,1,91,2,177,0,20,0,0,1,38,35,34,6,21,21,51,21,35,17,35,17,35,53,51,53,52,54,50,23,1,77,33,19,35,40,99,99,78,79,79,78,102,39,2,102,13,34,43,72,54,254,88,1,168,54,73,71,67,13,0,0,3,0,28,255,10,2,37,2,59,0,40,0,52,0,62,0,0,55,38,53,52,54,55,38,53,52,54,50,23,54,54,51,7,34,7,22,21,20,6,35,34,39,6,6,21,20,51,51,50,22,21,20,6,34,38,53,52,54,23,20,22,50,54,53,52,38,35,35,6,6,0,38,34,6,21,20,22,51,50,54,121,60,47,35,54,111,152,53,7,71,58,7,88,4,35,111,83,57,44,20,32,88,186,67,78,153,234,134,51,27,83,169,113,33,34,193,51,54,1,38,62,109,62,63,54,54,62,15,29,60,31,47,8,48,78,78,96,36,53,64,78,74,43,60,77,99,23,4,29,25,53,57,51,76,114,87,66,43,54,94,38,55,73,49,23,33,2,45,1,164,65,65,52,52,67,68,0,0,1,0,101,0,0,2,7,2,169,0,17,0,0,19,54,51,50,22,21,17,35,17,52,38,34,6,21,21,35,17,51,180,48,111,85,95,78,65,122,74,79,79,1,134,100,112,97,254,231,1,25,69,70,103,91,226,2,169,0,0,2,0,94,0,0,0,198,2,178,0,3,0,11,0,0,19,51,17,35,18,38,52,54,50,22,20,6,106,79,79,15,27,27,48,29,29,1,223,254,33,2,79,27,45,27,27,45,27,0,0,2,255,170,255,10,0,213,2,178,0,9,0,23,0,0,18,38,52,54,51,50,22,20,6,35,3,50,53,17,51,17,20,7,6,35,34,39,55,22,136,27,27,24,24,29,29,24,127,88,79,90,28,34,62,72,4,63,2,79,27,45,27,27,45,27,253,0,110,2,35,253,221,137,32,10,37,69,37,0,0,1,0,101,0,0,2,20,2,169,0,11,0,0,55,7,21,35,17,51,17,55,51,7,19,35,244,64,79,79,231,110,220,231,97,253,52,201,2,169,254,116,193,179,254,213,0,1,0,101,0,0,0,180,2,169,0,3,0,0,19,51,17,35,101,79,79,2,169,253,87,0,0,1,0,100,0,0,3,82,1,234,0,30,0,0,19,54,51,50,22,23,54,51,50,22,21,17,35,17,52,38,34,6,21,21,35,17,52,38,34,6,7,21,35,17,51,177,47,114,62,84,19,45,122,86,94,78,65,122,67,78,65,120,74,2,79,68,1,130,104,61,54,115,112,97,254,231,1,25,69,70,100,88,232,1,25,69,70,98,87,235,1,222,0,1,0,100,0,0,2,6,1,234,0,17,0,0,19,54,51,50,22,21,17,35,17,52,38,34,6,7,21,35,17,51,177,47,114,85,95,78,65,120,74,2,79,68,1,130,104,112,97,254,231,1,25,69,70,98,87,235,1,222,0,2,0,50,255,245,1,240,1,234,0,11,0,19,0,0,1,50,22,21,20,6,35,34,38,53,52,54,22,38,34,6,20,22,50,54,1,17,100,123,123,100,100,123,123,243,72,139,74,70,139,76,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,0,2,0,101,255,21,2,22,1,234,0,11,0,21,0,0,19,54,50,22,20,6,34,39,17,35,17,51,18,54,52,38,34,6,7,21,20,22,175,47,187,125,126,184,44,79,65,202,85,81,116,74,2,76,1,149,85,138,226,137,69,254,219,2,201,254,93,96,167,98,73,62,91,63,72,0,0,2,0,51,255,10,2,44,1,234,0,19,0,31,0,0,1,50,23,55,51,17,20,22,22,23,7,38,38,53,53,6,34,38,52,54,22,6,20,22,51,50,55,54,55,53,52,38,1,8,102,46,17,54,23,29,21,26,68,57,41,187,126,125,37,81,86,57,82,35,12,1,76,1,234,90,78,253,209,49,33,15,7,61,18,78,74,152,87,137,226,138,70,98,167,96,73,23,32,91,66,76,0,1,0,100,0,0,1,105,1,231,0,13,0,0,1,34,7,21,35,17,51,21,54,51,50,23,7,38,1,40,113,4,79,79,36,91,29,26,4,30,1,155,178,233,1,223,92,100,9,77,10,0,0,1,0,60,255,245,1,209,1,234,0,31,0,0,18,54,50,22,23,35,38,35,34,6,20,22,23,23,22,22,20,6,34,38,39,51,22,22,50,54,52,38,39,39,38,53,76,101,172,97,2,77,9,101,49,53,40,44,96,61,65,106,190,106,3,76,2,69,104,68,40,45,93,125,1,164,70,72,55,65,44,51,35,13,32,19,59,103,83,85,67,45,45,44,61,32,12,31,37,93,0,1,0,34,255,230,1,95,2,99,0,21,0,0,37,6,39,38,39,38,53,17,35,53,51,53,51,21,51,21,35,17,20,51,50,55,1,95,86,71,51,21,11,77,77,78,150,150,68,37,46,14,40,23,16,51,25,35,1,38,60,133,133,60,254,219,73,18,0,1,0,87,255,247,1,249,1,223,0,17,0,0,37,6,35,34,38,53,17,51,17,20,51,50,54,55,53,51,17,35,1,170,49,110,81,99,79,112,65,81,2,79,79,95,104,90,94,1,48,254,214,121,100,78,241,254,33,0,0,1,0,18,0,0,1,229,1,222,0,6,0,0,27,2,51,3,35,3,107,144,145,89,190,87,190,1,222,254,117,1,139,254,34,1,222,0,0,1,0,18,0,0,2,192,1,222,0,12,0,0,27,2,51,19,19,51,3,35,3,3,35,3,100,116,114,66,113,117,78,156,77,110,108,76,159,1,222,254,131,1,102,254,150,1,129,254,34,1,79,254,177,1,222,0,0,1,0,26,0,0,1,230,1,223,0,11,0,0,33,35,39,7,35,55,39,51,23,55,51,7,1,229,96,137,130,96,181,181,96,137,131,96,183,181,181,239,240,180,180,240,0,1,0,5,255,10,1,203,1,222,0,17,0,0,23,22,51,50,55,54,55,55,3,51,19,19,51,3,6,6,34,39,5,49,54,40,29,21,17,14,196,88,145,113,80,179,23,75,115,62,139,38,40,29,59,49,1,222,254,131,1,125,253,195,73,78,35,0,0,1,0,53,0,0,1,167,1,222,0,9,0,0,55,1,33,53,33,21,1,33,21,33,53,1,25,254,231,1,114,254,235,1,21,254,142,64,1,94,64,64,254,162,64,0,0,1,0,75,255,118,1,85,2,236,0,31,0,0,19,22,21,21,20,22,51,21,34,53,53,52,38,35,35,53,51,50,54,53,53,52,55,54,51,21,34,6,21,21,20,7,154,52,61,74,213,17,19,17,17,19,17,114,40,59,74,61,52,1,47,25,88,93,81,85,69,234,92,43,36,76,35,44,91,168,49,18,69,85,82,92,86,27,0,1,0,101,255,134,0,180,2,238,0,3,0,0,19,51,17,35,101,79,79,2,238,252,152,0,0,1,0,8,255,118,1,18,2,236,0,31,0,0,19,38,53,53,52,38,35,53,50,21,21,20,22,51,51,21,35,34,6,21,21,20,7,6,35,53,50,54,53,53,52,55,195,52,61,74,213,17,19,17,17,19,17,114,41,58,74,61,52,1,51,27,86,92,82,85,69,235,91,44,35,76,36,43,92,168,48,18,69,85,81,93,88,25,0,1,0,53,0,223,1,206,1,103,0,17,0,0,19,34,7,39,54,51,50,22,51,50,55,23,6,35,34,38,39,38,158,37,24,44,33,74,34,134,26,40,25,43,35,78,23,96,14,39,1,26,59,23,111,55,57,27,106,36,6,14,0,1,0,20,0,0,2,17,2,128,0,37,0,0,1,38,35,34,6,21,21,51,21,35,21,20,7,51,50,54,55,51,6,6,35,33,53,51,50,54,53,53,35,53,51,53,52,54,51,50,22,23,1,144,16,86,42,57,182,182,37,183,49,45,6,84,6,84,94,254,187,28,38,35,91,91,93,91,71,90,11,1,234,78,64,72,109,56,104,68,26,41,44,77,77,69,44,46,108,56,109,99,109,76,74,0,0,2,0,24,3,11,1,42,3,111,0,9,0,17,0,0,18,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,53,29,29,23,23,31,31,23,146,30,30,45,31,31,3,11,29,42,29,29,42,29,29,42,29,29,42,29,0,1,0,23,2,165,1,34,3,92,0,3,0,0,1,7,39,55,1,34,244,23,235,3,22,113,50,133,0,3,0,26,0,0,2,37,3,92,0,7,0,10,0,14,0,0,19,51,19,35,39,35,7,35,55,51,3,3,23,7,39,242,96,211,82,54,250,54,83,158,209,104,99,235,23,245,2,117,253,139,160,160,222,1,54,1,72,133,50,113,0,3,0,26,0,0,2,37,3,92,0,7,0,10,0,14,0,0,19,51,19,35,39,35,7,35,55,51,3,19,7,39,55,242,96,211,82,54,250,54,83,158,209,104,134,244,23,235,2,117,253,139,160,160,222,1,54,1,2,113,50,133,0,3,0,26,0,0,2,37,3,104,0,7,0,10,0,16,0,0,19,51,19,35,39,35,7,35,55,51,3,55,7,39,7,39,55,242,96,211,82,54,250,54,83,158,209,104,180,50,129,130,50,180,2,117,253,139,160,160,222,1,54,184,39,108,108,39,156,0,0,3,0,26,0,0,2,37,3,74,0,7,0,10,0,30,0,0,19,51,19,35,39,35,7,35,55,51,3,39,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,242,96,211,82,54,250,54,83,158,209,104,68,32,25,32,12,46,52,34,46,27,26,28,10,35,11,49,41,34,60,21,2,117,253,139,160,160,222,1,54,238,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,4,0,26,0,0,2,37,3,67,0,7,0,10,0,20,0,28,0,0,19,51,19,35,39,35,7,35,55,51,3,38,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,242,96,211,82,54,250,54,83,158,209,104,86,29,29,23,23,31,31,23,146,30,30,45,31,31,2,117,253,139,160,160,222,1,54,203,29,42,29,29,42,29,29,42,29,29,42,29,0,2,0,100,0,0,1,231,3,92,0,11,0,15,0,0,19,33,21,33,21,33,21,33,21,33,21,33,19,23,7,39,100,1,131,254,204,1,34,254,222,1,52,254,125,94,235,23,245,2,117,68,211,67,214,69,3,92,133,50,113,0,0,2,0,100,0,0,1,231,3,92,0,11,0,15,0,0,51,33,53,33,53,33,53,33,53,33,53,33,37,7,39,55,100,1,131,254,204,1,34,254,222,1,52,254,125,1,71,244,23,235,69,214,67,211,68,161,113,50,133,0,0,2,0,105,0,0,1,236,3,104,0,11,0,17,0,0,19,33,21,33,21,33,21,33,21,33,21,33,1,7,39,7,39,55,105,1,131,254,204,1,34,254,222,1,52,254,125,1,118,50,129,130,50,180,2,117,68,211,67,214,69,2,204,39,108,108,39,156,0,3,0,100,0,0,1,231,3,67,0,11,0,21,0,29,0,0,19,33,21,33,21,33,21,33,21,33,21,33,18,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,100,1,131,254,204,1,34,254,222,1,52,254,125,87,29,29,23,23,31,31,23,146,30,30,45,31,31,2,117,68,211,67,214,69,2,223,29,42,29,29,42,29,29,42,29,29,42,29,0,2,0,7,0,0,1,19,3,92,0,3,0,7,0,0,19,51,17,35,3,23,7,39,101,79,79,61,235,23,245,2,117,253,139,3,92,133,50,113,0,2,0,6,0,0,1,17,3,92,0,3,0,7,0,0,51,51,17,35,55,7,39,55,101,79,79,172,244,23,235,2,117,161,113,50,133,0,0,2,255,217,0,0,1,64,3,104,0,3,0,9,0,0,19,51,17,35,19,7,39,7,39,55,101,79,79,219,50,129,130,50,180,2,117,253,139,2,204,39,108,108,39,156,0,3,0,4,0,0,1,22,3,67,0,3,0,13,0,21,0,0,19,51,17,35,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,101,79,79,68,29,29,23,23,31,31,23,146,30,30,45,31,31,2,117,253,139,2,223,29,42,29,29,42,29,29,42,29,29,42,29,0,0,2,0,99,0,0,2,72,3,74,0,9,0,29,0,0,19,17,51,17,1,51,17,35,17,1,55,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,99,80,1,61,88,79,254,200,81,32,25,32,12,46,52,33,47,27,26,28,10,35,11,49,41,34,60,21,2,117,253,139,2,0,254,0,2,117,254,7,1,249,141,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,0,3,0,51,255,245,2,84,3,92,0,10,0,20,0,24,0,0,1,50,22,16,6,35,34,38,53,52,54,23,34,6,20,22,51,50,54,52,38,3,23,7,39,1,67,122,151,150,123,123,149,149,123,88,102,102,88,88,103,103,188,235,23,245,2,128,167,254,193,165,167,158,159,167,71,132,248,128,128,248,132,1,35,133,50,113,0,3,0,51,255,245,2,84,3,92,0,10,0,20,0,24,0,0,1,34,6,21,20,22,51,50,54,16,38,7,50,22,20,6,35,34,38,52,54,55,7,39,55,1,67,123,149,149,123,123,150,151,122,88,103,103,88,88,102,102,221,244,23,235,2,128,167,159,158,167,165,1,63,167,71,132,248,128,128,248,132,221,113,50,133,0,0,3,0,51,255,245,2,84,3,104,0,10,0,20,0,26,0,0,1,50,22,16,6,35,34,38,53,52,54,23,34,6,20,22,51,50,54,52,38,55,7,39,7,39,55,1,67,122,151,150,123,123,149,149,123,88,102,102,88,88,103,103,91,50,129,130,50,180,2,128,167,254,193,165,167,158,159,167,71,132,248,128,128,248,132,147,39,108,108,39,156,0,0,3,0,51,255,245,2,84,3,74,0,10,0,20,0,40,0,0,1,34,6,21,20,22,51,50,54,16,38,7,50,22,20,6,35,34,38,52,54,55,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,1,67,123,149,149,123,123,150,151,122,88,103,103,88,88,102,102,19,32,25,32,12,46,52,33,47,27,26,28,10,35,11,49,41,34,60,21,2,128,167,159,158,167,165,1,63,167,71,132,248,128,128,248,132,201,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,4,0,51,255,245,2,84,3,67,0,10,0,20,0,30,0,38,0,0,1,50,22,16,6,35,34,38,53,52,54,23,34,6,20,22,51,50,54,52,46,2,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,67,122,151,150,123,123,149,149,123,88,102,102,88,88,103,103,196,29,29,23,23,31,31,23,146,30,30,45,31,31,2,128,167,254,193,165,167,158,159,167,71,132,248,128,128,248,132,166,29,42,29,29,42,29,29,42,29,29,42,29,0,0,2,0,87,255,245,2,53,3,92,0,16,0,20,0,0,19,17,20,22,51,50,54,53,17,51,17,20,6,34,38,53,17,55,23,7,39,166,88,72,72,88,79,130,219,129,139,235,23,245,2,117,254,110,88,78,78,88,1,146,254,110,118,120,120,118,1,146,231,133,50,113,0,2,0,87,255,245,2,53,3,92,0,16,0,20,0,0,19,17,20,22,50,54,53,17,35,17,20,6,35,34,38,53,17,37,7,39,55,87,129,219,130,79,88,72,72,88,1,37,244,23,235,2,117,254,110,118,120,120,118,1,146,254,110,88,78,78,88,1,146,161,113,50,133,0,0,2,0,87,255,245,2,53,3,104,0,16,0,22,0,0,19,17,20,22,51,50,54,53,17,51,17,20,6,34,38,53,17,37,7,39,7,39,55,166,88,72,72,88,79,130,219,129,1,162,50,129,130,50,180,2,117,254,110,88,78,78,88,1,146,254,110,118,120,120,118,1,146,87,39,108,108,39,156,0,0,3,0,87,255,245,2,53,3,67,0,16,0,26,0,34,0,0,19,17,20,22,51,50,54,53,17,51,17,20,6,34,38,53,17,54,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,166,88,72,72,88,79,130,219,129,131,29,29,23,23,31,31,23,146,30,30,45,31,31,2,117,254,110,88,78,78,88,1,146,254,110,118,120,120,118,1,146,106,29,42,29,29,42,29,29,42,29,29,42,29,0,0,3,0,60,255,245,1,209,2,219,0,24,0,33,0,37,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,3,23,7,39,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,58,83,205,235,23,245,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,83,2,86,133,50,113,0,3,0,60,255,245,1,209,2,219,0,24,0,34,0,38,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,55,19,7,39,55,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,57,82,2,28,244,23,235,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,80,63,1,212,113,50,133,0,0,3,0,60,255,245,1,209,2,231,0,24,0,33,0,39,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,19,7,39,7,39,55,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,58,83,74,50,129,130,50,180,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,83,1,198,39,108,108,39,156,0,3,0,60,255,245,1,209,2,201,0,24,0,34,0,54,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,55,3,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,57,82,2,174,32,25,32,12,46,52,34,46,27,26,28,10,35,11,49,41,34,60,21,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,80,63,1,192,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,4,0,60,255,245,1,209,2,193,0,24,0,33,0,43,0,51,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,58,83,213,29,29,23,23,31,31,23,146,30,30,45,31,31,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,83,1,216,29,42,29,29,42,29,29,42,29,29,42,29,0,0,3,0,51,255,245,1,216,2,224,0,16,0,24,0,28,0,0,37,50,55,51,6,6,35,34,38,52,54,50,22,7,33,20,22,19,38,35,34,6,7,51,52,3,23,7,39,1,11,99,14,81,11,105,78,96,120,121,201,99,15,254,185,72,122,22,32,62,71,6,255,227,235,23,245,53,87,72,79,137,228,136,156,112,74,95,1,106,12,83,62,100,1,98,133,50,113,0,0,3,0,51,255,245,1,216,2,224,0,16,0,22,0,26,0,0,37,6,35,34,38,53,33,54,38,34,6,20,22,51,50,54,55,2,22,21,35,54,54,55,7,39,55,1,124,14,99,65,72,1,71,15,99,201,121,120,96,78,105,11,130,55,255,6,71,184,244,23,235,140,87,95,74,112,156,136,228,137,79,72,1,31,83,62,62,83,239,113,50,133,0,3,0,54,255,245,1,219,2,236,0,16,0,24,0,30,0,0,37,50,55,51,6,6,35,34,38,52,54,50,22,7,33,20,22,19,38,35,34,6,7,51,52,55,7,39,7,39,55,1,14,99,14,81,11,105,78,96,120,121,201,99,15,254,185,72,123,23,33,61,71,6,255,53,50,129,130,50,180,53,87,72,79,137,228,136,156,112,74,95,1,106,12,83,62,100,210,39,108,108,39,156,0,4,0,51,255,245,1,216,2,193,0,16,0,24,0,34,0,42,0,0,37,50,55,51,6,6,35,34,38,52,54,50,22,7,33,20,22,19,38,35,34,6,7,51,52,38,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,11,99,14,81,11,105,78,96,120,121,201,99,15,254,185,72,122,22,32,62,71,6,255,234,29,29,23,23,31,31,23,146,30,30,45,31,31,53,87,72,79,137,228,136,156,112,74,95,1,106,12,83,62,100,223,29,42,29,29,42,29,29,42,29,29,42,29,0,0,2,0,12,0,0,1,24,2,219,0,3,0,7,0,0,19,51,17,35,3,23,7,39,106,79,79,61,235,23,245,1,223,254,33,2,219,133,50,113,0,2,0,11,0,0,1,22,2,219,0,3,0,7,0,0,51,51,17,35,55,7,39,55,106,79,79,172,244,23,235,1,223,182,113,50,133,0,0,2,255,222,0,0,1,69,2,231,0,3,0,9,0,0,19,51,17,35,19,7,39,7,39,55,106,79,79,219,50,129,130,50,180,1,223,254,33,2,75,39,108,108,39,156,0,3,0,9,0,0,1,27,2,193,0,3,0,13,0,21,0,0,19,51,17,35,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,106,79,79,68,29,29,23,23,31,31,23,146,30,30,45,31,31,1,223,254,33,2,93,29,42,29,29,42,29,29,42,29,29,42,29,0,0,2,0,101,0,0,2,7,2,201,0,17,0,37,0,0,1,34,7,39,35,17,51,53,54,54,50,22,21,17,51,17,52,38,39,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,1,83,114,47,9,68,79,2,74,120,65,78,95,187,32,25,32,12,46,52,34,46,27,26,28,10,35,11,49,41,34,60,21,1,234,104,92,254,34,235,87,98,70,69,254,231,1,25,97,112,151,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,0,3,0,51,255,245,1,241,2,219,0,11,0,19,0,23,0,0,1,50,22,21,20,6,35,34,38,53,52,54,22,38,34,6,20,22,50,54,3,23,7,39,1,18,100,123,123,100,100,123,123,243,72,139,74,70,139,76,243,235,23,245,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,2,65,133,50,113,0,0,3,0,51,255,245,1,241,2,219,0,11,0,19,0,23,0,0,1,34,6,21,20,22,51,50,54,53,52,38,6,54,50,22,20,6,34,38,1,7,39,55,1,18,100,123,123,100,100,123,123,242,74,139,72,76,139,70,1,19,244,23,235,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,1,251,113,50,133,0,3,0,51,255,245,1,241,2,231,0,11,0,19,0,25,0,0,1,50,22,21,20,6,35,34,38,53,52,54,22,38,34,6,20,22,50,54,19,7,39,7,39,55,1,18,100,123,123,100,100,123,123,243,72,139,74,70,139,76,36,50,129,130,50,180,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,1,177,39,108,108,39,156,0,0,3,0,51,255,245,1,241,2,201,0,11,0,19,0,39,0,0,1,34,6,21,20,22,51,50,54,53,52,38,6,54,50,22,20,6,34,38,19,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,1,18,100,123,123,100,100,123,123,242,74,139,72,76,139,70,74,32,25,32,12,46,52,33,47,27,26,28,10,35,11,49,41,34,60,21,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,1,231,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,4,0,51,255,245,1,241,2,193,0,11,0,19,0,29,0,37,0,0,1,50,22,21,20,6,35,34,38,53,52,54,22,38,34,6,20,22,50,54,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,18,100,123,123,100,100,123,123,243,72,139,74,70,139,76,250,29,29,23,23,31,31,23,146,30,30,45,31,31,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,1,195,29,42,29,29,42,29,29,42,29,29,42,29,0,2,0,87,255,247,1,249,3,1,0,17,0,21,0,0,37,6,35,34,38,53,17,51,17,20,51,50,54,55,53,51,17,35,3,23,7,39,1,170,49,110,81,99,79,112,65,81,2,79,79,226,235,23,245,95,104,90,94,1,48,254,214,121,100,78,241,254,33,3,1,133,50,113,0,2,0,87,255,247,1,249,3,1,0,17,0,21,0,0,5,50,55,21,51,17,35,21,20,6,35,34,53,17,35,17,20,22,19,7,39,55,1,11,110,49,79,79,82,66,112,79,99,247,244,23,235,9,104,95,1,223,233,83,103,121,1,42,254,208,94,90,2,196,113,50,133,0,0,2,0,87,255,247,1,249,3,13,0,17,0,23,0,0,37,6,35,34,38,53,17,51,17,20,51,50,54,55,53,51,17,35,19,7,39,7,39,55,1,170,49,110,81,99,79,112,65,81,2,79,79,54,50,129,130,50,180,95,104,90,94,1,48,254,214,121,100,78,241,254,33,2,113,39,108,108,39,156,0,3,0,87,255,247,1,249,2,193,0,17,0,27,0,35,0,0,37,6,35,34,38,53,17,51,17,20,51,50,54,55,53,51,17,35,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,170,49,110,81,99,79,112,65,81,2,79,79,233,29,29,23,23,31,31,23,146,30,30,45,31,31,95,104,90,94,1,48,254,214,121,100,78,241,254,33,2,93,29,42,29,29,42,29,29,42,29,29,42,29,0,0,1,0,101,0,0,0,180,1,223,0,3,0,0,19,51,17,35,101,79,79,1,223,254,33,0,0,1,0,36,1,163,0,184,2,113,0,11,0,0,18,38,52,54,50,22,20,6,7,39,54,55,88,30,31,57,38,44,45,59,62,13,2,13,26,44,30,45,68,71,22,29,30,45,0,1,0,24,2,165,1,127,3,104,0,5,0,0,1,7,39,7,39,55,1,127,50,129,130,50,180,2,204,39,108,108,39,156,0,1,0,23,2,207,1,83,3,74,0,19,0,0,19,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,112,32,25,32,12,46,52,33,47,27,26,28,10,35,11,49,41,34,60,21,3,2,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,1,0,55,1,1,1,163,1,69,0,3,0,0,19,33,21,33,55,1,108,254,148,1,69,68,0,1,0,55,1,1,2,159,1,69,0,3,0,0,19,33,21,33,55,2,104,253,152,1,69,68,0,1,0,36,1,162,0,184,2,114,0,12,0,0,18,6,34,38,52,54,55,23,6,7,22,22,21,162,31,56,39,47,45,56,62,13,23,30,1,193,31,46,69,71,22,29,32,44,2,26,22,0,0,1,0,15,1,162,0,162,2,114,0,13,0,0,18,54,50,22,21,20,6,7,39,54,55,38,38,53,36,32,57,37,47,44,56,62,13,23,31,2,84,30,44,35,35,71,23,30,32,44,2,26,22,0,0,1,0,92,0,0,1,252,2,117,0,27,0,0,19,33,21,35,22,23,51,21,35,6,7,6,7,5,35,37,53,51,50,54,55,35,53,51,38,38,35,35,92,1,160,183,69,15,99,94,7,112,40,55,1,18,112,254,242,61,87,84,3,235,231,11,83,76,61,2,117,49,36,67,48,115,44,15,5,250,248,48,76,57,48,46,57,0,0,1,0,79,1,2,1,153,1,69,0,3,0,0,1,21,33,53,1,153,254,182,1,69,67,67,0,1,0,0,0,157,0,63,0,5,0,0,0,0,0,2,0,0,0,1,0,1,0,0,0,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,0,44,0,93,0,164,0,235,1,66,1,79,1,101,1,123,1,153,1,174,1,198,1,211,1,229,1,243,2,19,2,39,2,85,2,136,2,164,2,203,2,253,3,16,3,82,3,139,3,169,3,205,3,225,3,244,4,8,4,63,4,150,4,174,4,224,5,6,5,37,5,60,5,81,5,122,5,146,5,159,5,182,5,209,5,224,5,251,6,18,6,54,6,85,6,137,6,174,6,225,6,243,7,16,7,35,7,64,7,90,7,112,7,136,7,153,7,166,7,182,7,200,7,213,7,227,8,22,8,62,8,98,8,138,8,179,8,212,9,45,9,75,9,100,9,140,9,163,9,176,9,222,9,252,10,30,10,68,10,119,10,145,10,195,10,229,11,3,11,22,11,51,11,74,11,108,11,131,11,175,11,188,11,232,12,7,12,60,12,91,12,105,12,136,12,167,12,201,12,253,13,45,13,76,13,106,13,140,13,188,13,208,13,227,13,250,14,32,14,84,14,127,14,170,14,216,15,24,15,84,15,120,15,157,15,197,15,251,16,53,16,113,16,174,16,255,17,75,17,124,17,170,17,221,18,31,18,51,18,70,18,93,18,131,18,191,18,233,19,19,19,64,19,127,19,186,19,223,20,4,20,44,20,99,20,112,20,136,20,153,20,188,20,201,20,214,20,240,21,11,21,55,21,68,0,1,0,0,0,1,0,0,184,134,128,40,95,15,60,245,0,11,3,232,0,0,0,0,202,188,123,31,0,0,0,0,204,143,87,201,255,170,255,10,3,126,3,111,0,0,0,8,0,2,0,0,0,0,0,0,2,41,0,0,0,0,0,0,2,41,0,0,0,238,0,0,1,22,0,82,1,50,0,28,2,115,0,53,2,120,0,69,2,214,0,61,3,148,0,89,0,136,0,27,1,100,0,73,1,100,0,28,1,156,0,56,2,15,0,18,0,210,0,30,1,93,0,38,0,179,0,30,1,176,0,57,2,82,0,51,1,75,0,49,2,68,0,64,2,79,0,52,2,47,0,26,2,53,0,65,2,61,0,51,1,214,0,24,2,103,0,55,2,69,0,66,0,231,0,56,1,6,0,57,1,198,0,40,1,232,0,79,1,198,0,47,1,243,0,30,3,172,0,67,2,63,0,26,2,110,0,101,2,101,0,51,2,149,0,100,2,50,0,100,2,12,0,101,2,133,0,51,2,157,0,101,1,24,0,101,1,148,0,8,2,97,0,101,1,212,0,101,3,80,0,101,2,173,0,99,2,134,0,51,2,42,0,99,2,140,0,51,2,101,0,101,2,93,0,69,1,245,0,6,2,142,0,87,2,51,0,18,3,127,0,14,2,130,0,47,2,37,0,10,2,80,0,73,1,61,0,101,1,176,0,45,1,29,255,242,1,192,0,21,2,214,0,55,1,59,0,24,2,48,0,70,2,72,0,101,2,3,0,50,2,82,0,60,2,3,0,50,1,87,0,49,2,53,0,28,2,92,0,101,1,43,0,94,1,58,255,170,2,52,0,101,1,24,0,101,3,167,0,100,2,91,0,100,2,34,0,50,2,82,0,101,2,73,0,51,1,125,0,100,2,14,0,60,1,120,0,34,2,94,0,87,1,247,0,18,2,213,0,18,2,0,0,26,1,228,0,5,1,219,0,53,1,93,0,75,1,24,0,101,1,93,0,8,2,3,0,53,2,53,0,20,1,67,0,24,1,59,0,23,2,63,0,26,2,63,0,26,2,63,0,26,2,63,0,26,2,63,0,26,2,52,0,100,2,52,0,100,2,52,0,105,2,52,0,100,1,24,0,7,1,24,0,6,1,24,255,217,1,24,0,4,2,174,0,99,2,134,0,51,2,134,0,51,2,134,0,51,2,134,0,51,2,134,0,51,2,142,0,87,2,142,0,87,2,142,0,87,2,142,0,87,2,39,0,60,2,39,0,60,2,39,0,60,2,39,0,60,2,39,0,60,2,2,0,51,2,2,0,51,2,2,0,54,2,2,0,51,1,43,0,12,1,43,0,11,1,43,255,222,1,43,0,9,2,92,0,101,2,35,0,51,2,35,0,51,2,35,0,51,2,35,0,51,2,35,0,51,2,94,0,87,2,94,0,87,2,94,0,87,2,94,0,87,1,24,0,101,0,184,0,36,1,151,0,24,1,110,0,23,1,218,0,55,2,214,0,55,0,214,0,36,0,214,0,15,2,69,0,92,1,232,0,79,0,1,0,0,3,149,255,4,0,0,3,172,255,170,255,216,3,126,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,157,0,3,1,253,1,144,0,5,0,8,2,188,2,138,0,0,0,140,2,188,2,138,0,0,1,221,0,50,0,250,0,0,0,0,0,0,0,0,0,0,0,0,128,0,0,39,0,0,0,66,0,0,0,0,0,0,0,0,112,121,114,115,0,64,0,32,34,18,3,149,255,4,0,0,3,149,0,252,0,0,0,1,0,0,0,0,1,222,2,117,0,0,0,32,0,2,0,0,0,2,0,0,0,3,0,0,0,20,0,3,0,1,0,0,0,20,0,4,0,192,0,0,0,44,0,32,0,4,0,12,0,126,0,160,0,163,0,168,0,180,0,196,0,207,0,214,0,220,0,228,0,239,0,246,0,252,1,49,2,188,2,198,2,220,32,20,32,25,32,185,34,18,255,255,0,0,0,32,0,160,0,163,0,168,0,180,0,192,0,200,0,209,0,217,0,224,0,232,0,241,0,249,1,49,2,188,2,198,2,220,32,19,32,24,32,185,34,18,255,255,255,227,255,99,255,191,255,187,255,176,255,165,255,162,255,161,255,159,255,156,255,153,255,152,255,150,255,98,253,216,253,207,253,186,224,132,224,129,223,226,222,138,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,184,1,255,133,176,4,141,0,0,0,0,11,0,138,0,3,0,1,4,9,0,0,0,218,0,0,0,3,0,1,4,9,0,1,0,10,0,218,0,3,0,1,4,9,0,2,0,14,0,228,0,3,0,1,4,9,0,3,0,84,0,242,0,3,0,1,4,9,0,4,0,10,0,218,0,3,0,1,4,9,0,5,0,26,1,70,0,3,0,1,4,9,0,6,0,26,1,96,0,3,0,1,4,9,0,9,0,32,1,122,0,3,0,1,4,9,0,12,0,28,1,154,0,3,0,1,4,9,0,13,0,152,1,182,0,3,0,1,4,9,0,14,0,52,2,78,0,67,0,111,0,112,0,121,0,114,0,105,0,103,0,104,0,116,0,32,0,40,0,99,0,41,0,32,0,50,0,48,0,49,0,49,0,45,0,50,0,48,0,49,0,50,0,44,0,32,0,74,0,111,0,110,0,97,0,116,0,104,0,97,0,110,0,32,0,80,0,105,0,110,0,104,0,111,0,114,0,110,0,32,0,40,0,106,0,111,0,110,0,112,0,105,0,110,0,104,0,111,0,114,0,110,0,46,0,116,0,121,0,112,0,101,0,100,0,101,0,115,0,105,0,103,0,110,0,64,0,103,0,109,0,97,0,105,0,108,0,46,0,99,0,111,0,109,0,41,0,44,0,32,0,119,0,105,0,116,0,104,0,32,0,82,0,101,0,115,0,101,0,114,0,118,0,101,0,100,0,32,0,70,0,111,0,110,0,116,0,32,0,78,0,97,0,109,0,101,0,115,0,32,0,39,0,75,0,97,0,114,0,108,0,97,0,39,0,75,0,97,0,114,0,108,0,97,0,82,0,101,0,103,0,117,0,108,0,97,0,114,0,70,0,111,0,110,0,116,0,70,0,111,0,114,0,103,0,101,0,32,0,50,0,46,0,48,0,32,0,58,0,32,0,75,0,97,0,114,0,108,0,97,0,32,0,82,0,101,0,103,0,117,0,108,0,97,0,114,0,32,0,58,0,32,0,49,0,51,0,45,0,49,0,48,0,45,0,50,0,48,0,49,0,49,0,86,0,101,0,114,0,115,0,105,0,111,0,110,0,32,0,49,0,46,0,48,0,48,0,48,0,75,0,97,0,114,0,108,0,97,0,45,0,82,0,101,0,103,0,117,0,108,0,97,0,114,0,74,0,111,0,110,0,97,0,116,0,104,0,97,0,110,0,32,0,80,0,105,0,110,0,104,0,111,0,114,0,110,0,106,0,111,0,110,0,112,0,105,0,110,0,104,0,111,0,114,0,110,0,46,0,99,0,111,0,109,0,84,0,104,0,105,0,115,0,32,0,70,0,111,0,110,0,116,0,32,0,83,0,111,0,102,0,116,0,119,0,97,0,114,0,101,0,32,0,105,0,115,0,32,0,108,0,105,0,99,0,101,0,110,0,115,0,101,0,100,0,32,0,117,0,110,0,100,0,101,0,114,0,32,0,116,0,104,0,101,0,32,0,83,0,73,0,76,0,32,0,79,0,112,0,101,0,110,0,32,0,70,0,111,0,110,0,116,0,32,0,76,0,105,0,99,0,101,0,110,0,115,0,101,0,44,0,32,0,86,0,101,0,114,0,115,0,105,0,111,0,110,0,32,0,49,0,46,0,49,0,46,0,104,0,116,0,116,0,112,0,58,0,47,0,47,0,115,0,99,0,114,0,105,0,112,0,116,0,115,0,46,0,115,0,105,0,108,0,46,0,111,0,114,0,103,0,47,0,79,0,70,0,76,0,2,0,0,0,0,0,0,255,181,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,157,0,0,0,1,0,2,0,3,0,4,0,5,0,6,0,7,0,8,0,9,0,10,0,11,0,12,0,13,0,14,0,15,0,16,0,17,0,18,0,19,0,20,0,21,0,22,0,23,0,24,0,25,0,26,0,27,0,28,0,29,0,30,0,31,0,32,0,33,0,34,0,35,0,36,0,37,0,38,0,39,0,40,0,41,0,42,0,43,0,44,0,45,0,46,0,47,0,48,0,49,0,50,0,51,0,52,0,53,0,54,0,55,0,56,0,57,0,58,0,59,0,60,0,61,0,62,0,63,0,64,0,65,0,66,0,67,0,68,0,69,0,70,0,71,0,72,0,73,0,74,0,75,0,76,0,77,0,78,0,79,0,80,0,81,0,82,0,83,0,84,0,85,0,86,0,87,0,88,0,89,0,90,0,91,0,92,0,93,0,94,0,95,0,96,0,97,0,133,0,142,0,141,0,173,0,201,0,199,0,174,0,98,0,203,0,101,0,200,0,202,0,207,0,204,0,205,0,206,0,102,0,211,0,208,0,209,0,175,0,103,0,214,0,212,0,213,0,104,0,106,0,105,0,107,0,109,0,108,0,113,0,112,0,114,0,115,0,117,0,116,0,118,0,119,0,120,0,122,0,121,0,123,0,125,0,124,0,127,0,126,0,128,0,129,0,215,1,2,0,216,0,217,0,178,0,179,0,182,0,183,1,3,0,239,10,97,112,111,115,116,114,111,112,104,101,11,114,117,112,101,101,115,121,109,98,111,108,0,0,1,0,1,255,255,0,15,0,1,0,0,0,12,0,0,0,0,0,0,0,2,0,1,0,1,0,156,0,1,0,0,0,1,0,0,0,10,0,30,0,44,0,1,108,97,116,110,0,8,0,4,0,0,0,0,255,255,0,1,0,0,0,1,107,101,114,110,0,8,0,0,0,1,0,0,0,1,0,4,0,2,0,0,0,1,0,8,0,1,0,82,0,4,0,0,0,36,0,152,0,186,0,192,1,6,1,40,1,54,1,60,1,66,1,72,1,158,1,216,2,14,2,20,2,130,2,148,2,162,2,176,2,190,2,216,2,226,2,236,2,242,3,0,3,10,3,20,3,38,3,48,3,62,3,76,3,102,3,108,3,118,3,140,3,158,3,168,3,190,0,2,0,11,0,36,0,36,0,0,0,39,0,39,0,1,0,41,0,41,0,2,0,47,0,47,0,3,0,50,0,52,0,4,0,54,0,55,0,7,0,57,0,60,0,9,0,68,0,70,0,13,0,72,0,75,0,16,0,77,0,78,0,20,0,80,0,93,0,22,0,8,0,55,255,216,0,57,255,228,0,58,255,228,0,60,255,230,0,73,255,244,0,89,255,234,0,90,255,232,0,92,255,228,0,1,0,60,255,231,0,17,0,36,255,199,0,58,255,248,0,59,255,240,0,60,255,248,0,68,255,232,0,70,255,228,0,71,255,232,0,72,255,228,0,74,255,211,0,82,255,228,0,84,255,228,0,88,255,232,0,89,255,224,0,90,255,220,0,91,255,228,0,92,255,228,0,93,255,232,0,8,0,45,0,16,0,55,255,207,0,57,255,211,0,58,255,215,0,60,255,187,0,89,255,232,0,90,255,232,0,92,255,236,0,3,0,57,255,248,0,59,255,244,0,60,255,240,0,1,0,36,255,218,0,1,0,60,255,240,0,1,0,60,255,230,0,21,0,36,255,216,0,45,255,187,0,68,255,169,0,70,255,181,0,71,255,171,0,72,255,181,0,73,255,203,0,74,255,169,0,80,255,187,0,81,255,187,0,82,255,177,0,83,255,187,0,84,255,181,0,85,255,183,0,86,255,159,0,88,255,187,0,89,255,183,0,90,255,216,0,91,255,199,0,92,255,206,0,93,255,203,0,14,0,36,255,223,0,38,255,248,0,45,255,187,0,50,255,248,0,68,255,223,0,70,255,223,0,71,255,223,0,72,255,223,0,73,255,216,0,74,255,207,0,82,255,223,0,84,255,227,0,85,255,239,0,86,255,223,0,13,0,36,255,223,0,45,255,187,0,68,255,223,0,70,255,223,0,71,255,223,0,72,255,223,0,73,255,216,0,74,255,207,0,82,255,223,0,84,255,223,0,85,255,223,0,86,255,216,0,88,255,228,0,1,0,50,255,244,0,27,0,36,255,187,0,38,255,239,0,43,255,248,0,45,255,174,0,50,255,240,0,52,255,240,0,54,255,228,0,68,255,195,0,70,255,191,0,71,255,191,0,72,255,191,0,73,255,191,0,74,255,179,0,80,255,191,0,81,255,191,0,82,255,191,0,83,255,191,0,84,255,191,0,85,255,191,0,86,255,191,0,87,255,219,0,88,255,189,0,89,255,211,0,90,255,211,0,91,255,203,0,92,255,199,0,93,255,191,0,4,0,55,255,167,0,57,255,219,0,58,255,228,0,60,255,203,0,3,0,55,255,236,0,57,255,227,0,60,255,239,0,3,0,55,255,195,0,57,255,228,0,60,255,223,0,3,0,55,255,195,0,57,255,232,0,60,255,215,0,6,0,36,255,240,0,45,255,203,0,70,255,240,0,74,255,230,0,77,255,240,0,86,255,232,0,2,0,77,0,73,0,92,0,16,0,2,0,55,255,248,0,60,255,211,0,1,0,73,255,234,0,3,0,73,255,240,0,77,255,248,0,92,255,240,0,2,0,55,255,220,0,60,255,215,0,2,0,55,255,212,0,60,255,215,0,4,0,55,255,185,0,57,255,223,0,58,255,223,0,60,255,191,0,2,0,55,255,203,0,60,255,220,0,3,0,55,255,183,0,60,255,209,0,77,0,81,0,3,0,45,255,216,0,55,255,208,0,74,255,236,0,6,0,55,255,167,0,57,255,228,0,58,255,220,0,60,255,199,0,73,255,228,0,92,255,236,0,1,0,60,255,219,0,2,0,55,255,199,0,60,255,207,0,5,0,36,255,232,0,45,255,203,0,55,255,196,0,60,255,211,0,74,255,248,0,4,0,36,255,228,0,45,255,215,0,55,255,224,0,60,255,224,0,2,0,55,255,215,0,60,255,207,0,5,0,36,255,244,0,45,255,232,0,55,255,200,0,60,255,228,0,74,255,248,0,2,0,55,255,232,0,60,255,215,0,1,0,0,0,10,0,30,0,44,0,1,108,97,116,110,0,8,0,4,0,0,0,0,255,255,0,1,0,0,0,1,111,110,117,109,0,8,0,0,0,1,0,0,0,1,0,4,0,1,0,0,0,1,0,8,0,2,0,26,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,0,19,0,28,0,0 };
+#endif /* NMD_GRAPHICS_DISABLE_DEFAULT_FONT */
 
 
-namespace nmd
+nmd_context _nmd_context;
+bool _nmd_initialized = false;
+
+nmd_color nmd_rgb(uint8_t r, uint8_t g, uint8_t b)
 {
-    void PathBezierToCasteljau(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, size_t level)
+    return nmd_rgba(r, g, b, 0xff);
+}
+
+nmd_color nmd_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    nmd_color color;
+    color.r = NMD_CLAMP(r, 0, 255);
+    color.g = NMD_CLAMP(g, 0, 255);
+    color.b = NMD_CLAMP(b, 0, 255);
+    color.a = NMD_CLAMP(a, 0, 255);
+
+    return color;
+}
+
+nmd_context* nmd_get_context()
+{
+    return &_nmd_context;
+}
+
+void _nmd_push_remaining_draw_commands()
+{
+    size_t numAccountedVertices = 0, numAccountedIndices = 0;
+    size_t i = 0;
+    for (; i < _nmd_context.drawList.numDrawCommands; i++)
     {
-        const float dx = x4 - x1;
-        const float dy = y4 - y1;
-        float d2 = ((x2 - x4) * dy - (y2 - y4) * dx);
-        float d3 = ((x3 - x4) * dy - (y3 - y4) * dx);
-        d2 = (d2 >= 0) ? d2 : -d2;
-        d3 = (d3 >= 0) ? d3 : -d3;
-        if ((d2 + d3) * (d2 + d3) < GetContext().drawList.curveTessellationTolerance * (dx * dx + dy * dy))
-            GetContext().drawList.path.emplace_back(x4, y4);
-        else if (level < 10)
-        {
-            const float x12 = (x1 + x2) * 0.5f, y12 = (y1 + y2) * 0.5f;
-            const float x23 = (x2 + x3) * 0.5f, y23 = (y2 + y3) * 0.5f;
-            const float x34 = (x3 + x4) * 0.5f, y34 = (y3 + y4) * 0.5f;
-            const float x123 = (x12 + x23) * 0.5f, y123 = (y12 + y23) * 0.5f;
-            const float x234 = (x23 + x34) * 0.5f, y234 = (y23 + y34) * 0.5f;
-            const float x1234 = (x123 + x234) * 0.5f, y1234 = (y123 + y234) * 0.5f;
-            PathBezierToCasteljau(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1);
-            PathBezierToCasteljau(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
-        }
+        numAccountedVertices += _nmd_context.drawList.drawCommands[i].numVertices;
+        numAccountedIndices += _nmd_context.drawList.drawCommands[i].numIndices;
     }
 
-    Vec2 BezierCalc(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, float t)
-    {
-        const float u = 1.0f - t;
-        const float w1 = u * u * u;
-        const float w2 = 3 * u * u * t;
-        const float w3 = 3 * u * t * t;
-        const float w4 = t * t * t;
-        return Vec2(w1 * p1.x + w2 * p2.x + w3 * p3.x + w4 * p4.x, w1 * p1.y + w2 * p2.y + w3 * p3.y + w4 * p4.y);
-    }
+    size_t numUnaccountedIndices = _nmd_context.drawList.numIndices - numAccountedIndices;
 
-    // Distribute UV over (a, b) rectangle
-    void ShadeVertsLinearUV(size_t startVertexIndex, const Vec2& p1, const Vec2& p2, const Vec2& uv1, const Vec2& uv2, bool clamp)
+    while (numUnaccountedIndices > 0)
     {
-        const Vec2 size = p2 - p1;
-        const Vec2 uv_size = uv2 - uv1;
-        const Vec2 scale = Vec2(size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f);
-
-        Vertex* const startVertex = GetContext().drawList.vertices.data() + startVertexIndex;
-        const Vertex* const endVertex = &GetContext().drawList.vertices.back();
-        if (clamp)
+        /* If the number of unaccounted indices is less than the maximum number of indices that can be hold by 'IndexType'(usually 2^16). */
+        if (numUnaccountedIndices <= (1 << (8 * sizeof(IndexType))))
         {
-            const Vec2 min = Vec2::Min(uv1, uv2), max = Vec2::Max(uv1, uv2);
-            for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
-                vertex->uv = Vec2::Clamp(uv1 + ((Vec2(vertex->pos.x, vertex->pos.y) - p1) * scale), min, max);
+            /* Add draw command */
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numIndices - numAccountedVertices;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numUnaccountedIndices;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = 0;
+            _nmd_context.drawList.numDrawCommands++;
+            return;
         }
         else
         {
-            for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
-                vertex->uv = uv1 + ((Vec2(vertex->pos.x, vertex->pos.y) - p1) * scale);
+            size_t numIndices = (2 << (8 * sizeof(IndexType) - 1)) - 1;
+            IndexType lastIndex = _nmd_context.drawList.indices[numIndices - 1];
+
+            bool isLastIndexReferenced = false;
+            do
+            {
+                for (size_t i = numIndices; i < numUnaccountedIndices; i++)
+                {
+                    if (_nmd_context.drawList.indices[i] == lastIndex)
+                    {
+                        isLastIndexReferenced = true;
+                        numIndices -= 3;
+                        lastIndex = _nmd_context.drawList.indices[numIndices - 1];
+                        break;
+                    }
+                }
+            } while (isLastIndexReferenced);
+
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = lastIndex + 1;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numIndices;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = 0;
+            _nmd_context.drawList.numDrawCommands++;
+            
+            numUnaccountedIndices -= numIndices;
         }
     }
+}
 
-    DrawList::DrawList()
-        : curveTessellationTolerance(1.25f)
+void _nmd_calculate_circle_segments(float maxError)
+{
+    for (size_t i = 0; i < 64; i++)
     {
+        const uint8_t segment_count = NMD_CIRCLE_AUTO_SEGMENT_CALC(i + 1.0f, maxError);
+        _nmd_context.drawList.cachedCircleSegmentCounts64[i] = NMD_MIN(segment_count, 255);
+    }
+}
+
+/* Starts a new empty scene. Internally this function clears all vertices, indices and command buffers. */
+void nmd_begin()
+{
+    if (!_nmd_initialized)
+    {
+        _nmd_initialized = true;
+
         for (size_t i = 0; i < 12; i++)
         {
-            //const float angle = (i / 12.0f) * GUI_2PI;
-            const float angle = (i / 6.0f) * NMD_PI; // Simplified version of the line above.
-            cachedCircleVertices12[i] = Vec2(cosf(angle), sinf(angle));
+            const float angle = (i / 12.0f) * NMD_2PI;
+            _nmd_context.drawList.cachedCircleVertices12[i].x = NMD_COS(angle);
+            _nmd_context.drawList.cachedCircleVertices12[i].y = NMD_SIN(angle);
         }
-
-        CalculateCircleSegments(1.6f);
-    }
-
-    void DrawList::CalculateCircleSegments(float maxError)
-    {
-        for (size_t i = 0; i < 64; i++)
-        {
-            const uint8_t segment_count = static_cast<uint8_t>(CIRCLE_AUTO_SEGMENT_CALC(i + 1.0f, maxError));
-            cachedCircleSegmentCounts64[i] = NMD_MIN(segment_count, 255);
-        }
-    }
-
-    void DrawList::PushRemainingDrawCommands()
-    {
-        size_t numAccountedVertices = 0, numAccountedIndices = 0;
-        for (auto& drawCommand : drawCommands)
-            numAccountedVertices += drawCommand.numVertices, numAccountedIndices += drawCommand.numIndices;
-
-        size_t numUnaccountedIndices = indices.size() - numAccountedIndices;
-
-        while (numUnaccountedIndices > 0)
-        {
-            if (numUnaccountedIndices <= (2 << (8 * sizeof(IndexType) - 1)))
-            {
-                drawCommands.emplace_back(static_cast<IndexType>(vertices.size() - numAccountedVertices), static_cast<IndexType>(numUnaccountedIndices), static_cast<TextureId>(NULL));
-                numUnaccountedIndices = 0;
-                return;
-            }
-            else
-            {
-                size_t numIndices = (2 << (8 * sizeof(IndexType) - 1)) - 1;
-                IndexType lastIndex = indices[numIndices - 1];
-
-                bool isLastIndexReferenced = false;
-                do
-                {
-                    for (size_t i = numIndices; i < numUnaccountedIndices; i++)
-                    {
-                        if (indices[i] == lastIndex)
-                        {
-                            isLastIndexReferenced = true;
-                            numIndices -= 3;
-                            lastIndex = indices[numIndices - 1];
-                            break;
-                        }
-                    }
-                } while (isLastIndexReferenced);
-
-                drawCommands.emplace_back(static_cast<IndexType>(lastIndex + 1), static_cast<IndexType>(numIndices), static_cast<TextureId>(NULL));
-                numUnaccountedIndices -= numIndices;
-            }
-        }
-    }
-
-    void DrawList::PushTextureDrawCommand(size_t numVertices, size_t numIndices, TextureId userTextureId)
-    {
-        if (!drawCommands.empty() && drawCommands.back().userTextureId == userTextureId)
-            drawCommands.back().numVertices += static_cast<IndexType>(numVertices), drawCommands.back().numIndices += static_cast<IndexType>(numIndices);
-        else
-            drawCommands.emplace_back(static_cast<IndexType>(numVertices), static_cast<IndexType>(numIndices), userTextureId);
-    }
-
-    void DrawList::AddRect(const Vec2& p1, const Vec2& p2, Color color, float rounding, uint32_t cornerFlags, float thickness)
-    {
-        if (!color.a || thickness == 0.0f)
-            return;
         
-        PathRect(p1 + Vec2(0.5f, 0.5f), p2 - Vec2(0.5f, 0.5f), rounding, cornerFlags);
+        _nmd_calculate_circle_segments(1.6f);
 
-        PathStroke(color, true, thickness);
+        /* Allocate buffers */
+        _nmd_context.drawList.path = (nmd_vec2*)NMD_MALLOC(NMD_INITIAL_PATH_BUFFER_SIZE);
+        _nmd_context.drawList.pathCapacity = NMD_INITIAL_PATH_BUFFER_SIZE;
+
+        _nmd_context.drawList.vertices = (nmd_vertex*)NMD_MALLOC(NMD_INITIAL_VERTICES_BUFFER_SIZE);
+        _nmd_context.drawList.verticesCapacity = NMD_INITIAL_VERTICES_BUFFER_SIZE;
+
+        _nmd_context.drawList.indices = (IndexType*)NMD_MALLOC(NMD_INITIAL_INDICES_BUFFER_SIZE);
+        _nmd_context.drawList.indicesCapacity = NMD_INITIAL_INDICES_BUFFER_SIZE;
+
+        _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_MALLOC(NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE);
+        _nmd_context.drawList.drawCommandsCapacity = NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE;
     }
 
-    void DrawList::AddRectFilled(const Vec2& p1, const Vec2& p2, Color color, float rounding, uint32_t cornerFlags)
-    {
-        if (!color.a)
-            return;
+    _nmd_context.drawList.numVertices = 0;
+    _nmd_context.drawList.numIndices = 0;
+    _nmd_context.drawList.numDrawCommands = 0;
+}
 
-        if (rounding > 0.0f)
+/* Ends a scene, so it can be rendered. Internally this functions creates the remaining draw commands. */
+void nmd_end()
+{
+    _nmd_push_remaining_draw_commands();
+}
+
+bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
+{
+    /* Check vertices */
+    size_t futureSize = (_nmd_context.drawList.numVertices + numNewVertices) * sizeof(nmd_vertex);
+    if (futureSize > _nmd_context.drawList.verticesCapacity)
+    {
+        const size_t newCapacity = NMD_MAX(_nmd_context.drawList.verticesCapacity * 2, futureSize);
+        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.vertices, newCapacity);
+        if (!memoryBlock)
+            return false;
+
+        _nmd_context.drawList.vertices = (nmd_vertex*)memoryBlock;
+        _nmd_context.drawList.verticesCapacity = newCapacity;
+    }
+
+    /* Check indices */
+    futureSize = (_nmd_context.drawList.numIndices + numNewIndices) * sizeof(IndexType);
+    if (futureSize > _nmd_context.drawList.indicesCapacity)
+    {
+        const size_t newCapacity = NMD_MAX(_nmd_context.drawList.indicesCapacity * 2, futureSize);
+        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.indices, newCapacity);
+        if (!memoryBlock)
+            return false;
+
+        _nmd_context.drawList.indices = (IndexType*)memoryBlock;
+        _nmd_context.drawList.indicesCapacity = newCapacity;
+    }
+
+    return true;
+}
+
+bool _nmd_reserve_points(size_t numNewPoints)
+{
+    const size_t futureSize = (_nmd_context.drawList.numPoints + numNewPoints) * sizeof(nmd_vec2);
+    if (futureSize > _nmd_context.drawList.pathCapacity)
+    {
+        const size_t newCapacity = NMD_MAX(_nmd_context.drawList.pathCapacity * 2, futureSize);
+        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.path, newCapacity);
+        if (!memoryBlock)
+            return false;
+
+        _nmd_context.drawList.path = (nmd_vec2*)memoryBlock;
+        _nmd_context.drawList.pathCapacity = newCapacity;
+    }
+
+    return true;
+}
+
+void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color, bool closed, float thickness)
+{
+    if (numPoints < 2)
+        return;
+
+    const size_t numInterations = closed ? numPoints : numPoints - 1;
+    if (!_nmd_reserve(4 * numPoints, 6 * numPoints))
+        return;
+
+    const float halfThickness = (thickness * 0.5f);
+
+    for (size_t i = 0; i < numInterations; i++)
+    {
+        const size_t offset = _nmd_context.drawList.numVertices;
+
+        /* Add indices */
+        IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
+        indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
+        _nmd_context.drawList.numIndices += 6;
+
+        const nmd_vec2* p0_tmp = &points[i];
+        const nmd_vec2* p1_tmp = &points[(i + 1) == numPoints ? 0 : i + 1];
+        const float dx = p1_tmp->x - p0_tmp->x;
+        const float dy = p1_tmp->y - p0_tmp->y;
+
+        /* If we didn't swap the points in this case the triangles would be drawn in the counter clockwise direction, which may cause issues in some rendering APIs. */
+        const bool swapPoints = (dx < 0.0f || dy < 0.0f) || (dx > 0.0f && dy > 0.0f);
+        const nmd_vec2* p0 = swapPoints ? p1_tmp : p0_tmp;
+        const nmd_vec2* p1 = swapPoints ? p0_tmp : p1_tmp;
+
+        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+
+        if (dy == 0) /* Horizontal line */
         {
-            PathRect(p1, p2, rounding, cornerFlags);
-            PathFillConvex(color);
+            const int factor = dx > 0.0f ? 1 : -1;
+            vertices[0].pos.x = p0->x - halfThickness * factor; vertices[0].pos.y = p0->y - halfThickness; vertices[0].color = color;
+            vertices[1].pos.x = p1->x + halfThickness * factor; vertices[1].pos.y = p1->y - halfThickness; vertices[1].color = color;
+            vertices[2].pos.x = p1->x + halfThickness * factor; vertices[2].pos.y = p1->y + halfThickness; vertices[2].color = color;
+            vertices[3].pos.x = p0->x - halfThickness * factor; vertices[3].pos.y = p0->y + halfThickness; vertices[3].color = color;
         }
-        else
-            PrimRect(p1, p2, color);
-    }
-
-    void DrawList::AddRectFilledMultiColor(const Vec2& p1, const Vec2& p2, Color colorUpperLeft, Color colorUpperRight, Color colorBottomRight, Color colorBottomLeft)
-    {
-        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-
-        vertices.emplace_back(p1, colorUpperLeft, Vec2());
-        vertices.emplace_back(Vec2(p2.x, p1.y), colorUpperRight, Vec2());
-        vertices.emplace_back(p2, colorBottomRight, Vec2());
-        vertices.emplace_back(Vec2(p1.x, p2.y), colorBottomLeft, Vec2());
-
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 1);
-        indices.push_back(nextIndex + 2);
-
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 2);
-        indices.push_back(nextIndex + 3);
-    }
-
-    void DrawList::AddQuad(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, Color color, float thickness)
-    {
-        if (!color.a)
-            return;
-
-        PathLineTo(p1);
-        PathLineTo(p2);
-        PathLineTo(p3);
-        PathLineTo(p4);
-        PathStroke(color, true, thickness);
-    }
-
-    void DrawList::AddQuadFilled(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, Color color)
-    {
-        if (!color.a)
-            return;
-
-        PathLineTo(p1);
-        PathLineTo(p2);
-        PathLineTo(p3);
-        PathLineTo(p4);
-        PathFillConvex(color);
-    }
-
-    void DrawList::AddTriangle(const Vec2& p1, const Vec2& p2, const Vec2& p3, Color color, float thickness)
-    {
-        if (!color.a)
-            return;
-
-        PathLineTo(p1);
-        PathLineTo(p2);
-        PathLineTo(p3);
-        PathStroke(color, true, thickness);
-    }
-
-    void DrawList::AddTriangleFilled(const Vec2& p1, const Vec2& p2, const Vec2& p3, Color color)
-    {
-        if (!color.a)
-            return;
-
-        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-        vertices.emplace_back(p1, color, Vec2());
-        vertices.emplace_back(p2, color, Vec2());
-        vertices.emplace_back(p3, color, Vec2());
-        for (size_t i = 0; i < 3; i++)
-            indices.push_back(nextIndex + static_cast<IndexType>(i));
-    }
-
-    void DrawList::AddCircle(const Vec2& center, float radius, Color color, size_t numSegments, float thickness)
-    {
-        if (!color.a || radius <= 0.0f)
-            return;
-
-        if (numSegments == 0)
-            numSegments = (static_cast<size_t>(radius) - 1 < 64) ? cachedCircleSegmentCounts64[static_cast<size_t>(radius) - 1] : CIRCLE_AUTO_SEGMENT_CALC(radius, 1.6f);
-        else
-            numSegments = NMD_CLAMP(numSegments, 3, CIRCLE_AUTO_SEGMENT_MAX);
-
-        if (numSegments == 12)
-            PathArcToCached(center, radius - 0.5f, 0, 12);
-        else
-            PathArcTo(center, radius - 0.5f, 0.0f, NMD_2PI * (static_cast<float>(numSegments - 1) / static_cast<float>(numSegments)), numSegments - 1);
-
-        PathStroke(color, true, thickness);
-    }
-
-    void DrawList::AddCircleFilled(const Vec2& center, float radius, Color color, size_t numSegments)
-    {
-        if (!color.a || radius <= 0.0f)
-            return;
-
-        if (numSegments <= 0)
-            numSegments = (static_cast<size_t>(radius) - 1 < 64) ? cachedCircleSegmentCounts64[static_cast<size_t>(radius) - 1] : CIRCLE_AUTO_SEGMENT_CALC(radius, 1.6f);
-        else
-            numSegments = NMD_CLAMP(numSegments, 3, CIRCLE_AUTO_SEGMENT_MAX);
-
-        if (numSegments == 12)
-            PathArcToCached(center, radius, 0, 12);
-        else
-            PathArcTo(center, radius, 0.0f, NMD_2PI * ((static_cast<float>(numSegments) - 1.0f) / static_cast<float>(numSegments)), numSegments - 1);
-
-        PathFillConvex(color);
-    }
-
-    void DrawList::AddNgon(const Vec2& center, float radius, Color color, size_t numSegments, float thickness)
-    {
-        if (!color.a || numSegments < 3)
-            return;
-
-        //Remove one(1) from numSegment because it's a closed shape.
-        PathArcTo(center, radius - 0.5f, 0.0f, NMD_2PI * ((static_cast<float>(numSegments) - 1.0f) / static_cast<float>(numSegments)), numSegments - 1);
-        PathStroke(color, true, thickness);
-    }
-
-    void DrawList::AddNgonFilled(const Vec2& center, float radius, Color color, size_t numSegments)
-    {
-        if (!color.a || numSegments < 3)
-            return;
-
-        //Remove one(1) from numSegment because it's a closed shape.
-        PathArcTo(center, radius, 0.0f, NMD_2PI * ((static_cast<float>(numSegments) - 1.0f) / static_cast<float>(numSegments)), numSegments - 1);
-        PathFillConvex(color);
-    }
-
-    void DrawList::PathRect(const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags)
-    {
-        if (rounding <= 0.0f || cornerFlags == 0)
+        else if (dx == 0) /* Vertical line */
         {
-            PathLineTo(p1);
-            PathLineTo(Vec2(p2.x, p1.y));
-            PathLineTo(p2);
-            PathLineTo(Vec2(p1.x, p2.y));
+            const int factor = dy > 0.0f ? 1 : -1;
+            vertices[0].pos.x = p0->x + halfThickness; vertices[0].pos.y = p0->y - halfThickness * factor; vertices[0].color = color;
+            vertices[1].pos.x = p1->x + halfThickness; vertices[1].pos.y = p1->y + halfThickness * factor; vertices[1].color = color;
+            vertices[2].pos.x = p1->x - halfThickness; vertices[2].pos.y = p1->y + halfThickness * factor; vertices[2].color = color;
+            vertices[3].pos.x = p0->x - halfThickness; vertices[3].pos.y = p0->y - halfThickness * factor; vertices[3].color = color;
         }
-        else
+        else /* Inclined line */
         {
-            const float roundingTopLeft = (cornerFlags & CORNER_FLAGS_TOP_LEFT) ? rounding : 0.0f;
-            const float roundingTopRight = (cornerFlags & CORNER_FLAGS_TOP_RIGHT) ? rounding : 0.0f;
-            const float roundingBottomRight = (cornerFlags & CORNER_FLAGS_BOTTOM_RIGHT) ? rounding : 0.0f;
-            const float roundingBottomLeft = (cornerFlags & CORNER_FLAGS_BOTTOM_LEFT) ? rounding : 0.0f;
-            PathArcToCached(Vec2(p1.x + roundingTopLeft, p1.y + roundingTopLeft), roundingTopLeft, 6, 9);
-            PathArcToCached(Vec2(p2.x - roundingTopRight, p1.y + roundingTopRight), roundingTopRight, 9, 12);
-            PathArcToCached(Vec2(p2.x - roundingBottomRight, p2.y - roundingBottomRight), roundingBottomRight, 0, 3);
-            PathArcToCached(Vec2(p1.x + roundingBottomLeft, p2.y - roundingBottomLeft), roundingBottomLeft, 3, 6);
+            const float lineWidth = NMD_SQRT(dx * dx + dy * dy);
+
+            const float cosine = dx / lineWidth;
+            const float sine = dy / lineWidth;
+
+            const float xFactor = cosine * halfThickness;
+            const float yFactor = sine * halfThickness;
+
+            vertices[0].pos.x = p0->x - yFactor; vertices[0].pos.y = p0->y + xFactor; vertices[0].color = color;
+            vertices[1].pos.x = p1->x - yFactor; vertices[1].pos.y = p1->y + xFactor; vertices[1].color = color;
+            vertices[2].pos.x = p1->x + yFactor; vertices[2].pos.y = p1->y - xFactor; vertices[2].color = color;
+            vertices[3].pos.x = p0->x + yFactor; vertices[3].pos.y = p0->y - xFactor; vertices[3].color = color;
         }
+        _nmd_context.drawList.numVertices += 4;
     }
+}
 
-    void DrawList::PathArcTo(const Vec2& center, float radius, float startAngle, float endAngle, size_t numSegments, bool startAtCenter)
+void nmd_path_to(float x0, float y0)
+{
+    if (!_nmd_reserve_points(1))
+        return;
+
+    _nmd_context.drawList.path[_nmd_context.drawList.numPoints].x = x0;
+    _nmd_context.drawList.path[_nmd_context.drawList.numPoints].y = y0;
+    _nmd_context.drawList.numPoints++;
+}
+
+void nmd_path_fill_convex(nmd_color color)
+{
+    nmd_add_convex_polygon_filled(_nmd_context.drawList.path, _nmd_context.drawList.numPoints, color);
+
+    /* Clear points in 'path' */
+    _nmd_context.drawList.numPoints = 0;
+}
+
+void nmd_path_stroke(nmd_color color, bool closed, float thickness)
+{
+    nmd_add_polyline(_nmd_context.drawList.path, _nmd_context.drawList.numPoints, color, closed, thickness);
+
+    /* Clear points in 'path' */
+    _nmd_context.drawList.numPoints = 0;
+}
+
+//void PathBezierToCasteljau(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, size_t level)
+//{
+//    const float dx = x4 - x1;
+//    const float dy = y4 - y1;
+//    float d2 = ((x2 - x4) * dy - (y2 - y4) * dx);
+//    float d3 = ((x3 - x4) * dy - (y3 - y4) * dx);
+//    d2 = (d2 >= 0) ? d2 : -d2;
+//    d3 = (d3 >= 0) ? d3 : -d3;
+//    if ((d2 + d3) * (d2 + d3) < GetContext().drawList.curveTessellationTolerance * (dx * dx + dy * dy))
+//        GetContext().drawList.path.emplace_back(x4, y4);
+//    else if (level < 10)
+//    {
+//        const float x12 = (x1 + x2) * 0.5f, y12 = (y1 + y2) * 0.5f;
+//        const float x23 = (x2 + x3) * 0.5f, y23 = (y2 + y3) * 0.5f;
+//        const float x34 = (x3 + x4) * 0.5f, y34 = (y3 + y4) * 0.5f;
+//        const float x123 = (x12 + x23) * 0.5f, y123 = (y12 + y23) * 0.5f;
+//        const float x234 = (x23 + x34) * 0.5f, y234 = (y23 + y34) * 0.5f;
+//        const float x1234 = (x123 + x234) * 0.5f, y1234 = (y123 + y234) * 0.5f;
+//        PathBezierToCasteljau(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1);
+//        PathBezierToCasteljau(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
+//    }
+//}
+//
+//nmd_vec2 BezierCalc(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, float t)
+//{
+//    const float u = 1.0f - t;
+//    const float w1 = u * u * u;
+//    const float w2 = 3 * u * u * t;
+//    const float w3 = 3 * u * t * t;
+//    const float w4 = t * t * t;
+//    return { w1 * p0.x + w2 * p1.x + w3 * p2.x + w4 * p3.x, w1 * p0.y + w2 * p1.y + w3 * p2.y + w4 * p3.y };
+//}
+//
+///* Distribute UV over (a, b) rectangle */
+//void ShadeVertsLinearUV(size_t startVertexIndex, nmd_vec2 p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, bool clamp)
+//{
+//    const nmd_vec2 size = p2 - p1;
+//    const nmd_vec2 uv_size = uv2 - uv1;
+//    const nmd_vec2 scale = nmd_vec2(size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f);
+//
+//    Vertex* const startVertex = GetContext().drawList.vertices.data() + startVertexIndex;
+//    const Vertex* const endVertex = &GetContext().drawList.vertices.back();
+//    if (clamp)
+//    {
+//        const nmd_vec2 min = nmd_vec2::Min(uv1, uv2), max = nmd_vec2::Max(uv1, uv2);
+//        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
+//            vertex->uv = nmd_vec2::Clamp(uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale), min, max);
+//    }
+//    else
+//    {
+//        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
+//            vertex->uv = uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale);
+//    }
+//}
+//
+//void DrawList::PushTextureDrawCommand(size_t numVertices, size_t numIndices, TextureId userTextureId)
+//{
+//    if (!drawCommands.empty() && drawCommands.back().userTextureId == userTextureId)
+//        drawCommands.back().numVertices += static_cast<IndexType>(numVertices), drawCommands.back().numIndices += static_cast<IndexType>(numIndices);
+//    else
+//        drawCommands.emplace_back(static_cast<IndexType>(numVertices), static_cast<IndexType>(numIndices), userTextureId);
+//}
+//
+
+void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags, float thickness)
+{
+    if (!color.a || thickness == 0.0f)
+        return;
+    
+    nmd_path_rect(x0, y0, x1, y1, rounding, cornerFlags);
+
+    nmd_path_stroke(color, true, thickness);
+}
+
+void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags)
+{
+    if (!color.a)
+        return;
+
+    if (rounding > 0.0f)
     {
-        if (startAtCenter)
-            path.push_back(center);
-
-        for (size_t i = 0; i <= numSegments; i++)
-        {
-            const float angle = startAngle + (static_cast<float>(i) / static_cast<float>(numSegments)) * (endAngle - startAngle);
-            path.emplace_back(center.x + cosf(angle) * radius, center.y + sinf(angle) * radius);
-        }
+        nmd_path_rect(x0, y0, x1, y1, rounding, cornerFlags);
+        nmd_path_fill_convex(color);
     }
-
-    void DrawList::PathArcToCached(const Vec2& center, float radius, size_t startAngleOf12, size_t endAngleOf12, bool startAtCenter)
+    else
     {
-        if (startAtCenter)
-            path.push_back(center);
-
-        for (size_t angle = startAngleOf12; angle <= endAngleOf12; angle++)
-        {
-            const Vec2& point = cachedCircleVertices12[angle % 12];
-            path.emplace_back(center.x + point.x * radius, center.y + point.y * radius);
-        }
-    }
-
-    void DrawList::PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments)
-    {
-        const Vec2& p1 = path.back();
-        if (numSegments == 0)
-            PathBezierToCasteljau(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, 0);
-        else
-        {
-            const float tStep = 1.0f / static_cast<float>(numSegments);
-            for (size_t iStep = 1; iStep <= numSegments; iStep++)
-                path.push_back(BezierCalc(p1, p2, p3, p4, tStep * iStep));
-        }
-    }
-
-    void DrawList::PrimRect(const Vec2& p1, const Vec2& p2, Color color)
-    {
-        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-
-        vertices.emplace_back(p1, color, Vec2());
-        vertices.emplace_back(Vec2(p2.x, p1.y), color, Vec2());
-        vertices.emplace_back(p2, color, Vec2());
-        vertices.emplace_back(Vec2(p1.x, p2.y), color, Vec2());
-
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 1);
-        indices.push_back(nextIndex + 2);
-
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 2);
-        indices.push_back(nextIndex + 3);
-    }
-
-    void DrawList::PrimRectUV(const Vec2& p1, const Vec2& p2, const Vec2& uv1, const Vec2& uv2, Color color)
-    {
-        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-
-        vertices.emplace_back(p1, color, uv1);
-        vertices.emplace_back(Vec2(p2.x, p1.y), color, Vec2(uv2.x, uv1.y));
-        vertices.emplace_back(p2, color, uv2);
-        vertices.emplace_back(Vec2(p1.x, p2.y), color, Vec2(uv1.x, uv2.y));
-
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 1);
-        indices.push_back(nextIndex + 2);
-
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 2);
-        indices.push_back(nextIndex + 3);
-    }
-
-    void DrawList::PrimQuadUV(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1, const Vec2& uv2, const Vec2& uv3, const Vec2& uv4, Color color)
-    {
-        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-
-        vertices.emplace_back(p1, color, uv1);
-        vertices.emplace_back(p2, color, uv2);
-        vertices.emplace_back(p3, color, uv3);
-        vertices.emplace_back(p4, color, uv4);
-
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 1);
-        indices.push_back(nextIndex + 2);
-
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 2);
-        indices.push_back(nextIndex + 3);
-    }
-
-    void DrawList::AddLine(const Vec2& p1, const Vec2& p2, Color color, float thickness)
-    {
-        if (!color.a)
+        if (!_nmd_reserve(4, 6))
             return;
 
-        PathLineTo(p1 + Vec2(0.5f, 0.5f));
-        PathLineTo(p2 + Vec2(0.5f, 0.5f));
-        PathStroke(color, false, thickness);
+        const size_t offset = _nmd_context.drawList.numVertices;
+
+        IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
+        indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
+        _nmd_context.drawList.numIndices += 6;
+
+        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+        vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].color = color;
+        vertices[1].pos.x = x1; vertices[1].pos.y = y0; vertices[1].color = color;
+        vertices[2].pos.x = x1; vertices[2].pos.y = y1; vertices[2].color = color;
+        vertices[3].pos.x = x0; vertices[3].pos.y = y1; vertices[3].color = color;
+        _nmd_context.drawList.numVertices += 4;
+    }
+}
+
+void nmd_add_rect_filled_multi_color(float x0, float y0, float x1, float y1, nmd_color colorUpperLeft, nmd_color colorUpperRight, nmd_color colorBottomRight, nmd_color colorBottomLeft)
+{
+    if (!_nmd_reserve(4, 6))
+        return;
+
+    const size_t offset = _nmd_context.drawList.numVertices;
+
+    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
+    indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
+    _nmd_context.drawList.numIndices += 6;
+
+    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].color = colorUpperLeft;
+    vertices[1].pos.x = x1; vertices[1].pos.y = y0; vertices[1].color = colorUpperRight;
+    vertices[2].pos.x = x1; vertices[2].pos.y = y1; vertices[2].color = colorBottomRight;
+    vertices[3].pos.x = x0; vertices[3].pos.y = y1; vertices[3].color = colorBottomLeft;
+    _nmd_context.drawList.numVertices += 4;
+}
+
+void nmd_add_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color, float thickness)
+{
+    if (!color.a)
+        return;
+
+    nmd_path_to(x0, y0);
+    nmd_path_to(x1, y1);
+    nmd_path_to(x2, y2);
+    nmd_path_to(x3, y3);
+
+    nmd_path_stroke(color, true, thickness);
+}
+
+void nmd_add_quad_filled(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color)
+{
+    if (!color.a)
+        return;
+
+    nmd_path_to(x0, y0);
+    nmd_path_to(x1, y1);
+    nmd_path_to(x2, y2);
+    nmd_path_to(x3, y3);
+
+    nmd_path_fill_convex(color);
+}
+
+void nmd_add_triangle(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color, float thickness)
+{
+    if (!color.a)
+        return;
+    
+    nmd_path_to(x0, y0);
+    nmd_path_to(x1, y1);
+    nmd_path_to(x2, y2);
+
+    nmd_path_stroke(color, true, thickness);
+}
+
+void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color)
+{
+    if (!color.a || !_nmd_reserve(3, 3))
+        return;
+
+    const size_t offset = _nmd_context.drawList.numVertices;
+
+    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    indices[0] = offset + 0;
+    indices[1] = offset + 1;
+    indices[2] = offset + 2;
+    _nmd_context.drawList.numIndices += 6;
+
+    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].color = color;
+    vertices[1].pos.x = x1; vertices[1].pos.y = y1; vertices[1].color = color;
+    vertices[2].pos.x = x2; vertices[2].pos.y = y2; vertices[2].color = color;
+    _nmd_context.drawList.numVertices += 4;
+}
+
+void nmd_add_circle(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness)
+{
+    if (!color.a || radius <= 0.0f)
+        return;
+
+    if (numSegments == 0)
+        numSegments = (radius - 1 < 64) ? _nmd_context.drawList.cachedCircleSegmentCounts64[(int)radius - 1] : NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, 1.6f);
+    else
+        numSegments = NMD_CLAMP(numSegments, 3, NMD_CIRCLE_AUTO_SEGMENT_MAX);
+
+    if (numSegments == 12)
+        nmd_path_arc_to_cached(x0, y0, radius - 0.5f, 0, 12, false);
+    else
+        nmd_path_arc_to(x0, y0, radius - 0.5f, 0.0f, NMD_2PI * ((numSegments - 1) / (float)numSegments), numSegments - 1, false);
+
+    nmd_path_stroke(color, true, thickness);
+}
+
+void nmd_add_circle_filled(float x0, float y0, float radius, nmd_color color, size_t numSegments)
+{
+    if (!color.a || radius <= 0.0f)
+        return;
+
+    if (numSegments <= 0)
+        numSegments = (radius - 1 < 64) ? _nmd_context.drawList.cachedCircleSegmentCounts64[(int)radius - 1] : NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, 1.6f);
+    else
+        numSegments = NMD_CLAMP(numSegments, 3, NMD_CIRCLE_AUTO_SEGMENT_MAX);
+
+    if (numSegments == 12)
+        nmd_path_arc_to_cached(x0, y0, radius, 0, 12, false);
+    else
+        nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((numSegments - 1.0f) / (float)numSegments), numSegments - 1, false);
+        
+    nmd_path_fill_convex(color);
+}
+
+void nmd_add_ngon(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness)
+{
+    if (!color.a || numSegments < 3)
+        return;
+
+    /* remove one(1) from numSegment because it's a closed shape. */
+    nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((numSegments - 1) / (float)numSegments), numSegments - 1, false);
+    nmd_path_stroke(color, true, thickness);
+}
+
+void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size_t numSegments)
+{
+    if (!color.a || numSegments < 3)
+        return;
+
+    /* remove one(1) from numSegment because it's a closed shape. */
+    nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((numSegments - 1) / (float)numSegments), numSegments - 1, false);
+    nmd_path_fill_convex(color);
+}
+
+void nmd_path_rect(float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags)
+{
+    if (rounding == 0.0f || cornerFlags == 0)
+    {
+        nmd_path_to(x0, y0);
+        nmd_path_to(x1, y0);
+        nmd_path_to(x1, y1);
+        nmd_path_to(x0, y1);
+    }
+    else
+    {
+        const float roundingTopLeft = (cornerFlags & NMD_CORNER_TOP_LEFT) ? rounding : 0.0f;
+        const float roundingTopRight = (cornerFlags & NMD_CORNER_TOP_RIGHT) ? rounding : 0.0f;
+        const float roundingBottomRight = (cornerFlags & NMD_CORNER_BOTTOM_RIGHT) ? rounding : 0.0f;
+        const float roundingBottomLeft = (cornerFlags & NMD_CORNER_BOTTOM_LEFT) ? rounding : 0.0f;
+        nmd_path_arc_to_cached(x0 + roundingTopLeft, y0 + roundingTopLeft, roundingTopLeft, 6, 9, false);
+        nmd_path_arc_to_cached(x1 - roundingTopRight, y0 + roundingTopRight, roundingTopRight, 9, 12, false);
+        nmd_path_arc_to_cached(x1 - roundingBottomRight, y1 - roundingBottomRight, roundingBottomRight, 0, 3, false);
+        nmd_path_arc_to_cached(x0 + roundingBottomLeft, y1 - roundingBottomLeft, roundingBottomLeft, 3, 6, false);
+    }
+}
+
+void nmd_path_arc_to(float x0, float y0, float radius, float startAngle, float endAngle, size_t numSegments, bool startAtCenter)
+{
+    if (!_nmd_reserve_points((startAtCenter ? 1 : 0) + numSegments))
+        return;
+
+    nmd_vec2* path = _nmd_context.drawList.path + _nmd_context.drawList.numPoints;
+
+    if (startAtCenter)
+    {
+        path->x = x0, path->y = y0;
+        path++;
     }
 
-    void DrawList::AddPolyline(const Vec2* points, size_t numPoints, Color color, bool closed, float thickness)
+    for (size_t i = 0; i <= numSegments; i++)
     {
-        if (numPoints < 2)
-            return;
+        const float angle = startAngle + (i / (float)numSegments) * (endAngle - startAngle);
+        path[i].x = x0 + NMD_COS(angle) * radius;
+        path[i].y = y0 + NMD_SIN(angle) * radius;
+    }
 
-        IndexType nextIndex = static_cast<IndexType>(vertices.size());
-        const float halfThickness = (thickness * 0.5f);
-        for (size_t i = 0; i < (closed ? numPoints : numPoints - 1); i++, nextIndex += 4)
+    _nmd_context.drawList.numPoints = (startAtCenter ? 1 : 0) + numSegments + 1;
+}
+
+void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t startAngleOf12, size_t endAngleOf12, bool startAtCenter)
+{
+    if (!_nmd_reserve_points((startAtCenter ? 1 : 0) + (endAngleOf12 - startAngleOf12)))
+        return;
+
+    nmd_vec2* path = _nmd_context.drawList.path + _nmd_context.drawList.numPoints;
+
+    if (startAtCenter)
+    {
+        path->x = x0, path->y = y0;
+        path++;
+    }
+
+    for (size_t angle = startAngleOf12; angle <= endAngleOf12; angle++)
+    {
+        const nmd_vec2* point = &_nmd_context.drawList.cachedCircleVertices12[angle % 12];
+        path->x = x0 + point->x * radius;
+        path->y = y0 + point->y * radius;
+        path++;
+    }
+
+    _nmd_context.drawList.numPoints = path - _nmd_context.drawList.path;
+}
+
+//void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, size_t numSegments)
+//{
+//    const nmd_vec2& p1 = path.back();
+//    if (numSegments == 0)
+//        PathBezierToCasteljau(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, 0);
+//    else
+//    {
+//        const float tStep = 1.0f / static_cast<float>(numSegments);
+//        for (size_t iStep = 1; iStep <= numSegments; iStep++)
+//            path.push_back(BezierCalc(p1, p2, p3, p4, tStep * iStep));
+//    }
+//}
+//
+//void DrawList::PrimRectUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+//{
+//    const IndexType nextIndex = static_cast<IndexType>(vertices.size());
+//
+//    vertices.emplace_back(p1, color, uv1);
+//    vertices.emplace_back(nmd_vec2(p2.x, p1.y), color, nmd_vec2(uv2.x, uv1.y));
+//    vertices.emplace_back(p2, color, uv2);
+//    vertices.emplace_back(nmd_vec2(p1.x, p2.y), color, nmd_vec2(uv1.x, uv2.y));
+//
+//    indices.push_back(nextIndex + 0);
+//    indices.push_back(nextIndex + 1);
+//    indices.push_back(nextIndex + 2);
+//
+//    indices.push_back(nextIndex + 0);
+//    indices.push_back(nextIndex + 2);
+//    indices.push_back(nextIndex + 3);
+//}
+//
+//void DrawList::PrimQuadUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
+//{
+//    const IndexType nextIndex = static_cast<IndexType>(vertices.size());
+//
+//    vertices.emplace_back(p1, color, uv1);
+//    vertices.emplace_back(p2, color, uv2);
+//    vertices.emplace_back(p3, color, uv3);
+//    vertices.emplace_back(p4, color, uv4);
+//
+//    indices.push_back(nextIndex + 0);
+//    indices.push_back(nextIndex + 1);
+//    indices.push_back(nextIndex + 2);
+//
+//    indices.push_back(nextIndex + 0);
+//    indices.push_back(nextIndex + 2);
+//    indices.push_back(nextIndex + 3);
+//}
+//
+void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float thickness)
+{
+    if (!color.a)
+        return;
+
+    nmd_path_to(x0, y0);
+    nmd_path_to(x1, y1);
+    nmd_path_stroke(color, false, thickness);
+}
+
+void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color)
+{
+    if (numPoints < 3 || !_nmd_reserve(numPoints, (numPoints - 2) * 3))
+        return;
+
+    const size_t offset = _nmd_context.drawList.numVertices;
+    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    for (size_t i = 2; i < numPoints; i++)
+        indices[(i - 2) * 3 + 0] = offset, indices[(i - 2) * 3 + 1] = offset + (i - 1), indices[(i - 2) * 3 + 2] = offset + i;
+    _nmd_context.drawList.numIndices += (numPoints - 2) * 3;
+
+    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    for (size_t i = 0; i < numPoints; i++)
+        vertices[i].pos.x = points[i].x, vertices[i].pos.y = points[i].y, vertices[i].color = color;
+    _nmd_context.drawList.numVertices += numPoints;
+}
+
+//void DrawList::AddBezierCurve(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, Color color, float thickness, size_t numSegments)
+//{
+//    if (!color.a)
+//        return;
+//
+//    PathLineTo(p1);
+//    PathBezierCurveTo(p2, p3, p4, numSegments);
+//    PathStroke(color, false, thickness);
+//}
+//
+//void DrawList::AddText(const nmd_vec2& pos, Color color, const char* text, size_t textLength)
+//{
+//    AddText(NULL, 0.0f, pos, color, text, textLength);
+//}
+//
+//void DrawList::AddText(const void* font, float fontSize, const nmd_vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth)
+//{
+//    if (!color.a)
+//        return;
+//    
+//    const char* const textEnd = text + textLength;
+//    
+//    float x = pos.x;
+//    float y = pos.y;
+//
+//    while (text < textEnd)
+//    {
+//        //const Glyph* glyph = font->FindGlyph(*text);
+//    
+//        //stbtt_aligned_quad q;
+//        //stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
+//        //
+//        //const size_t nextIndex = vertices.size();
+//        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y0), color, nmd_vec2(glyph->u0, glyph->v0));
+//        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y0), color, nmd_vec2(glyph->u1, glyph->v0));
+//        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y1), color, nmd_vec2(glyph->u1, glyph->v1));
+//        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y1), color, nmd_vec2(glyph->u0, glyph->v1));
+//    
+//        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
+//
+//        indices.push_back(nextIndex + 0);
+//        indices.push_back(nextIndex + 1);
+//        indices.push_back(nextIndex + 2);
+//    
+//        indices.push_back(nextIndex + 0);
+//        indices.push_back(nextIndex + 2);
+//        indices.push_back(nextIndex + 3);
+//    
+//        text++;
+//    }
+//}
+//
+//void DrawList::AddImage(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+//{
+//    if (!color.a)
+//        return;
+//
+//    PushRemainingDrawCommands();
+//
+//    PrimRectUV(p1, p2, uv1, uv2, color);
+//
+//    PushTextureDrawCommand(4, 6, userTextureId);
+//}
+//
+//void DrawList::AddImageQuad(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
+//{
+//    if (!color.a)
+//        return;
+//
+//    PushRemainingDrawCommands();
+//
+//    PrimQuadUV(p1, p2, p3, p4, uv1, uv2, uv3, uv4, color);
+//
+//    PushTextureDrawCommand(4, 6, userTextureId);
+//}
+//
+//void DrawList::AddImageRounded(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, float rounding, uint32_t cornerFlags, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+//{
+//    if (!color.a)
+//        return;
+//
+//    if (rounding <= 0.0f || !cornerFlags)
+//        AddImage(userTextureId, p1, p2, uv1, uv2, color);
+//    else
+//    {
+//        PushRemainingDrawCommands();
+//
+//        PathRect(p1, p2, rounding, cornerFlags);
+//
+//        const size_t v0 = vertices.size(), i0 = indices.size();
+//        PathFillConvex(color);
+//        ShadeVertsLinearUV(v0, p1, p2, uv1, uv2, true);
+//
+//        PushTextureDrawCommand(vertices.size() - v0, indices.size() - i0, userTextureId);
+//    }
+//}
+
+#ifdef NMD_GRAPHICS_D3D9
+static LPDIRECT3DDEVICE9 _nmd_d3d9_device = 0;
+static LPDIRECT3DVERTEXBUFFER9 _nmd_d3d9_vb = 0; /* vertex buffer */
+static LPDIRECT3DINDEXBUFFER9 _nmd_d3d9_ib = 0; /* index buffer*/
+static LPDIRECT3DTEXTURE9 _nmd_d3d9_font = 0;
+static size_t _nmd_d3d9_vb_size, _nmd_d3d9_ib_size;
+static D3DMATRIX _nmd_d3d9_proj;
+
+typedef struct
+{
+    nmd_vec3 pos;
+    nmd_vec2 uv;
+    D3DCOLOR color;
+} _nmd_d3d9_custom_vertex;
+
+#define _NMD_D3D9_CUSTOM_VERTEX_FVF (D3DFVF_XYZ | D3DFVF_TEX1 | D3DFVF_DIFFUSE)
+
+#define _NMD_RGBA_TO_ARGB(color) (((color&0xff)<<24)|(color>>8))
+
+void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pD3D9Device) { _nmd_d3d9_device = pD3D9Device; }
+
+void nmd_d3d9_resize(int width, int height)
+{
+    const float L = 0.5f;
+    const float R = (float)width + 0.5f;
+    const float T = 0.5f;
+    const float B = (float)height + 0.5f;
+    float matrix[4][4] = {
+        {    2.0f / (R - L),              0.0f, 0.0f, 0.0f },
+        {              0.0f,    2.0f / (T - B), 0.0f, 0.0f },
+        {              0.0f,              0.0f, 0.0f, 0.0f },
+        { (R + L) / (L - R), (T + B) / (B - T), 0.0f, 1.0f },
+    };
+    memcpy(&_nmd_d3d9_proj, matrix, sizeof(matrix));
+}
+
+bool _nmd_d3d9_create_font_texture()
+{
+    /*
+    if (g_pFontTexture)
+        g_pFontTexture->Release();
+
+    
+    if (_nmd_d3d9_device->CreateTexture(width, height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &g_pFontTexture, NULL) < 0)
+        return false;
+    
+    D3DLOCKED_RECT lockedRect;
+    if (g_pFontTexture->LockRect(0, &lockedRect, NULL, 0) != D3D_OK)
+        return false;
+    
+    for (int y = 0; y < height; y++)
+        memcpy((uint8_t*)lockedRect.pBits + lockedRect.Pitch * y, pixels + (width * bpp) * y, (width * bpp));
+    
+    g_pFontTexture->UnlockRect(0);
+    */
+    return true;
+}
+
+void nmd_d3d9_render()
+{
+    /* Create/recreate vertex buffer if it doesn't exist or more space is needed. */
+    if (!_nmd_d3d9_vb || _nmd_d3d9_vb_size < _nmd_context.drawList.numVertices)
+    {
+        if (_nmd_d3d9_vb)
         {
-            const Vec2& p1_tmp = points[i], & p2_tmp = points[(i + 1) == numPoints ? 0 : i + 1];
-            const float dx = p2_tmp.x - p1_tmp.x;
-            const float dy = p2_tmp.y - p1_tmp.y;
-
-            //If we didn't swap the points in the cases the triangles would be drawn in the counter clockwise direction, which can cause problems in some rendering APIs.
-            const bool swapPoints = (dx < 0.0f || dy < 0.0f) || (dx > 0.0f && dy > 0.0f);
-            const Vec2& p1 = swapPoints ? p2_tmp : p1_tmp, & p2 = swapPoints ? p1_tmp : p2_tmp;
-
-            if (dy == 0) // Horizontal line
-            {
-                int factor = dx > 0.0f ? 1 : -1;
-                vertices.emplace_back(Vec2(p1.x - halfThickness * factor, p1.y - halfThickness), color, Vec2());
-                vertices.emplace_back(Vec2(p2.x + halfThickness * factor, p2.y - halfThickness), color, Vec2());
-                vertices.emplace_back(Vec2(p2.x + halfThickness * factor, p2.y + halfThickness), color, Vec2());
-                vertices.emplace_back(Vec2(p1.x - halfThickness * factor, p1.y + halfThickness), color, Vec2());
-            }
-            else if (dx == 0) // Vertical line
-            {
-                int factor = dy > 0.0f ? 1 : -1;
-                vertices.emplace_back(Vec2(p1.x + halfThickness, p1.y - halfThickness * factor), color, Vec2());
-                vertices.emplace_back(Vec2(p2.x + halfThickness, p2.y + halfThickness * factor), color, Vec2());
-                vertices.emplace_back(Vec2(p2.x - halfThickness, p2.y + halfThickness * factor), color, Vec2());
-                vertices.emplace_back(Vec2(p1.x - halfThickness, p1.y - halfThickness * factor), color, Vec2());
-            }
-            else // Inclined line
-            {
-                const float lineWidth = sqrtf(dx * dx + dy * dy);
-
-                const float cosine = dx / lineWidth;
-                const float sine = dy / lineWidth;
-
-                const float xFactor = cosine * halfThickness;
-                const float yFactor = sine * halfThickness;
-
-                vertices.emplace_back(Vec2(p1.x - yFactor, p1.y + xFactor), color, Vec2());
-                vertices.emplace_back(Vec2(p2.x - yFactor, p2.y + xFactor), color, Vec2());
-                vertices.emplace_back(Vec2(p2.x + yFactor, p2.y - xFactor), color, Vec2());
-                vertices.emplace_back(Vec2(p1.x + yFactor, p1.y - xFactor), color, Vec2());
-            }
-
-            indices.push_back(nextIndex + 0);
-            indices.push_back(nextIndex + 1);
-            indices.push_back(nextIndex + 2);
-
-            indices.push_back(nextIndex + 0);
-            indices.push_back(nextIndex + 2);
-            indices.push_back(nextIndex + 3);
+            _nmd_d3d9_vb->Release();
+            _nmd_d3d9_vb = 0;
         }
-    }
 
-    void DrawList::AddConvexPolyFilled(const Vec2* points, size_t numPoints, Color color)
-    {
-        if (numPoints < 3)
+        _nmd_d3d9_vb_size = _nmd_context.drawList.numVertices + 5000;
+        if (_nmd_d3d9_device->CreateVertexBuffer((UINT)(_nmd_d3d9_vb_size * sizeof(_nmd_d3d9_custom_vertex)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, _NMD_D3D9_CUSTOM_VERTEX_FVF, D3DPOOL_DEFAULT, &_nmd_d3d9_vb, NULL) != D3D_OK)
             return;
-
-        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-        for (size_t i = 0; i < numPoints; i++)
-            vertices.emplace_back(points[i], color, Vec2());
-
-        for (size_t i = 2; i < numPoints; i++)
-            indices.push_back(nextIndex), indices.push_back(nextIndex + static_cast<IndexType>(i - 1)), indices.push_back(nextIndex + static_cast<IndexType>(i));
     }
 
-    void DrawList::AddBezierCurve(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, Color color, float thickness, size_t numSegments)
+    /* Create/recreate index buffer if it doesn't exist or more space is needed. */
+    if (!_nmd_d3d9_ib || _nmd_d3d9_ib_size < _nmd_context.drawList.numIndices)
     {
-        if (!color.a)
+        if (_nmd_d3d9_ib)
+        {
+            _nmd_d3d9_ib->Release();
+            _nmd_d3d9_ib = 0;
+        }
+
+        _nmd_d3d9_ib_size = _nmd_context.drawList.numIndices + 10000;
+        if (_nmd_d3d9_device->CreateIndexBuffer((UINT)(_nmd_d3d9_ib_size * sizeof(IndexType)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(IndexType) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9_ib, NULL) < 0)
             return;
-
-        PathLineTo(p1);
-        PathBezierCurveTo(p2, p3, p4, numSegments);
-        PathStroke(color, false, thickness);
-    }
-
-    void DrawList::AddText(const Vec2& pos, Color color, const char* text, size_t textLength)
-    {
-        AddText(NULL, 0.0f, pos, color, text, textLength);
     }
     
-    void DrawList::AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth)
+
+    /* Copy vertices to the gpu */
+    _nmd_d3d9_custom_vertex* pVertices = 0;
+    if (_nmd_d3d9_vb->Lock(0, (UINT)(_nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex)), (void**)&pVertices, D3DLOCK_DISCARD) != D3D_OK)
+        return;
+    size_t i = 0;
+    for (; i < _nmd_context.drawList.numVertices; i++)
     {
-        if (!color.a)
-            return;
-        
-        const char* const textEnd = text + textLength;
-        
-        float x = pos.x;
-        float y = pos.y;
+        pVertices[i].pos.x = _nmd_context.drawList.vertices[i].pos.x;
+        pVertices[i].pos.y = _nmd_context.drawList.vertices[i].pos.y;
+        pVertices[i].pos.z = 0.0f;
 
-        while (text < textEnd)
-        {
-            //const Glyph* glyph = font->FindGlyph(*text);
-        
-            //stbtt_aligned_quad q;
-            //stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
-            //
-            //const size_t nextIndex = vertices.size();
-            //vertices.emplace_back(Vec2(glyph->x0, glyph->y0), color, Vec2(glyph->u0, glyph->v0));
-            //vertices.emplace_back(Vec2(glyph->x1, glyph->y0), color, Vec2(glyph->u1, glyph->v0));
-            //vertices.emplace_back(Vec2(glyph->x1, glyph->y1), color, Vec2(glyph->u1, glyph->v1));
-            //vertices.emplace_back(Vec2(glyph->x0, glyph->y1), color, Vec2(glyph->u0, glyph->v1));
-        
-            const IndexType nextIndex = static_cast<IndexType>(vertices.size());
+        pVertices[i].uv = _nmd_context.drawList.vertices[i].uv;
+        pVertices[i].color = _NMD_RGBA_TO_ARGB(_nmd_context.drawList.vertices[i].color);
+    }
+    _nmd_d3d9_vb->Unlock();
 
-            indices.push_back(nextIndex + 0);
-            indices.push_back(nextIndex + 1);
-            indices.push_back(nextIndex + 2);
-        
-            indices.push_back(nextIndex + 0);
-            indices.push_back(nextIndex + 2);
-            indices.push_back(nextIndex + 3);
-        
-            text++;
-        }
+    /* Copy indices to the gpu. */
+    IndexType* pIndices = 0;
+    if (_nmd_d3d9_ib->Lock(0, (UINT)(_nmd_context.drawList.numIndices * sizeof(IndexType)), (void**)&pIndices, D3DLOCK_DISCARD) != D3D_OK)
+        return;
+    memcpy(pIndices, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(IndexType));
+    _nmd_d3d9_ib->Unlock();
+    
+    /* Backup current render state. */
+    IDirect3DStateBlock9* stateBlock;
+    D3DMATRIX lastProjectionMatrix;
+    if (_nmd_d3d9_device->CreateStateBlock(D3DSBT_ALL, &stateBlock) != D3D_OK ||
+        _nmd_d3d9_device->GetTransform(D3DTS_PROJECTION, &lastProjectionMatrix) != D3D_OK)
+        return;
+    
+    /* Set render state. */
+    _nmd_d3d9_device->SetStreamSource(0, _nmd_d3d9_vb, 0, sizeof(_nmd_d3d9_custom_vertex));
+    _nmd_d3d9_device->SetIndices(_nmd_d3d9_ib);
+    _nmd_d3d9_device->SetFVF(_NMD_D3D9_CUSTOM_VERTEX_FVF);
+    _nmd_d3d9_device->SetPixelShader(NULL);
+    _nmd_d3d9_device->SetVertexShader(NULL);
+    _nmd_d3d9_device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+    _nmd_d3d9_device->SetRenderState(D3DRS_LIGHTING, false);
+    _nmd_d3d9_device->SetRenderState(D3DRS_ZENABLE, false);
+    _nmd_d3d9_device->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
+    _nmd_d3d9_device->SetRenderState(D3DRS_ALPHATESTENABLE, false);
+    _nmd_d3d9_device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+    _nmd_d3d9_device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    _nmd_d3d9_device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    _nmd_d3d9_device->SetRenderState(D3DRS_SCISSORTESTENABLE, true);
+    _nmd_d3d9_device->SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
+    _nmd_d3d9_device->SetRenderState(D3DRS_FOGENABLE, false);
+    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+    _nmd_d3d9_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    _nmd_d3d9_device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+    _nmd_d3d9_device->SetTransform(D3DTS_PROJECTION, &_nmd_d3d9_proj);
+    
+    /* Issue draw calls. */
+    size_t vertexBufferOffset = 0, indexBufferOffset = 0;
+    for (i = 0; i < _nmd_context.drawList.numDrawCommands; i++)
+    {
+        _nmd_d3d9_device->SetTexture(0, (LPDIRECT3DTEXTURE9)_nmd_context.drawList.drawCommands[i].userTextureId);
+        _nmd_d3d9_device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, (UINT)_nmd_context.drawList.drawCommands[i].numVertices, (UINT)indexBufferOffset, (UINT)(_nmd_context.drawList.drawCommands[i].numIndices / 3));
+        vertexBufferOffset += _nmd_context.drawList.drawCommands[i].numVertices;
+        indexBufferOffset += _nmd_context.drawList.drawCommands[i].numIndices;
     }
 
-    void DrawList::AddImage(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1, const Vec2& uv2, Color color)
-    {
-        if (!color.a)
-            return;
+    /* Restore render state. */
+    _nmd_d3d9_device->SetTransform(D3DTS_PROJECTION, &lastProjectionMatrix);
+    stateBlock->Apply();
+    stateBlock->Release();
+}
+#endif /* NMD_GRAPHICS_D3D9 */
 
-        PushRemainingDrawCommands();
-
-        PrimRectUV(p1, p2, uv1, uv2, color);
-
-        PushTextureDrawCommand(4, 6, userTextureId);
-    }
-
-    void DrawList::AddImageQuad(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1, const Vec2& uv2, const Vec2& uv3, const Vec2& uv4, Color color)
-    {
-        if (!color.a)
-            return;
-
-        PushRemainingDrawCommands();
-
-        PrimQuadUV(p1, p2, p3, p4, uv1, uv2, uv3, uv4, color);
-
-        PushTextureDrawCommand(4, 6, userTextureId);
-    }
-
-    void DrawList::AddImageRounded(TextureId userTextureId, const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags, const Vec2& uv1, const Vec2& uv2, Color color)
-    {
-        if (!color.a)
-            return;
-
-        if (rounding <= 0.0f || !cornerFlags)
-            AddImage(userTextureId, p1, p2, uv1, uv2, color);
-        else
-        {
-            PushRemainingDrawCommands();
-
-            PathRect(p1, p2, rounding, cornerFlags);
-
-            const size_t v0 = vertices.size(), i0 = indices.size();
-            PathFillConvex(color);
-            ShadeVertsLinearUV(v0, p1, p2, uv1, uv2, true);
-
-            PushTextureDrawCommand(vertices.size() - v0, indices.size() - i0, userTextureId);
-        }
-    }
-
-} // namespace nmd
-
-namespace nmd
-{
-    static Context g_context;
-
-    Context& GetContext() { return g_context; }
-
-    void Begin()
-    {
-        g_context.drawList.vertices.clear();
-        g_context.drawList.indices.clear();
-        g_context.drawList.drawCommands.clear();
-    }
-
-    void End()
-    {
-        g_context.drawList.PushRemainingDrawCommands();
-    }
-
-} // namespace nmd
-
-
-namespace nmd
-{
-	const Color Color::Black        = Color(0,   0,   0,   255);
-	const Color Color::White        = Color(255, 255, 255, 255);
-	const Color Color::Red          = Color(255, 0,   0,   255);
-	const Color Color::Green        = Color(0,   255, 0,   255);
-	const Color Color::Blue         = Color(0,   0,   255, 255);
-	const Color Color::Orange       = Color(255, 165, 0,   255);
-	const Color Color::Amber        = Color(255, 191, 0,   255);
-	const Color Color::AndroidGreen = Color(164, 198, 57,  255);
-	const Color Color::Azure        = Color(0,   127, 255, 255);
-	const Color Color::Bronze       = Color(205, 127, 50,  255);
-	const Color Color::Corn         = Color(251, 236, 93,  255);
-	const Color Color::Emerald      = Color(80,  200, 120, 255);
-	const Color Color::LapisLazuli  = Color(38,  97,  156, 255);
-	const Color Color::Lava         = Color(207, 16,  32,  255);
-} // namespace nmd
-
-namespace nmd
-{
-#ifdef NMD_GRAPHICS_D3D9
-    static LPDIRECT3DDEVICE9 g_pD3D9Device = nullptr;
-    static LPDIRECT3DVERTEXBUFFER9 g_pD3D9VertexBuffer = nullptr;
-    static LPDIRECT3DINDEXBUFFER9 g_pD3D9IndexBuffer = nullptr;
-    static LPDIRECT3DTEXTURE9 g_pFontTexture = nullptr;
-    static size_t g_D3D9VertexBufferSize, g_D3D9IndexBufferSize;
-    static D3DMATRIX projectionMatrix;
-
-    struct CustomVertex
-    {
-        Vec3 pos;
-        D3DCOLOR color;
-        Vec2 uv;
-
-        CustomVertex() : pos(), color(), uv() {}
-        CustomVertex(const Vec3& pos, D3DCOLOR color, const Vec2& uv) : pos(pos), color(color), uv(uv) {}
-
-        static DWORD FVF;
-    };
-
-    DWORD CustomVertex::FVF = (D3DFVF_XYZ | D3DFVF_TEX1 | D3DFVF_DIFFUSE);
-
-    void D3D9SetDevice(LPDIRECT3DDEVICE9 pD3D9Device) { g_pD3D9Device = pD3D9Device; }
-
-    void D3D9Resize(int width, int height)
-    {
-        const float L = 0.5f;
-        const float R = (float)width + 0.5f;
-        const float T = 0.5f;
-        const float B = (float)height + 0.5f;
-        float matrix[4][4] = {
-            {    2.0f / (R - L),              0.0f, 0.0f, 0.0f },
-            {              0.0f,    2.0f / (T - B), 0.0f, 0.0f },
-            {              0.0f,              0.0f, 0.0f, 0.0f },
-            { (R + L) / (L - R), (T + B) / (B - T), 0.0f, 1.0f },
-        };
-        memcpy(&projectionMatrix, matrix, sizeof(matrix));
-    }
-
-    bool D3D9CreateFontTexture()
-    {
-        if (g_pFontTexture)
-            g_pFontTexture->Release();
-
-        //if (g_pD3D9Device->CreateTexture(width, height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &g_pFontTexture, NULL) < 0)
-        //    return false;
-        //
-        //D3DLOCKED_RECT lockedRect;
-        //if (g_pFontTexture->LockRect(0, &lockedRect, NULL, 0) != D3D_OK)
-        //    return false;
-        //
-        //for (int y = 0; y < height; y++)
-        //    memcpy((uint8_t*)lockedRect.pBits + lockedRect.Pitch * y, pixels + (width * bpp) * y, (width * bpp));
-        //
-        //g_pFontTexture->UnlockRect(0);
-
-        return true;
-    }
-
-    void D3D9Render()
-    {
-        const Context& context = GetContext();
-
-        // Create/recreate vertex buffer if it doesn't exist or more space is needed.
-        if (!g_pD3D9VertexBuffer || g_D3D9VertexBufferSize < context.drawList.vertices.size())
-        {
-            if (g_pD3D9VertexBuffer)
-                g_pD3D9VertexBuffer->Release(), g_pD3D9VertexBuffer = NULL;
-
-            g_D3D9VertexBufferSize = context.drawList.vertices.size() + 5000;
-            if (g_pD3D9Device->CreateVertexBuffer(static_cast<UINT>(g_D3D9VertexBufferSize * sizeof(CustomVertex)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, CustomVertex::FVF, D3DPOOL_DEFAULT, &g_pD3D9VertexBuffer, NULL) != D3D_OK)
-                return;
-        }
-
-        // Create/recreate index buffer if it doesn't exist or more space is needed.
-        if (!g_pD3D9IndexBuffer || g_D3D9IndexBufferSize < context.drawList.indices.size())
-        {
-            if (g_pD3D9IndexBuffer)
-                g_pD3D9IndexBuffer->Release(), g_pD3D9IndexBuffer = NULL;
-
-            g_D3D9IndexBufferSize = context.drawList.indices.size() + 10000;
-            if (g_pD3D9Device->CreateIndexBuffer(static_cast<UINT>(g_D3D9IndexBufferSize * sizeof(IndexType)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(IndexType) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &g_pD3D9IndexBuffer, NULL) < 0)
-                return;
-        }
-        
-        void* pData = NULL;
-
-        // Copy vertices to the gpu
-        if (g_pD3D9VertexBuffer->Lock(0, static_cast<UINT>(context.drawList.vertices.size() * sizeof(CustomVertex)), &pData, D3DLOCK_DISCARD) != D3D_OK)
-            return;
-        size_t i = 0;
-        for (auto& vertex : context.drawList.vertices)
-            reinterpret_cast<CustomVertex*>(pData)[i++] = CustomVertex(Vec3(vertex.pos.x, vertex.pos.y, 0.0f), D3DCOLOR_ARGB(vertex.color.a, vertex.color.r, vertex.color.g, vertex.color.b), vertex.uv);
-        g_pD3D9VertexBuffer->Unlock();
-
-        // Copy indices to the gpu.
-        if (g_pD3D9IndexBuffer->Lock(0, static_cast<UINT>(context.drawList.indices.size() * sizeof(IndexType)), &pData, D3DLOCK_DISCARD) != D3D_OK)
-            return;
-        memcpy(pData, context.drawList.indices.data(), context.drawList.indices.size() * sizeof(IndexType));
-        g_pD3D9IndexBuffer->Unlock();
-        
-        // Backup current render state.
-        IDirect3DStateBlock9* stateBlock;
-        D3DMATRIX lastProjectionMatrix;
-        if (g_pD3D9Device->CreateStateBlock(D3DSBT_ALL, &stateBlock) != D3D_OK ||
-            g_pD3D9Device->GetTransform(D3DTS_PROJECTION, &lastProjectionMatrix) != D3D_OK)
-            return;
-        
-        // Set render state.
-        g_pD3D9Device->SetStreamSource(0, g_pD3D9VertexBuffer, 0, sizeof(CustomVertex));
-        g_pD3D9Device->SetIndices(g_pD3D9IndexBuffer);
-        g_pD3D9Device->SetFVF(CustomVertex::FVF);
-        g_pD3D9Device->SetPixelShader(NULL);
-        g_pD3D9Device->SetVertexShader(NULL);
-        g_pD3D9Device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
-        g_pD3D9Device->SetRenderState(D3DRS_LIGHTING, false);
-        g_pD3D9Device->SetRenderState(D3DRS_ZENABLE, false);
-        g_pD3D9Device->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
-        g_pD3D9Device->SetRenderState(D3DRS_ALPHATESTENABLE, false);
-        g_pD3D9Device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-        g_pD3D9Device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-        g_pD3D9Device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-        g_pD3D9Device->SetRenderState(D3DRS_SCISSORTESTENABLE, true);
-        g_pD3D9Device->SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
-        g_pD3D9Device->SetRenderState(D3DRS_FOGENABLE, false);
-        g_pD3D9Device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-        g_pD3D9Device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-        g_pD3D9Device->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-        g_pD3D9Device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-        g_pD3D9Device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-        g_pD3D9Device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-        g_pD3D9Device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-        g_pD3D9Device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-        g_pD3D9Device->SetTransform(D3DTS_PROJECTION, &projectionMatrix);
-        
-        // Issue draw calls.
-        size_t vertexBufferOffset = 0, indexBufferOffset = 0;
-        for (auto& drawCommand : context.drawList.drawCommands)
-        {
-            g_pD3D9Device->SetTexture(0, reinterpret_cast<LPDIRECT3DTEXTURE9>(drawCommand.userTextureId));
-            g_pD3D9Device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, static_cast<UINT>(drawCommand.numVertices), static_cast<UINT>(indexBufferOffset), static_cast<UINT>(drawCommand.numIndices / 3));
-            vertexBufferOffset += drawCommand.numVertices, indexBufferOffset += drawCommand.numIndices;
-        }
-
-        // Restore render state.
-        g_pD3D9Device->SetTransform(D3DTS_PROJECTION, &lastProjectionMatrix);
-        stateBlock->Apply();
-        stateBlock->Release();
-    }
-#endif // NMD_GRAPHICS_D3D9
-} // namespace nmd
-
-
-namespace nmd
-{
 
 #ifdef NMD_GRAPHICS_D3D11
     static ID3D11Device* g_pD3D11Device = NULL;
@@ -1350,30 +1552,27 @@ namespace nmd
             g_pD3D11DeviceContext->IASetInputLayout(renderState.InputLayout);
         }
     }
-#endif // NMD_GRAPHICS_D3D11
-
-} // namespace nmd
+#endif /* NMD_GRAPHICS_D3D11 */
 
 
-#include <assert.h>
+#include "glad/glad.h"
 
-namespace nmd
-{
-    static GLuint g_vbo = 0, g_vao, g_ebo;
-    static GLuint g_vs, g_fs, g_shader;
-    static GLuint g_AttribLocationTexure, g_AttribLocationProjectionMatrix, g_AttribLocationPos, g_AttribLocationUV, g_AttribLocationColor;
+static GLuint _nmd_vbo = 0, _nmd_vao, _nmd_ebo;
+static GLuint _nmd_vs, _nmd_fs, _nmd_program;
+static GLuint _nmd_uniform_tex, _nmd_uniform_proj, _nmd_attrib_pos, _nmd_attrib_uv, _nmd_attrib_color;
 
 #ifdef NMD_GRAPHICS_OPENGL
 
-    void OpenGLCreateObjects()
+    bool _nmd_opengl_create_objects()
     {
-        if (g_vbo)
-            return;
+        if (_nmd_vbo)
+            return true;
 
         const char* vertexShaderSource = "#version 330 core\n"
             "uniform mat4 projection;\n"
             "layout (location = 0) in vec2 pos;\n"
-            "layout (location = 1) in vec4 color;\n"
+            "layout (location = 1) in vec2 uv;\n"
+            "layout (location = 2) in vec4 color;\n"
             "out vec4 fragColor;\n"
             "void main() { fragColor = color; gl_Position = projection * vec4(pos.xy, 0.0, 1.0); }";
 
@@ -1384,101 +1583,95 @@ namespace nmd
 
         int success = 0;
 
-        g_vs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(g_vs, 1, &vertexShaderSource, NULL);
-        glCompileShader(g_vs);
-        glGetShaderiv(g_vs, GL_COMPILE_STATUS, &success);
-        assert(success);
+        _nmd_vs = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(_nmd_vs, 1, &vertexShaderSource, NULL);
+        glCompileShader(_nmd_vs);
+        glGetShaderiv(_nmd_vs, GL_COMPILE_STATUS, &success);
+        if (!success)
+            return false;
 
-        g_fs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(g_fs, 1, &fragmentShaderSource, NULL);
-        glCompileShader(g_fs);
-        glGetShaderiv(g_fs, GL_COMPILE_STATUS, &success);
-        assert(success);
+        _nmd_fs = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(_nmd_fs, 1, &fragmentShaderSource, NULL);
+        glCompileShader(_nmd_fs);
+        glGetShaderiv(_nmd_fs, GL_COMPILE_STATUS, &success);
+        if (!success)
+            return false;
 
-        g_shader = glCreateProgram();
-        glAttachShader(g_shader, g_vs);
-        glAttachShader(g_shader, g_fs);
-        glLinkProgram(g_shader);
-        glGetProgramiv(g_shader, GL_LINK_STATUS, &success);
-        assert(success);
+        _nmd_program = glCreateProgram();
+        glAttachShader(_nmd_program, _nmd_vs);
+        glAttachShader(_nmd_program, _nmd_fs);
+        glLinkProgram(_nmd_program);
+        glGetProgramiv(_nmd_program, GL_LINK_STATUS, &success);
+        if(!success)
+            return false;
 
-        glDeleteShader(g_vs);
-        glDeleteShader(g_fs);
+        glDeleteShader(_nmd_vs);
+        glDeleteShader(_nmd_fs);
 
+        glGenVertexArrays(1, &_nmd_vao);
+        glGenBuffers(1, &_nmd_vbo);
+        glGenBuffers(1, &_nmd_ebo);
 
-        glGenVertexArrays(1, &g_vao);
-        glGenBuffers(1, &g_vbo);
-        glGenBuffers(1, &g_ebo);
+        return true;
     }
 
-    void OpenGLResize(int width, int height)
+    bool nmd_opengl_resize(int width, int height)
     {
-        OpenGLCreateObjects();
+        if (!_nmd_opengl_create_objects())
+            return false;
 
         glViewport(0, 0, (GLsizei)width, (GLsizei)height);
-        float L = 0;
-        float R = 0 + width;
-        float T = 0;
-        float B = 0 + height;
-        const float ortho_projection[4][4] =
-        {
-            {    2.0f / (R - L),              0.0f,  0.0f, 0.0f },
-            {              0.0f,    2.0f / (T - B),  0.0f, 0.0f },
-            {              0.0f,              0.0f, -1.0f, 0.0f },
-            { (R + L) / (L - R), (T + B) / (B - T),  0.0f, 1.0f },
+        GLfloat ortho[4][4] = {
+        {2.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f,-2.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f,-1.0f, 0.0f},
+        {-1.0f,1.0f, 0.0f, 1.0f},
         };
-        glUseProgram(g_shader);
-        glUniformMatrix4fv(glGetUniformLocation(g_shader, "projection"), 1, GL_FALSE, &ortho_projection[0][0]);
+        ortho[0][0] /= (GLfloat)width;
+        ortho[1][1] /= (GLfloat)height;
+        glUseProgram(_nmd_program);
+        glUniformMatrix4fv(glGetUniformLocation(_nmd_program, "projection"), 1, GL_FALSE, &ortho[0][0]);
+
+        return true;
     }
 
-    void OpenGLRender()
+    bool nmd_opengl_render()
     {
-        const auto& drawList = GetContext().drawList;
+        if (!_nmd_opengl_create_objects())
+            return false;
 
-        OpenGLCreateObjects();
+        glUseProgram(_nmd_program);
 
-        glUseProgram(g_shader);
+        glBindVertexArray(_nmd_vao);
 
-        glBindVertexArray(g_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, _nmd_vbo);
+        glBufferData(GL_ARRAY_BUFFER, _nmd_context.drawList.numVertices * sizeof(nmd_vertex), _nmd_context.drawList.vertices, GL_STATIC_DRAW);
 
-        glBindBuffer(GL_ARRAY_BUFFER, g_vbo);
-        glBufferData(GL_ARRAY_BUFFER, drawList.vertices.size() * sizeof(Vertex), drawList.vertices.data(), GL_STATIC_DRAW);
-
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (void*)0);
         glEnableVertexAttribArray(0);
 
-        glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void*)8);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (void*)8);
         glEnableVertexAttribArray(1);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, drawList.indices.size() * sizeof(IndexType), drawList.indices.data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(nmd_vertex), (void*)16);
+        glEnableVertexAttribArray(2);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _nmd_ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, _nmd_context.drawList.numIndices * sizeof(IndexType), _nmd_context.drawList.indices, GL_STATIC_DRAW);
 
         size_t offset = 0;
-        for (auto& cmd : drawList.drawCommands)
+        size_t i = 0;
+        for (; i < _nmd_context.drawList.numDrawCommands; i++)
         {
-            glDrawElements(GL_TRIANGLES, cmd.numIndices, sizeof(IndexType) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)offset);
+            glDrawElements(GL_TRIANGLES, _nmd_context.drawList.drawCommands[i].numIndices, sizeof(IndexType) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)offset);
+            offset += _nmd_context.drawList.drawCommands[i].numIndices;
         }
+
+        return true;
     }
 
-#endif // NMD_GRAPHICS_OPENGL
+#endif /* NMD_GRAPHICS_OPENGL */
 
-} // namespace nmd
-
-/*
-Uncompressed true type font 'Karla' by Jonny Pinhorn. Licensed under the Open Font License.
-Author's public contact information:
- - Jonnypinhorn.co.uk
- - https://github.com/jonpinhorn
- - https://twitter.com/jonpinhorn_type
- - jonpinhorn.typedesign@gmail.com
-*/
-namespace nmd
-{
-#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_FONT
-	const uint8_t karla_ttf_regular[14824] = { 0,1,0,0,0,15,0,128,0,3,0,112,71,68,69,70,0,17,0,157,0,0,53,116,0,0,0,22,71,80,79,83,3,128,47,117,0,0,53,140,0,0,4,0,71,83,85,66,220,66,234,59,0,0,57,140,0,0,0,92,79,83,47,50,132,55,30,240,0,0,47,176,0,0,0,96,99,109,97,112,78,215,82,232,0,0,48,16,0,0,0,212,103,97,115,112,0,0,0,16,0,0,53,108,0,0,0,8,103,108,121,102,180,71,175,247,0,0,0,252,0,0,42,136,104,101,97,100,249,147,22,70,0,0,44,224,0,0,0,54,104,104,101,97,6,192,3,38,0,0,47,140,0,0,0,36,104,109,116,120,54,142,32,192,0,0,45,24,0,0,2,116,108,111,99,97,16,143,27,140,0,0,43,164,0,0,1,60,109,97,120,112,0,228,0,66,0,0,43,132,0,0,0,32,110,97,109,101,68,55,103,50,0,0,48,236,0,0,3,12,112,111,115,116,67,234,186,24,0,0,51,248,0,0,1,115,112,114,101,112,104,6,140,133,0,0,48,228,0,0,0,7,0,2,0,82,255,247,0,201,2,115,0,3,0,11,0,0,19,51,3,35,22,38,52,54,50,22,20,6,99,83,9,64,6,33,33,51,35,35,2,115,254,61,185,33,47,33,33,47,33,0,0,2,0,28,1,205,1,22,2,169,0,3,0,7,0,0,19,7,35,39,51,7,35,39,110,11,60,11,250,11,60,11,2,169,220,220,220,220,0,2,0,53,0,31,2,74,2,81,0,27,0,31,0,0,37,35,7,35,55,35,55,51,55,35,55,51,55,51,7,51,55,51,7,51,7,35,7,51,7,35,7,35,39,51,55,35,1,124,154,14,74,14,99,5,100,19,101,6,100,15,74,15,154,15,73,15,103,6,102,19,103,6,103,14,74,133,153,19,153,170,139,139,54,178,53,138,138,138,138,53,178,54,139,193,178,0,0,3,0,69,255,165,2,51,2,201,0,31,0,38,0,45,0,0,1,22,22,20,6,7,21,35,53,38,38,53,51,20,23,53,39,38,38,52,54,55,53,51,21,22,22,23,35,38,39,21,23,52,39,39,21,54,54,2,6,20,22,23,23,53,1,161,69,77,114,102,62,95,121,77,139,32,83,85,101,99,62,87,94,11,78,17,97,128,92,36,63,65,247,58,40,45,30,1,74,23,77,133,101,6,81,82,8,103,87,113,13,235,12,26,72,134,89,7,75,76,7,86,68,80,12,215,186,74,29,12,220,5,62,1,178,54,73,41,14,11,199,0,0,5,0,61,255,245,2,155,2,128,0,9,0,19,0,23,0,33,0,45,0,0,18,22,21,20,6,34,38,53,52,54,22,38,34,6,21,20,22,50,54,53,37,51,1,35,1,50,22,20,6,35,34,38,52,54,23,34,6,21,20,22,51,50,54,53,52,38,241,76,75,108,73,74,118,36,58,36,36,58,36,1,25,82,254,89,81,1,170,54,75,75,54,54,73,73,54,29,36,36,29,29,36,36,2,128,76,68,68,75,76,67,67,77,97,44,44,47,47,42,42,47,133,253,139,1,20,75,137,75,76,135,76,53,44,47,47,42,42,47,47,44,0,3,0,89,255,245,3,101,2,127,0,36,0,43,0,55,0,0,1,6,7,23,22,22,50,54,55,51,6,6,35,34,38,39,39,6,35,34,38,52,54,55,39,38,53,52,54,50,22,20,6,7,23,54,55,4,6,20,22,50,55,39,55,52,38,34,6,20,22,23,23,54,55,54,2,213,45,70,43,20,31,49,39,3,74,4,67,64,39,66,39,26,100,128,105,142,95,92,14,77,105,173,103,78,88,158,68,44,254,90,73,83,172,81,186,155,55,99,55,26,30,27,104,16,6,1,94,137,85,37,17,16,37,45,72,79,32,35,22,89,105,148,75,15,13,67,80,63,84,84,119,86,38,139,82,125,102,54,96,69,66,163,200,36,48,55,64,50,26,25,48,52,17,0,0,1,0,27,1,201,0,109,2,165,0,3,0,0,19,7,35,39,109,11,60,11,2,165,220,220,0,1,0,73,255,143,1,72,2,216,0,9,0,0,18,16,23,7,38,38,52,54,55,23,155,173,57,98,100,100,98,57,2,0,254,102,175,40,89,216,231,215,90,41,0,1,0,28,255,143,1,27,2,216,0,9,0,0,54,16,39,55,22,22,20,6,7,39,201,173,57,98,100,100,98,57,102,1,154,175,41,90,215,231,216,89,40,0,0,1,0,56,1,132,1,102,2,172,0,14,0,0,19,39,55,23,39,51,7,55,23,7,23,7,39,7,39,173,117,24,106,10,62,10,106,24,116,90,44,80,80,45,2,4,40,54,54,128,128,54,54,40,89,39,104,104,39,0,0,1,0,18,0,0,1,253,1,235,0,11,0,0,1,21,51,21,35,21,35,53,35,53,51,53,1,47,206,206,79,206,206,1,235,212,67,212,212,67,212,0,0,1,0,30,255,147,0,178,0,97,0,11,0,0,22,38,52,54,50,22,20,6,7,39,54,55,82,30,31,57,38,44,45,59,62,13,3,26,44,30,45,68,71,22,29,30,45,0,0,1,0,38,1,1,1,54,1,69,0,3,0,0,19,33,21,33,38,1,16,254,240,1,69,68,0,1,0,30,255,247,0,148,0,104,0,7,0,0,22,38,52,54,50,22,20,6,63,33,33,51,34,34,9,33,47,33,33,47,33,0,0,1,0,57,255,183,1,132,2,219,0,3,0,0,1,51,3,35,1,52,80,252,79,2,219,252,220,0,0,2,0,51,255,245,2,32,2,128,0,7,0,15,0,0,0,22,16,6,34,38,16,54,4,38,34,6,20,22,50,54,1,156,132,132,228,133,133,1,22,84,161,84,84,161,84,2,128,168,254,197,168,166,1,63,166,203,131,131,245,131,131,0,0,1,0,49,0,0,0,230,2,119,0,8,0,0,19,54,55,51,17,35,17,6,7,49,67,50,64,78,50,53,2,68,9,42,253,137,2,25,32,3,0,1,0,64,0,0,2,1,2,128,0,28,0,0,55,33,21,33,53,52,55,54,55,55,54,53,52,38,34,6,7,35,54,54,50,22,20,6,7,7,6,6,21,143,1,109,254,68,84,27,33,124,96,66,119,75,6,87,5,122,191,120,79,69,127,48,47,73,73,93,111,52,17,13,50,38,87,48,61,50,50,82,88,104,153,90,27,51,20,51,41,0,0,1,0,52,255,245,2,17,2,128,0,33,0,0,1,20,7,22,22,21,20,6,34,38,53,51,22,22,50,54,52,38,35,35,53,51,50,54,52,38,34,6,7,35,54,54,50,22,1,249,110,60,74,126,206,145,82,2,91,140,77,74,83,72,49,72,84,68,112,75,13,82,11,116,183,125,1,212,100,39,17,78,61,83,101,107,97,64,68,67,99,63,63,57,96,62,39,53,83,81,97,0,0,2,0,26,0,0,2,25,2,126,0,10,0,13,0,0,1,17,51,21,35,21,35,53,33,53,1,3,51,17,1,172,109,109,77,254,187,1,73,235,233,2,126,254,94,68,152,152,61,1,169,254,87,1,44,0,0,1,0,65,255,245,1,253,2,117,0,24,0,0,37,52,35,35,19,33,21,33,7,54,51,50,22,20,6,34,38,53,51,20,23,22,51,50,54,1,171,155,169,27,1,93,254,239,17,52,47,103,118,124,196,124,79,84,26,31,64,78,204,119,1,50,72,181,9,91,184,121,99,87,82,25,7,81,0,2,0,51,255,244,2,3,2,128,0,21,0,30,0,0,1,38,34,6,21,20,23,54,54,50,22,20,6,35,34,38,16,54,51,50,22,23,4,6,20,22,50,54,53,52,38,1,169,17,180,97,5,6,101,158,114,118,96,112,138,140,121,84,106,8,254,247,75,74,114,75,75,1,214,98,148,128,53,35,92,83,111,173,107,180,1,37,179,94,76,161,71,110,67,66,58,58,66,0,0,1,0,24,0,0,1,196,2,117,0,6,0,0,1,21,1,35,1,33,53,1,196,254,224,106,1,46,254,176,2,117,73,253,212,2,41,76,0,3,0,55,255,245,2,49,2,128,0,21,0,31,0,42,0,0,19,38,53,52,54,50,22,21,20,6,7,23,22,22,21,20,6,34,38,53,52,54,23,6,6,20,22,50,54,52,38,39,39,20,22,23,23,54,54,52,38,34,6,201,125,124,205,132,69,67,17,69,74,135,229,142,81,140,63,76,96,155,91,48,42,230,44,41,73,60,78,82,130,84,1,62,57,98,75,92,98,77,52,82,10,6,26,71,61,76,92,102,77,62,78,19,7,65,96,60,52,74,45,15,216,27,39,16,28,2,59,95,59,57,0,2,0,66,255,245,2,18,2,128,0,28,0,37,0,0,1,50,22,23,22,21,20,7,6,35,34,38,53,51,22,22,50,55,54,53,52,39,6,6,34,38,53,52,54,22,34,6,21,20,22,50,54,52,1,26,51,92,33,72,136,47,55,103,120,83,2,68,104,32,91,5,10,97,157,114,118,152,114,74,75,113,75,2,128,44,41,88,141,245,69,23,112,85,57,68,19,57,200,41,33,81,80,111,86,87,106,73,66,58,58,66,71,110,0,2,0,56,0,23,0,174,1,186,0,7,0,15,0,0,54,38,52,54,50,22,20,6,2,38,52,54,50,22,20,6,89,33,33,51,34,34,51,33,33,51,34,34,23,33,47,33,33,47,33,1,50,33,47,33,33,47,33,0,0,2,0,57,255,147,0,205,1,186,0,11,0,19,0,0,22,38,52,54,50,22,20,6,7,39,54,55,2,38,52,54,50,22,20,6,109,30,31,57,38,44,45,59,62,13,17,33,33,51,34,34,3,26,44,30,45,68,71,22,29,30,45,1,78,33,47,33,33,47,33,0,0,1,0,40,0,40,1,152,2,60,0,6,0,0,1,5,5,7,37,53,37,1,152,254,224,1,32,52,254,196,1,60,2,0,207,204,61,231,69,232,0,2,0,79,0,117,1,153,1,121,0,3,0,7,0,0,37,21,33,53,37,21,33,53,1,153,254,182,1,74,254,182,185,68,68,192,69,69,0,1,0,47,0,40,1,158,2,60,0,6,0,0,19,5,21,5,39,37,37,98,1,60,254,196,51,1,30,254,226,2,60,232,69,231,61,204,207,0,0,2,0,30,255,245,1,197,2,128,0,25,0,35,0,0,19,34,7,35,54,54,50,22,21,20,6,7,6,6,7,6,21,21,35,53,52,62,2,52,38,3,50,22,20,6,35,34,38,52,54,248,117,17,84,7,108,195,113,52,58,25,34,10,19,78,42,110,38,63,87,26,34,34,26,26,32,32,2,56,92,74,90,96,69,52,69,32,14,22,14,25,47,39,45,63,67,60,45,76,51,254,46,34,47,32,32,47,34,0,0,2,0,67,255,75,3,126,2,128,0,10,0,61,0,0,1,52,35,34,6,21,20,22,50,54,55,23,20,51,50,54,55,54,53,52,38,35,34,6,7,6,16,22,51,21,34,39,38,38,52,62,2,50,30,2,21,20,6,35,34,38,39,39,6,6,35,34,38,53,52,54,51,50,22,21,2,63,59,59,94,55,82,52,23,66,39,20,47,19,46,162,139,82,134,47,100,212,185,213,134,63,68,66,118,163,182,142,100,56,129,86,43,52,5,3,18,60,40,74,95,132,91,60,69,1,33,84,97,74,53,58,47,45,45,51,27,26,61,95,119,154,56,47,100,254,214,185,64,115,54,149,178,152,111,62,54,93,126,67,122,150,36,34,16,38,48,98,75,99,135,72,73,0,0,2,0,26,0,0,2,37,2,117,0,7,0,10,0,0,19,51,19,35,39,35,7,35,55,51,3,242,96,211,82,54,250,54,83,158,209,104,2,117,253,139,160,160,222,1,54,0,0,3,0,101,0,0,2,41,2,117,0,15,0,24,0,32,0,0,19,51,50,22,21,20,6,7,22,22,21,20,7,6,35,35,55,50,54,53,52,38,35,35,21,17,51,50,54,52,38,35,35,101,235,99,107,59,60,59,71,113,42,61,236,234,72,62,68,66,155,154,58,69,67,60,154,2,117,94,71,54,80,14,10,82,52,116,41,15,69,58,48,48,57,211,1,23,57,100,56,0,0,1,0,51,255,245,2,54,2,128,0,22,0,0,1,50,22,23,7,38,38,35,34,6,20,22,51,50,54,53,51,20,6,34,38,16,54,1,63,101,123,23,85,20,85,57,79,104,93,90,75,87,85,135,235,145,150,2,128,101,81,17,59,69,132,235,142,79,65,99,116,180,1,46,169,0,0,2,0,100,0,0,2,86,2,117,0,7,0,16,0,0,1,50,22,16,6,35,35,17,19,51,50,54,53,52,38,35,35,1,29,142,171,171,142,185,79,106,105,124,125,104,106,2,117,171,254,225,171,2,117,253,208,139,107,107,137,0,0,1,0,100,0,0,1,231,2,117,0,11,0,0,19,33,21,33,21,33,21,33,21,33,21,33,100,1,131,254,204,1,34,254,222,1,52,254,125,2,117,68,211,67,214,69,0,1,0,101,0,0,1,227,2,117,0,9,0,0,19,33,21,33,21,33,21,33,17,35,101,1,126,254,209,1,26,254,230,79,2,117,68,209,68,254,228,0,0,1,0,51,255,245,2,59,2,127,0,25,0,0,37,6,34,38,16,54,51,50,22,23,7,38,34,6,20,22,51,50,54,53,53,39,53,51,17,35,1,234,42,242,155,169,126,74,111,40,76,65,174,121,104,88,72,88,158,235,64,108,119,176,1,42,176,60,66,26,81,142,227,138,96,94,2,6,52,254,201,0,0,1,0,101,0,0,2,56,2,117,0,11,0,0,19,17,33,17,51,17,35,17,33,17,35,17,180,1,53,79,79,254,203,79,2,117,254,235,1,21,253,139,1,28,254,228,2,117,0,1,0,101,0,0,0,180,2,117,0,3,0,0,19,51,17,35,101,79,79,2,117,253,139,0,0,1,0,8,255,245,1,68,2,117,0,11,0,0,36,6,34,39,53,22,50,54,53,17,51,17,1,68,93,144,79,70,123,44,79,79,90,42,82,48,60,57,1,191,254,65,0,1,0,101,0,0,2,76,2,117,0,11,0,0,19,17,1,51,1,1,35,3,7,21,35,17,181,1,25,109,254,237,1,36,102,243,62,80,2,117,254,221,1,35,254,229,254,166,1,35,64,227,2,117,0,1,0,101,0,0,1,204,2,117,0,5,0,0,55,33,21,33,17,51,180,1,24,254,153,79,69,69,2,117,0,1,0,101,0,0,2,235,2,117,0,12,0,0,27,2,51,17,35,17,3,35,3,17,35,17,214,212,210,111,79,216,53,219,79,2,117,254,86,1,170,253,139,2,5,254,74,1,189,253,244,2,117,0,0,1,0,99,0,0,2,72,2,117,0,9,0,0,19,1,17,51,17,35,1,17,35,17,193,1,56,79,88,254,195,80,2,117,254,7,1,249,253,139,2,0,254,0,2,117,0,2,0,51,255,245,2,84,2,128,0,10,0,20,0,0,1,50,22,16,6,35,34,38,53,52,54,23,34,6,20,22,51,50,54,52,38,1,67,122,151,150,123,123,149,149,123,88,102,102,88,88,103,103,2,128,167,254,193,165,167,158,159,167,71,132,248,128,128,248,132,0,0,2,0,99,0,0,2,3,2,117,0,9,0,17,0,0,0,22,20,6,35,35,21,35,17,51,17,50,54,52,38,35,35,21,1,150,109,109,104,124,79,203,65,67,67,65,124,2,117,105,178,103,243,2,117,254,194,66,115,69,250,0,0,2,0,51,255,89,2,84,2,128,0,21,0,31,0,0,5,6,35,34,39,39,38,38,16,54,51,50,22,21,20,6,7,23,22,23,50,55,1,34,6,20,22,51,50,54,52,38,2,84,40,44,85,61,47,121,147,149,123,122,151,106,91,31,29,40,43,54,254,239,88,102,102,88,88,103,103,148,19,89,67,2,166,1,60,167,167,159,132,161,23,44,39,2,25,2,119,132,248,128,128,248,132,0,0,2,0,101,0,0,2,43,2,117,0,12,0,20,0,0,0,6,7,19,35,3,35,17,35,17,51,50,22,7,50,54,52,38,35,35,21,2,27,83,81,180,102,163,110,79,219,106,113,225,71,73,71,67,140,1,115,96,14,254,251,1,1,254,255,2,117,102,215,69,113,67,249,0,0,1,0,69,255,245,2,24,2,128,0,31,0,0,1,38,35,34,6,20,22,23,23,22,22,20,6,34,38,39,51,20,22,50,54,52,38,39,39,38,38,52,54,50,22,23,1,180,17,118,63,68,42,47,131,67,79,124,208,133,2,77,87,137,80,49,48,111,78,80,112,202,107,8,1,220,92,55,77,40,15,45,23,80,145,99,105,95,62,66,61,83,48,16,41,26,72,139,93,89,75,0,0,1,0,6,0,0,1,239,2,117,0,7,0,0,19,33,21,35,17,35,17,35,6,1,233,205,79,205,2,117,68,253,207,2,49,0,0,1,0,87,255,245,2,53,2,117,0,16,0,0,19,17,20,22,51,50,54,53,17,51,17,20,6,34,38,53,17,166,88,72,72,88,79,130,219,129,2,117,254,110,88,78,78,88,1,146,254,110,118,120,120,118,1,146,0,1,0,18,0,0,2,33,2,117,0,6,0,0,27,2,51,3,35,3,101,180,181,83,223,82,222,2,117,253,239,2,17,253,139,2,117,0,0,1,0,14,0,0,3,112,2,117,0,12,0,0,27,2,51,19,19,51,3,35,3,3,35,3,102,153,155,53,154,176,87,222,83,137,142,83,199,2,117,253,245,1,202,254,54,2,11,253,139,1,147,254,109,2,117,0,0,1,0,47,0,0,2,81,2,117,0,11,0,0,33,35,39,7,35,19,3,51,19,19,51,3,2,81,98,182,169,96,222,223,95,180,166,95,217,251,251,1,56,1,61,254,255,1,1,254,196,0,0,1,0,10,0,0,2,27,2,117,0,8,0,0,27,2,51,3,17,35,17,3,104,169,173,93,226,80,223,2,117,254,223,1,33,254,141,254,254,1,2,1,115,0,0,1,0,73,0,0,2,23,2,117,0,9,0,0,55,1,37,53,33,21,1,5,21,33,73,1,107,254,149,1,206,254,149,1,107,254,50,71,1,227,3,72,71,254,29,3,72,0,0,1,0,101,255,154,1,43,2,219,0,7,0,0,19,51,21,35,17,51,21,35,101,198,119,119,198,2,219,70,253,75,70,0,0,1,0,45,255,183,1,120,2,219,0,3,0,0,19,51,19,35,45,79,252,80,2,219,252,220,0,1,255,242,255,154,0,184,2,219,0,7,0,0,23,35,53,51,17,35,53,51,184,198,119,119,198,102,70,2,181,70,0,1,0,21,0,245,1,178,2,74,0,6,0,0,55,19,51,19,35,39,7,21,176,61,176,88,119,117,245,1,85,254,171,246,246,0,0,1,0,55,255,132,2,159,255,200,0,3,0,0,23,33,21,33,55,2,104,253,152,56,68,0,0,1,0,24,2,165,1,36,3,92,0,3,0,0,19,23,7,39,57,235,23,245,3,92,133,50,113,0,0,2,0,70,255,245,1,219,1,234,0,24,0,33,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,1,141,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,58,83,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,83,0,0,2,0,101,255,245,2,22,2,169,0,13,0,23,0,0,19,54,50,22,20,6,35,34,38,39,7,35,17,51,18,6,7,21,20,22,50,54,52,38,180,48,184,122,124,89,48,77,22,18,55,79,78,76,2,79,112,82,81,1,151,83,137,225,139,48,47,84,2,169,254,251,73,65,78,66,79,99,164,98,0,1,0,50,255,245,1,205,1,234,0,21,0,0,0,22,23,7,38,38,35,34,6,20,22,50,54,53,51,20,6,35,34,38,52,54,1,89,100,15,80,13,58,35,64,79,77,115,57,81,107,86,91,127,126,1,234,87,65,7,42,47,96,165,100,53,49,77,95,138,229,134,0,2,0,60,255,245,1,236,2,169,0,13,0,23,0,0,1,17,51,17,35,39,6,6,35,34,38,52,54,50,6,6,20,22,50,54,55,53,52,38,1,158,78,64,10,23,76,45,91,123,121,185,146,79,80,112,79,2,78,1,151,1,18,253,87,80,45,46,140,225,136,70,98,164,99,75,63,78,67,78,0,2,0,50,255,245,1,215,1,234,0,16,0,24,0,0,37,50,55,51,6,6,35,34,38,52,54,50,22,7,33,20,22,19,38,35,34,6,7,51,52,1,10,99,14,81,11,105,78,96,120,121,201,99,15,254,185,72,123,23,33,61,71,6,255,53,87,72,79,137,228,136,156,112,74,95,1,106,12,83,62,100,0,1,0,49,0,0,1,91,2,177,0,20,0,0,1,38,35,34,6,21,21,51,21,35,17,35,17,35,53,51,53,52,54,50,23,1,77,33,19,35,40,99,99,78,79,79,78,102,39,2,102,13,34,43,72,54,254,88,1,168,54,73,71,67,13,0,0,3,0,28,255,10,2,37,2,59,0,40,0,52,0,62,0,0,55,38,53,52,54,55,38,53,52,54,50,23,54,54,51,7,34,7,22,21,20,6,35,34,39,6,6,21,20,51,51,50,22,21,20,6,34,38,53,52,54,23,20,22,50,54,53,52,38,35,35,6,6,0,38,34,6,21,20,22,51,50,54,121,60,47,35,54,111,152,53,7,71,58,7,88,4,35,111,83,57,44,20,32,88,186,67,78,153,234,134,51,27,83,169,113,33,34,193,51,54,1,38,62,109,62,63,54,54,62,15,29,60,31,47,8,48,78,78,96,36,53,64,78,74,43,60,77,99,23,4,29,25,53,57,51,76,114,87,66,43,54,94,38,55,73,49,23,33,2,45,1,164,65,65,52,52,67,68,0,0,1,0,101,0,0,2,7,2,169,0,17,0,0,19,54,51,50,22,21,17,35,17,52,38,34,6,21,21,35,17,51,180,48,111,85,95,78,65,122,74,79,79,1,134,100,112,97,254,231,1,25,69,70,103,91,226,2,169,0,0,2,0,94,0,0,0,198,2,178,0,3,0,11,0,0,19,51,17,35,18,38,52,54,50,22,20,6,106,79,79,15,27,27,48,29,29,1,223,254,33,2,79,27,45,27,27,45,27,0,0,2,255,170,255,10,0,213,2,178,0,9,0,23,0,0,18,38,52,54,51,50,22,20,6,35,3,50,53,17,51,17,20,7,6,35,34,39,55,22,136,27,27,24,24,29,29,24,127,88,79,90,28,34,62,72,4,63,2,79,27,45,27,27,45,27,253,0,110,2,35,253,221,137,32,10,37,69,37,0,0,1,0,101,0,0,2,20,2,169,0,11,0,0,55,7,21,35,17,51,17,55,51,7,19,35,244,64,79,79,231,110,220,231,97,253,52,201,2,169,254,116,193,179,254,213,0,1,0,101,0,0,0,180,2,169,0,3,0,0,19,51,17,35,101,79,79,2,169,253,87,0,0,1,0,100,0,0,3,82,1,234,0,30,0,0,19,54,51,50,22,23,54,51,50,22,21,17,35,17,52,38,34,6,21,21,35,17,52,38,34,6,7,21,35,17,51,177,47,114,62,84,19,45,122,86,94,78,65,122,67,78,65,120,74,2,79,68,1,130,104,61,54,115,112,97,254,231,1,25,69,70,100,88,232,1,25,69,70,98,87,235,1,222,0,1,0,100,0,0,2,6,1,234,0,17,0,0,19,54,51,50,22,21,17,35,17,52,38,34,6,7,21,35,17,51,177,47,114,85,95,78,65,120,74,2,79,68,1,130,104,112,97,254,231,1,25,69,70,98,87,235,1,222,0,2,0,50,255,245,1,240,1,234,0,11,0,19,0,0,1,50,22,21,20,6,35,34,38,53,52,54,22,38,34,6,20,22,50,54,1,17,100,123,123,100,100,123,123,243,72,139,74,70,139,76,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,0,2,0,101,255,21,2,22,1,234,0,11,0,21,0,0,19,54,50,22,20,6,34,39,17,35,17,51,18,54,52,38,34,6,7,21,20,22,175,47,187,125,126,184,44,79,65,202,85,81,116,74,2,76,1,149,85,138,226,137,69,254,219,2,201,254,93,96,167,98,73,62,91,63,72,0,0,2,0,51,255,10,2,44,1,234,0,19,0,31,0,0,1,50,23,55,51,17,20,22,22,23,7,38,38,53,53,6,34,38,52,54,22,6,20,22,51,50,55,54,55,53,52,38,1,8,102,46,17,54,23,29,21,26,68,57,41,187,126,125,37,81,86,57,82,35,12,1,76,1,234,90,78,253,209,49,33,15,7,61,18,78,74,152,87,137,226,138,70,98,167,96,73,23,32,91,66,76,0,1,0,100,0,0,1,105,1,231,0,13,0,0,1,34,7,21,35,17,51,21,54,51,50,23,7,38,1,40,113,4,79,79,36,91,29,26,4,30,1,155,178,233,1,223,92,100,9,77,10,0,0,1,0,60,255,245,1,209,1,234,0,31,0,0,18,54,50,22,23,35,38,35,34,6,20,22,23,23,22,22,20,6,34,38,39,51,22,22,50,54,52,38,39,39,38,53,76,101,172,97,2,77,9,101,49,53,40,44,96,61,65,106,190,106,3,76,2,69,104,68,40,45,93,125,1,164,70,72,55,65,44,51,35,13,32,19,59,103,83,85,67,45,45,44,61,32,12,31,37,93,0,1,0,34,255,230,1,95,2,99,0,21,0,0,37,6,39,38,39,38,53,17,35,53,51,53,51,21,51,21,35,17,20,51,50,55,1,95,86,71,51,21,11,77,77,78,150,150,68,37,46,14,40,23,16,51,25,35,1,38,60,133,133,60,254,219,73,18,0,1,0,87,255,247,1,249,1,223,0,17,0,0,37,6,35,34,38,53,17,51,17,20,51,50,54,55,53,51,17,35,1,170,49,110,81,99,79,112,65,81,2,79,79,95,104,90,94,1,48,254,214,121,100,78,241,254,33,0,0,1,0,18,0,0,1,229,1,222,0,6,0,0,27,2,51,3,35,3,107,144,145,89,190,87,190,1,222,254,117,1,139,254,34,1,222,0,0,1,0,18,0,0,2,192,1,222,0,12,0,0,27,2,51,19,19,51,3,35,3,3,35,3,100,116,114,66,113,117,78,156,77,110,108,76,159,1,222,254,131,1,102,254,150,1,129,254,34,1,79,254,177,1,222,0,0,1,0,26,0,0,1,230,1,223,0,11,0,0,33,35,39,7,35,55,39,51,23,55,51,7,1,229,96,137,130,96,181,181,96,137,131,96,183,181,181,239,240,180,180,240,0,1,0,5,255,10,1,203,1,222,0,17,0,0,23,22,51,50,55,54,55,55,3,51,19,19,51,3,6,6,34,39,5,49,54,40,29,21,17,14,196,88,145,113,80,179,23,75,115,62,139,38,40,29,59,49,1,222,254,131,1,125,253,195,73,78,35,0,0,1,0,53,0,0,1,167,1,222,0,9,0,0,55,1,33,53,33,21,1,33,21,33,53,1,25,254,231,1,114,254,235,1,21,254,142,64,1,94,64,64,254,162,64,0,0,1,0,75,255,118,1,85,2,236,0,31,0,0,19,22,21,21,20,22,51,21,34,53,53,52,38,35,35,53,51,50,54,53,53,52,55,54,51,21,34,6,21,21,20,7,154,52,61,74,213,17,19,17,17,19,17,114,40,59,74,61,52,1,47,25,88,93,81,85,69,234,92,43,36,76,35,44,91,168,49,18,69,85,82,92,86,27,0,1,0,101,255,134,0,180,2,238,0,3,0,0,19,51,17,35,101,79,79,2,238,252,152,0,0,1,0,8,255,118,1,18,2,236,0,31,0,0,19,38,53,53,52,38,35,53,50,21,21,20,22,51,51,21,35,34,6,21,21,20,7,6,35,53,50,54,53,53,52,55,195,52,61,74,213,17,19,17,17,19,17,114,41,58,74,61,52,1,51,27,86,92,82,85,69,235,91,44,35,76,36,43,92,168,48,18,69,85,81,93,88,25,0,1,0,53,0,223,1,206,1,103,0,17,0,0,19,34,7,39,54,51,50,22,51,50,55,23,6,35,34,38,39,38,158,37,24,44,33,74,34,134,26,40,25,43,35,78,23,96,14,39,1,26,59,23,111,55,57,27,106,36,6,14,0,1,0,20,0,0,2,17,2,128,0,37,0,0,1,38,35,34,6,21,21,51,21,35,21,20,7,51,50,54,55,51,6,6,35,33,53,51,50,54,53,53,35,53,51,53,52,54,51,50,22,23,1,144,16,86,42,57,182,182,37,183,49,45,6,84,6,84,94,254,187,28,38,35,91,91,93,91,71,90,11,1,234,78,64,72,109,56,104,68,26,41,44,77,77,69,44,46,108,56,109,99,109,76,74,0,0,2,0,24,3,11,1,42,3,111,0,9,0,17,0,0,18,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,53,29,29,23,23,31,31,23,146,30,30,45,31,31,3,11,29,42,29,29,42,29,29,42,29,29,42,29,0,1,0,23,2,165,1,34,3,92,0,3,0,0,1,7,39,55,1,34,244,23,235,3,22,113,50,133,0,3,0,26,0,0,2,37,3,92,0,7,0,10,0,14,0,0,19,51,19,35,39,35,7,35,55,51,3,3,23,7,39,242,96,211,82,54,250,54,83,158,209,104,99,235,23,245,2,117,253,139,160,160,222,1,54,1,72,133,50,113,0,3,0,26,0,0,2,37,3,92,0,7,0,10,0,14,0,0,19,51,19,35,39,35,7,35,55,51,3,19,7,39,55,242,96,211,82,54,250,54,83,158,209,104,134,244,23,235,2,117,253,139,160,160,222,1,54,1,2,113,50,133,0,3,0,26,0,0,2,37,3,104,0,7,0,10,0,16,0,0,19,51,19,35,39,35,7,35,55,51,3,55,7,39,7,39,55,242,96,211,82,54,250,54,83,158,209,104,180,50,129,130,50,180,2,117,253,139,160,160,222,1,54,184,39,108,108,39,156,0,0,3,0,26,0,0,2,37,3,74,0,7,0,10,0,30,0,0,19,51,19,35,39,35,7,35,55,51,3,39,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,242,96,211,82,54,250,54,83,158,209,104,68,32,25,32,12,46,52,34,46,27,26,28,10,35,11,49,41,34,60,21,2,117,253,139,160,160,222,1,54,238,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,4,0,26,0,0,2,37,3,67,0,7,0,10,0,20,0,28,0,0,19,51,19,35,39,35,7,35,55,51,3,38,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,242,96,211,82,54,250,54,83,158,209,104,86,29,29,23,23,31,31,23,146,30,30,45,31,31,2,117,253,139,160,160,222,1,54,203,29,42,29,29,42,29,29,42,29,29,42,29,0,2,0,100,0,0,1,231,3,92,0,11,0,15,0,0,19,33,21,33,21,33,21,33,21,33,21,33,19,23,7,39,100,1,131,254,204,1,34,254,222,1,52,254,125,94,235,23,245,2,117,68,211,67,214,69,3,92,133,50,113,0,0,2,0,100,0,0,1,231,3,92,0,11,0,15,0,0,51,33,53,33,53,33,53,33,53,33,53,33,37,7,39,55,100,1,131,254,204,1,34,254,222,1,52,254,125,1,71,244,23,235,69,214,67,211,68,161,113,50,133,0,0,2,0,105,0,0,1,236,3,104,0,11,0,17,0,0,19,33,21,33,21,33,21,33,21,33,21,33,1,7,39,7,39,55,105,1,131,254,204,1,34,254,222,1,52,254,125,1,118,50,129,130,50,180,2,117,68,211,67,214,69,2,204,39,108,108,39,156,0,3,0,100,0,0,1,231,3,67,0,11,0,21,0,29,0,0,19,33,21,33,21,33,21,33,21,33,21,33,18,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,100,1,131,254,204,1,34,254,222,1,52,254,125,87,29,29,23,23,31,31,23,146,30,30,45,31,31,2,117,68,211,67,214,69,2,223,29,42,29,29,42,29,29,42,29,29,42,29,0,2,0,7,0,0,1,19,3,92,0,3,0,7,0,0,19,51,17,35,3,23,7,39,101,79,79,61,235,23,245,2,117,253,139,3,92,133,50,113,0,2,0,6,0,0,1,17,3,92,0,3,0,7,0,0,51,51,17,35,55,7,39,55,101,79,79,172,244,23,235,2,117,161,113,50,133,0,0,2,255,217,0,0,1,64,3,104,0,3,0,9,0,0,19,51,17,35,19,7,39,7,39,55,101,79,79,219,50,129,130,50,180,2,117,253,139,2,204,39,108,108,39,156,0,3,0,4,0,0,1,22,3,67,0,3,0,13,0,21,0,0,19,51,17,35,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,101,79,79,68,29,29,23,23,31,31,23,146,30,30,45,31,31,2,117,253,139,2,223,29,42,29,29,42,29,29,42,29,29,42,29,0,0,2,0,99,0,0,2,72,3,74,0,9,0,29,0,0,19,17,51,17,1,51,17,35,17,1,55,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,99,80,1,61,88,79,254,200,81,32,25,32,12,46,52,33,47,27,26,28,10,35,11,49,41,34,60,21,2,117,253,139,2,0,254,0,2,117,254,7,1,249,141,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,0,3,0,51,255,245,2,84,3,92,0,10,0,20,0,24,0,0,1,50,22,16,6,35,34,38,53,52,54,23,34,6,20,22,51,50,54,52,38,3,23,7,39,1,67,122,151,150,123,123,149,149,123,88,102,102,88,88,103,103,188,235,23,245,2,128,167,254,193,165,167,158,159,167,71,132,248,128,128,248,132,1,35,133,50,113,0,3,0,51,255,245,2,84,3,92,0,10,0,20,0,24,0,0,1,34,6,21,20,22,51,50,54,16,38,7,50,22,20,6,35,34,38,52,54,55,7,39,55,1,67,123,149,149,123,123,150,151,122,88,103,103,88,88,102,102,221,244,23,235,2,128,167,159,158,167,165,1,63,167,71,132,248,128,128,248,132,221,113,50,133,0,0,3,0,51,255,245,2,84,3,104,0,10,0,20,0,26,0,0,1,50,22,16,6,35,34,38,53,52,54,23,34,6,20,22,51,50,54,52,38,55,7,39,7,39,55,1,67,122,151,150,123,123,149,149,123,88,102,102,88,88,103,103,91,50,129,130,50,180,2,128,167,254,193,165,167,158,159,167,71,132,248,128,128,248,132,147,39,108,108,39,156,0,0,3,0,51,255,245,2,84,3,74,0,10,0,20,0,40,0,0,1,34,6,21,20,22,51,50,54,16,38,7,50,22,20,6,35,34,38,52,54,55,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,1,67,123,149,149,123,123,150,151,122,88,103,103,88,88,102,102,19,32,25,32,12,46,52,33,47,27,26,28,10,35,11,49,41,34,60,21,2,128,167,159,158,167,165,1,63,167,71,132,248,128,128,248,132,201,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,4,0,51,255,245,2,84,3,67,0,10,0,20,0,30,0,38,0,0,1,50,22,16,6,35,34,38,53,52,54,23,34,6,20,22,51,50,54,52,46,2,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,67,122,151,150,123,123,149,149,123,88,102,102,88,88,103,103,196,29,29,23,23,31,31,23,146,30,30,45,31,31,2,128,167,254,193,165,167,158,159,167,71,132,248,128,128,248,132,166,29,42,29,29,42,29,29,42,29,29,42,29,0,0,2,0,87,255,245,2,53,3,92,0,16,0,20,0,0,19,17,20,22,51,50,54,53,17,51,17,20,6,34,38,53,17,55,23,7,39,166,88,72,72,88,79,130,219,129,139,235,23,245,2,117,254,110,88,78,78,88,1,146,254,110,118,120,120,118,1,146,231,133,50,113,0,2,0,87,255,245,2,53,3,92,0,16,0,20,0,0,19,17,20,22,50,54,53,17,35,17,20,6,35,34,38,53,17,37,7,39,55,87,129,219,130,79,88,72,72,88,1,37,244,23,235,2,117,254,110,118,120,120,118,1,146,254,110,88,78,78,88,1,146,161,113,50,133,0,0,2,0,87,255,245,2,53,3,104,0,16,0,22,0,0,19,17,20,22,51,50,54,53,17,51,17,20,6,34,38,53,17,37,7,39,7,39,55,166,88,72,72,88,79,130,219,129,1,162,50,129,130,50,180,2,117,254,110,88,78,78,88,1,146,254,110,118,120,120,118,1,146,87,39,108,108,39,156,0,0,3,0,87,255,245,2,53,3,67,0,16,0,26,0,34,0,0,19,17,20,22,51,50,54,53,17,51,17,20,6,34,38,53,17,54,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,166,88,72,72,88,79,130,219,129,131,29,29,23,23,31,31,23,146,30,30,45,31,31,2,117,254,110,88,78,78,88,1,146,254,110,118,120,120,118,1,146,106,29,42,29,29,42,29,29,42,29,29,42,29,0,0,3,0,60,255,245,1,209,2,219,0,24,0,33,0,37,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,3,23,7,39,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,58,83,205,235,23,245,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,83,2,86,133,50,113,0,3,0,60,255,245,1,209,2,219,0,24,0,34,0,38,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,55,19,7,39,55,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,57,82,2,28,244,23,235,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,80,63,1,212,113,50,133,0,0,3,0,60,255,245,1,209,2,231,0,24,0,33,0,39,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,19,7,39,7,39,55,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,58,83,74,50,129,130,50,180,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,83,1,198,39,108,108,39,156,0,3,0,60,255,245,1,209,2,201,0,24,0,34,0,54,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,55,3,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,57,82,2,174,32,25,32,12,46,52,34,46,27,26,28,10,35,11,49,41,34,60,21,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,80,63,1,192,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,4,0,60,255,245,1,209,2,193,0,24,0,33,0,43,0,51,0,0,1,52,38,34,6,21,35,52,55,54,51,50,22,21,17,35,39,6,35,34,38,52,54,50,23,21,38,34,6,21,20,51,50,54,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,131,54,103,63,87,118,36,42,89,100,68,8,44,115,77,93,103,154,70,71,106,66,102,58,83,213,29,29,23,23,31,31,23,146,30,30,45,31,31,1,54,65,56,41,44,110,26,8,90,92,254,204,80,91,86,128,72,26,50,20,38,41,90,83,1,216,29,42,29,29,42,29,29,42,29,29,42,29,0,0,3,0,51,255,245,1,216,2,224,0,16,0,24,0,28,0,0,37,50,55,51,6,6,35,34,38,52,54,50,22,7,33,20,22,19,38,35,34,6,7,51,52,3,23,7,39,1,11,99,14,81,11,105,78,96,120,121,201,99,15,254,185,72,122,22,32,62,71,6,255,227,235,23,245,53,87,72,79,137,228,136,156,112,74,95,1,106,12,83,62,100,1,98,133,50,113,0,0,3,0,51,255,245,1,216,2,224,0,16,0,22,0,26,0,0,37,6,35,34,38,53,33,54,38,34,6,20,22,51,50,54,55,2,22,21,35,54,54,55,7,39,55,1,124,14,99,65,72,1,71,15,99,201,121,120,96,78,105,11,130,55,255,6,71,184,244,23,235,140,87,95,74,112,156,136,228,137,79,72,1,31,83,62,62,83,239,113,50,133,0,3,0,54,255,245,1,219,2,236,0,16,0,24,0,30,0,0,37,50,55,51,6,6,35,34,38,52,54,50,22,7,33,20,22,19,38,35,34,6,7,51,52,55,7,39,7,39,55,1,14,99,14,81,11,105,78,96,120,121,201,99,15,254,185,72,123,23,33,61,71,6,255,53,50,129,130,50,180,53,87,72,79,137,228,136,156,112,74,95,1,106,12,83,62,100,210,39,108,108,39,156,0,4,0,51,255,245,1,216,2,193,0,16,0,24,0,34,0,42,0,0,37,50,55,51,6,6,35,34,38,52,54,50,22,7,33,20,22,19,38,35,34,6,7,51,52,38,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,11,99,14,81,11,105,78,96,120,121,201,99,15,254,185,72,122,22,32,62,71,6,255,234,29,29,23,23,31,31,23,146,30,30,45,31,31,53,87,72,79,137,228,136,156,112,74,95,1,106,12,83,62,100,223,29,42,29,29,42,29,29,42,29,29,42,29,0,0,2,0,12,0,0,1,24,2,219,0,3,0,7,0,0,19,51,17,35,3,23,7,39,106,79,79,61,235,23,245,1,223,254,33,2,219,133,50,113,0,2,0,11,0,0,1,22,2,219,0,3,0,7,0,0,51,51,17,35,55,7,39,55,106,79,79,172,244,23,235,1,223,182,113,50,133,0,0,2,255,222,0,0,1,69,2,231,0,3,0,9,0,0,19,51,17,35,19,7,39,7,39,55,106,79,79,219,50,129,130,50,180,1,223,254,33,2,75,39,108,108,39,156,0,3,0,9,0,0,1,27,2,193,0,3,0,13,0,21,0,0,19,51,17,35,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,106,79,79,68,29,29,23,23,31,31,23,146,30,30,45,31,31,1,223,254,33,2,93,29,42,29,29,42,29,29,42,29,29,42,29,0,0,2,0,101,0,0,2,7,2,201,0,17,0,37,0,0,1,34,7,39,35,17,51,53,54,54,50,22,21,17,51,17,52,38,39,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,1,83,114,47,9,68,79,2,74,120,65,78,95,187,32,25,32,12,46,52,34,46,27,26,28,10,35,11,49,41,34,60,21,1,234,104,92,254,34,235,87,98,70,69,254,231,1,25,97,112,151,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,0,3,0,51,255,245,1,241,2,219,0,11,0,19,0,23,0,0,1,50,22,21,20,6,35,34,38,53,52,54,22,38,34,6,20,22,50,54,3,23,7,39,1,18,100,123,123,100,100,123,123,243,72,139,74,70,139,76,243,235,23,245,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,2,65,133,50,113,0,0,3,0,51,255,245,1,241,2,219,0,11,0,19,0,23,0,0,1,34,6,21,20,22,51,50,54,53,52,38,6,54,50,22,20,6,34,38,1,7,39,55,1,18,100,123,123,100,100,123,123,242,74,139,72,76,139,70,1,19,244,23,235,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,1,251,113,50,133,0,3,0,51,255,245,1,241,2,231,0,11,0,19,0,25,0,0,1,50,22,21,20,6,35,34,38,53,52,54,22,38,34,6,20,22,50,54,19,7,39,7,39,55,1,18,100,123,123,100,100,123,123,243,72,139,74,70,139,76,36,50,129,130,50,180,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,1,177,39,108,108,39,156,0,0,3,0,51,255,245,1,241,2,201,0,11,0,19,0,39,0,0,1,34,6,21,20,22,51,50,54,53,52,38,6,54,50,22,20,6,34,38,19,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,1,18,100,123,123,100,100,123,123,242,74,139,72,76,139,70,74,32,25,32,12,46,52,33,47,27,26,28,10,35,11,49,41,34,60,21,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,1,231,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,4,0,51,255,245,1,241,2,193,0,11,0,19,0,29,0,37,0,0,1,50,22,21,20,6,35,34,38,53,52,54,22,38,34,6,20,22,50,54,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,18,100,123,123,100,100,123,123,243,72,139,74,70,139,76,250,29,29,23,23,31,31,23,146,30,30,45,31,31,1,234,130,121,120,130,130,120,121,130,165,97,97,171,97,97,1,195,29,42,29,29,42,29,29,42,29,29,42,29,0,2,0,87,255,247,1,249,3,1,0,17,0,21,0,0,37,6,35,34,38,53,17,51,17,20,51,50,54,55,53,51,17,35,3,23,7,39,1,170,49,110,81,99,79,112,65,81,2,79,79,226,235,23,245,95,104,90,94,1,48,254,214,121,100,78,241,254,33,3,1,133,50,113,0,2,0,87,255,247,1,249,3,1,0,17,0,21,0,0,5,50,55,21,51,17,35,21,20,6,35,34,53,17,35,17,20,22,19,7,39,55,1,11,110,49,79,79,82,66,112,79,99,247,244,23,235,9,104,95,1,223,233,83,103,121,1,42,254,208,94,90,2,196,113,50,133,0,0,2,0,87,255,247,1,249,3,13,0,17,0,23,0,0,37,6,35,34,38,53,17,51,17,20,51,50,54,55,53,51,17,35,19,7,39,7,39,55,1,170,49,110,81,99,79,112,65,81,2,79,79,54,50,129,130,50,180,95,104,90,94,1,48,254,214,121,100,78,241,254,33,2,113,39,108,108,39,156,0,3,0,87,255,247,1,249,2,193,0,17,0,27,0,35,0,0,37,6,35,34,38,53,17,51,17,20,51,50,54,55,53,51,17,35,2,38,52,54,51,50,22,20,6,35,50,38,52,54,50,22,20,6,1,170,49,110,81,99,79,112,65,81,2,79,79,233,29,29,23,23,31,31,23,146,30,30,45,31,31,95,104,90,94,1,48,254,214,121,100,78,241,254,33,2,93,29,42,29,29,42,29,29,42,29,29,42,29,0,0,1,0,101,0,0,0,180,1,223,0,3,0,0,19,51,17,35,101,79,79,1,223,254,33,0,0,1,0,36,1,163,0,184,2,113,0,11,0,0,18,38,52,54,50,22,20,6,7,39,54,55,88,30,31,57,38,44,45,59,62,13,2,13,26,44,30,45,68,71,22,29,30,45,0,1,0,24,2,165,1,127,3,104,0,5,0,0,1,7,39,7,39,55,1,127,50,129,130,50,180,2,204,39,108,108,39,156,0,1,0,23,2,207,1,83,3,74,0,19,0,0,19,34,7,39,54,54,50,23,22,22,50,54,55,23,6,6,34,46,2,112,32,25,32,12,46,52,33,47,27,26,28,10,35,11,49,41,34,60,21,3,2,51,19,51,53,17,23,12,25,27,23,48,52,12,31,8,0,1,0,55,1,1,1,163,1,69,0,3,0,0,19,33,21,33,55,1,108,254,148,1,69,68,0,1,0,55,1,1,2,159,1,69,0,3,0,0,19,33,21,33,55,2,104,253,152,1,69,68,0,1,0,36,1,162,0,184,2,114,0,12,0,0,18,6,34,38,52,54,55,23,6,7,22,22,21,162,31,56,39,47,45,56,62,13,23,30,1,193,31,46,69,71,22,29,32,44,2,26,22,0,0,1,0,15,1,162,0,162,2,114,0,13,0,0,18,54,50,22,21,20,6,7,39,54,55,38,38,53,36,32,57,37,47,44,56,62,13,23,31,2,84,30,44,35,35,71,23,30,32,44,2,26,22,0,0,1,0,92,0,0,1,252,2,117,0,27,0,0,19,33,21,35,22,23,51,21,35,6,7,6,7,5,35,37,53,51,50,54,55,35,53,51,38,38,35,35,92,1,160,183,69,15,99,94,7,112,40,55,1,18,112,254,242,61,87,84,3,235,231,11,83,76,61,2,117,49,36,67,48,115,44,15,5,250,248,48,76,57,48,46,57,0,0,1,0,79,1,2,1,153,1,69,0,3,0,0,1,21,33,53,1,153,254,182,1,69,67,67,0,1,0,0,0,157,0,63,0,5,0,0,0,0,0,2,0,0,0,1,0,1,0,0,0,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,0,44,0,93,0,164,0,235,1,66,1,79,1,101,1,123,1,153,1,174,1,198,1,211,1,229,1,243,2,19,2,39,2,85,2,136,2,164,2,203,2,253,3,16,3,82,3,139,3,169,3,205,3,225,3,244,4,8,4,63,4,150,4,174,4,224,5,6,5,37,5,60,5,81,5,122,5,146,5,159,5,182,5,209,5,224,5,251,6,18,6,54,6,85,6,137,6,174,6,225,6,243,7,16,7,35,7,64,7,90,7,112,7,136,7,153,7,166,7,182,7,200,7,213,7,227,8,22,8,62,8,98,8,138,8,179,8,212,9,45,9,75,9,100,9,140,9,163,9,176,9,222,9,252,10,30,10,68,10,119,10,145,10,195,10,229,11,3,11,22,11,51,11,74,11,108,11,131,11,175,11,188,11,232,12,7,12,60,12,91,12,105,12,136,12,167,12,201,12,253,13,45,13,76,13,106,13,140,13,188,13,208,13,227,13,250,14,32,14,84,14,127,14,170,14,216,15,24,15,84,15,120,15,157,15,197,15,251,16,53,16,113,16,174,16,255,17,75,17,124,17,170,17,221,18,31,18,51,18,70,18,93,18,131,18,191,18,233,19,19,19,64,19,127,19,186,19,223,20,4,20,44,20,99,20,112,20,136,20,153,20,188,20,201,20,214,20,240,21,11,21,55,21,68,0,1,0,0,0,1,0,0,184,134,128,40,95,15,60,245,0,11,3,232,0,0,0,0,202,188,123,31,0,0,0,0,204,143,87,201,255,170,255,10,3,126,3,111,0,0,0,8,0,2,0,0,0,0,0,0,2,41,0,0,0,0,0,0,2,41,0,0,0,238,0,0,1,22,0,82,1,50,0,28,2,115,0,53,2,120,0,69,2,214,0,61,3,148,0,89,0,136,0,27,1,100,0,73,1,100,0,28,1,156,0,56,2,15,0,18,0,210,0,30,1,93,0,38,0,179,0,30,1,176,0,57,2,82,0,51,1,75,0,49,2,68,0,64,2,79,0,52,2,47,0,26,2,53,0,65,2,61,0,51,1,214,0,24,2,103,0,55,2,69,0,66,0,231,0,56,1,6,0,57,1,198,0,40,1,232,0,79,1,198,0,47,1,243,0,30,3,172,0,67,2,63,0,26,2,110,0,101,2,101,0,51,2,149,0,100,2,50,0,100,2,12,0,101,2,133,0,51,2,157,0,101,1,24,0,101,1,148,0,8,2,97,0,101,1,212,0,101,3,80,0,101,2,173,0,99,2,134,0,51,2,42,0,99,2,140,0,51,2,101,0,101,2,93,0,69,1,245,0,6,2,142,0,87,2,51,0,18,3,127,0,14,2,130,0,47,2,37,0,10,2,80,0,73,1,61,0,101,1,176,0,45,1,29,255,242,1,192,0,21,2,214,0,55,1,59,0,24,2,48,0,70,2,72,0,101,2,3,0,50,2,82,0,60,2,3,0,50,1,87,0,49,2,53,0,28,2,92,0,101,1,43,0,94,1,58,255,170,2,52,0,101,1,24,0,101,3,167,0,100,2,91,0,100,2,34,0,50,2,82,0,101,2,73,0,51,1,125,0,100,2,14,0,60,1,120,0,34,2,94,0,87,1,247,0,18,2,213,0,18,2,0,0,26,1,228,0,5,1,219,0,53,1,93,0,75,1,24,0,101,1,93,0,8,2,3,0,53,2,53,0,20,1,67,0,24,1,59,0,23,2,63,0,26,2,63,0,26,2,63,0,26,2,63,0,26,2,63,0,26,2,52,0,100,2,52,0,100,2,52,0,105,2,52,0,100,1,24,0,7,1,24,0,6,1,24,255,217,1,24,0,4,2,174,0,99,2,134,0,51,2,134,0,51,2,134,0,51,2,134,0,51,2,134,0,51,2,142,0,87,2,142,0,87,2,142,0,87,2,142,0,87,2,39,0,60,2,39,0,60,2,39,0,60,2,39,0,60,2,39,0,60,2,2,0,51,2,2,0,51,2,2,0,54,2,2,0,51,1,43,0,12,1,43,0,11,1,43,255,222,1,43,0,9,2,92,0,101,2,35,0,51,2,35,0,51,2,35,0,51,2,35,0,51,2,35,0,51,2,94,0,87,2,94,0,87,2,94,0,87,2,94,0,87,1,24,0,101,0,184,0,36,1,151,0,24,1,110,0,23,1,218,0,55,2,214,0,55,0,214,0,36,0,214,0,15,2,69,0,92,1,232,0,79,0,1,0,0,3,149,255,4,0,0,3,172,255,170,255,216,3,126,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,157,0,3,1,253,1,144,0,5,0,8,2,188,2,138,0,0,0,140,2,188,2,138,0,0,1,221,0,50,0,250,0,0,0,0,0,0,0,0,0,0,0,0,128,0,0,39,0,0,0,66,0,0,0,0,0,0,0,0,112,121,114,115,0,64,0,32,34,18,3,149,255,4,0,0,3,149,0,252,0,0,0,1,0,0,0,0,1,222,2,117,0,0,0,32,0,2,0,0,0,2,0,0,0,3,0,0,0,20,0,3,0,1,0,0,0,20,0,4,0,192,0,0,0,44,0,32,0,4,0,12,0,126,0,160,0,163,0,168,0,180,0,196,0,207,0,214,0,220,0,228,0,239,0,246,0,252,1,49,2,188,2,198,2,220,32,20,32,25,32,185,34,18,255,255,0,0,0,32,0,160,0,163,0,168,0,180,0,192,0,200,0,209,0,217,0,224,0,232,0,241,0,249,1,49,2,188,2,198,2,220,32,19,32,24,32,185,34,18,255,255,255,227,255,99,255,191,255,187,255,176,255,165,255,162,255,161,255,159,255,156,255,153,255,152,255,150,255,98,253,216,253,207,253,186,224,132,224,129,223,226,222,138,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,184,1,255,133,176,4,141,0,0,0,0,11,0,138,0,3,0,1,4,9,0,0,0,218,0,0,0,3,0,1,4,9,0,1,0,10,0,218,0,3,0,1,4,9,0,2,0,14,0,228,0,3,0,1,4,9,0,3,0,84,0,242,0,3,0,1,4,9,0,4,0,10,0,218,0,3,0,1,4,9,0,5,0,26,1,70,0,3,0,1,4,9,0,6,0,26,1,96,0,3,0,1,4,9,0,9,0,32,1,122,0,3,0,1,4,9,0,12,0,28,1,154,0,3,0,1,4,9,0,13,0,152,1,182,0,3,0,1,4,9,0,14,0,52,2,78,0,67,0,111,0,112,0,121,0,114,0,105,0,103,0,104,0,116,0,32,0,40,0,99,0,41,0,32,0,50,0,48,0,49,0,49,0,45,0,50,0,48,0,49,0,50,0,44,0,32,0,74,0,111,0,110,0,97,0,116,0,104,0,97,0,110,0,32,0,80,0,105,0,110,0,104,0,111,0,114,0,110,0,32,0,40,0,106,0,111,0,110,0,112,0,105,0,110,0,104,0,111,0,114,0,110,0,46,0,116,0,121,0,112,0,101,0,100,0,101,0,115,0,105,0,103,0,110,0,64,0,103,0,109,0,97,0,105,0,108,0,46,0,99,0,111,0,109,0,41,0,44,0,32,0,119,0,105,0,116,0,104,0,32,0,82,0,101,0,115,0,101,0,114,0,118,0,101,0,100,0,32,0,70,0,111,0,110,0,116,0,32,0,78,0,97,0,109,0,101,0,115,0,32,0,39,0,75,0,97,0,114,0,108,0,97,0,39,0,75,0,97,0,114,0,108,0,97,0,82,0,101,0,103,0,117,0,108,0,97,0,114,0,70,0,111,0,110,0,116,0,70,0,111,0,114,0,103,0,101,0,32,0,50,0,46,0,48,0,32,0,58,0,32,0,75,0,97,0,114,0,108,0,97,0,32,0,82,0,101,0,103,0,117,0,108,0,97,0,114,0,32,0,58,0,32,0,49,0,51,0,45,0,49,0,48,0,45,0,50,0,48,0,49,0,49,0,86,0,101,0,114,0,115,0,105,0,111,0,110,0,32,0,49,0,46,0,48,0,48,0,48,0,75,0,97,0,114,0,108,0,97,0,45,0,82,0,101,0,103,0,117,0,108,0,97,0,114,0,74,0,111,0,110,0,97,0,116,0,104,0,97,0,110,0,32,0,80,0,105,0,110,0,104,0,111,0,114,0,110,0,106,0,111,0,110,0,112,0,105,0,110,0,104,0,111,0,114,0,110,0,46,0,99,0,111,0,109,0,84,0,104,0,105,0,115,0,32,0,70,0,111,0,110,0,116,0,32,0,83,0,111,0,102,0,116,0,119,0,97,0,114,0,101,0,32,0,105,0,115,0,32,0,108,0,105,0,99,0,101,0,110,0,115,0,101,0,100,0,32,0,117,0,110,0,100,0,101,0,114,0,32,0,116,0,104,0,101,0,32,0,83,0,73,0,76,0,32,0,79,0,112,0,101,0,110,0,32,0,70,0,111,0,110,0,116,0,32,0,76,0,105,0,99,0,101,0,110,0,115,0,101,0,44,0,32,0,86,0,101,0,114,0,115,0,105,0,111,0,110,0,32,0,49,0,46,0,49,0,46,0,104,0,116,0,116,0,112,0,58,0,47,0,47,0,115,0,99,0,114,0,105,0,112,0,116,0,115,0,46,0,115,0,105,0,108,0,46,0,111,0,114,0,103,0,47,0,79,0,70,0,76,0,2,0,0,0,0,0,0,255,181,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,157,0,0,0,1,0,2,0,3,0,4,0,5,0,6,0,7,0,8,0,9,0,10,0,11,0,12,0,13,0,14,0,15,0,16,0,17,0,18,0,19,0,20,0,21,0,22,0,23,0,24,0,25,0,26,0,27,0,28,0,29,0,30,0,31,0,32,0,33,0,34,0,35,0,36,0,37,0,38,0,39,0,40,0,41,0,42,0,43,0,44,0,45,0,46,0,47,0,48,0,49,0,50,0,51,0,52,0,53,0,54,0,55,0,56,0,57,0,58,0,59,0,60,0,61,0,62,0,63,0,64,0,65,0,66,0,67,0,68,0,69,0,70,0,71,0,72,0,73,0,74,0,75,0,76,0,77,0,78,0,79,0,80,0,81,0,82,0,83,0,84,0,85,0,86,0,87,0,88,0,89,0,90,0,91,0,92,0,93,0,94,0,95,0,96,0,97,0,133,0,142,0,141,0,173,0,201,0,199,0,174,0,98,0,203,0,101,0,200,0,202,0,207,0,204,0,205,0,206,0,102,0,211,0,208,0,209,0,175,0,103,0,214,0,212,0,213,0,104,0,106,0,105,0,107,0,109,0,108,0,113,0,112,0,114,0,115,0,117,0,116,0,118,0,119,0,120,0,122,0,121,0,123,0,125,0,124,0,127,0,126,0,128,0,129,0,215,1,2,0,216,0,217,0,178,0,179,0,182,0,183,1,3,0,239,10,97,112,111,115,116,114,111,112,104,101,11,114,117,112,101,101,115,121,109,98,111,108,0,0,1,0,1,255,255,0,15,0,1,0,0,0,12,0,0,0,0,0,0,0,2,0,1,0,1,0,156,0,1,0,0,0,1,0,0,0,10,0,30,0,44,0,1,108,97,116,110,0,8,0,4,0,0,0,0,255,255,0,1,0,0,0,1,107,101,114,110,0,8,0,0,0,1,0,0,0,1,0,4,0,2,0,0,0,1,0,8,0,1,0,82,0,4,0,0,0,36,0,152,0,186,0,192,1,6,1,40,1,54,1,60,1,66,1,72,1,158,1,216,2,14,2,20,2,130,2,148,2,162,2,176,2,190,2,216,2,226,2,236,2,242,3,0,3,10,3,20,3,38,3,48,3,62,3,76,3,102,3,108,3,118,3,140,3,158,3,168,3,190,0,2,0,11,0,36,0,36,0,0,0,39,0,39,0,1,0,41,0,41,0,2,0,47,0,47,0,3,0,50,0,52,0,4,0,54,0,55,0,7,0,57,0,60,0,9,0,68,0,70,0,13,0,72,0,75,0,16,0,77,0,78,0,20,0,80,0,93,0,22,0,8,0,55,255,216,0,57,255,228,0,58,255,228,0,60,255,230,0,73,255,244,0,89,255,234,0,90,255,232,0,92,255,228,0,1,0,60,255,231,0,17,0,36,255,199,0,58,255,248,0,59,255,240,0,60,255,248,0,68,255,232,0,70,255,228,0,71,255,232,0,72,255,228,0,74,255,211,0,82,255,228,0,84,255,228,0,88,255,232,0,89,255,224,0,90,255,220,0,91,255,228,0,92,255,228,0,93,255,232,0,8,0,45,0,16,0,55,255,207,0,57,255,211,0,58,255,215,0,60,255,187,0,89,255,232,0,90,255,232,0,92,255,236,0,3,0,57,255,248,0,59,255,244,0,60,255,240,0,1,0,36,255,218,0,1,0,60,255,240,0,1,0,60,255,230,0,21,0,36,255,216,0,45,255,187,0,68,255,169,0,70,255,181,0,71,255,171,0,72,255,181,0,73,255,203,0,74,255,169,0,80,255,187,0,81,255,187,0,82,255,177,0,83,255,187,0,84,255,181,0,85,255,183,0,86,255,159,0,88,255,187,0,89,255,183,0,90,255,216,0,91,255,199,0,92,255,206,0,93,255,203,0,14,0,36,255,223,0,38,255,248,0,45,255,187,0,50,255,248,0,68,255,223,0,70,255,223,0,71,255,223,0,72,255,223,0,73,255,216,0,74,255,207,0,82,255,223,0,84,255,227,0,85,255,239,0,86,255,223,0,13,0,36,255,223,0,45,255,187,0,68,255,223,0,70,255,223,0,71,255,223,0,72,255,223,0,73,255,216,0,74,255,207,0,82,255,223,0,84,255,223,0,85,255,223,0,86,255,216,0,88,255,228,0,1,0,50,255,244,0,27,0,36,255,187,0,38,255,239,0,43,255,248,0,45,255,174,0,50,255,240,0,52,255,240,0,54,255,228,0,68,255,195,0,70,255,191,0,71,255,191,0,72,255,191,0,73,255,191,0,74,255,179,0,80,255,191,0,81,255,191,0,82,255,191,0,83,255,191,0,84,255,191,0,85,255,191,0,86,255,191,0,87,255,219,0,88,255,189,0,89,255,211,0,90,255,211,0,91,255,203,0,92,255,199,0,93,255,191,0,4,0,55,255,167,0,57,255,219,0,58,255,228,0,60,255,203,0,3,0,55,255,236,0,57,255,227,0,60,255,239,0,3,0,55,255,195,0,57,255,228,0,60,255,223,0,3,0,55,255,195,0,57,255,232,0,60,255,215,0,6,0,36,255,240,0,45,255,203,0,70,255,240,0,74,255,230,0,77,255,240,0,86,255,232,0,2,0,77,0,73,0,92,0,16,0,2,0,55,255,248,0,60,255,211,0,1,0,73,255,234,0,3,0,73,255,240,0,77,255,248,0,92,255,240,0,2,0,55,255,220,0,60,255,215,0,2,0,55,255,212,0,60,255,215,0,4,0,55,255,185,0,57,255,223,0,58,255,223,0,60,255,191,0,2,0,55,255,203,0,60,255,220,0,3,0,55,255,183,0,60,255,209,0,77,0,81,0,3,0,45,255,216,0,55,255,208,0,74,255,236,0,6,0,55,255,167,0,57,255,228,0,58,255,220,0,60,255,199,0,73,255,228,0,92,255,236,0,1,0,60,255,219,0,2,0,55,255,199,0,60,255,207,0,5,0,36,255,232,0,45,255,203,0,55,255,196,0,60,255,211,0,74,255,248,0,4,0,36,255,228,0,45,255,215,0,55,255,224,0,60,255,224,0,2,0,55,255,215,0,60,255,207,0,5,0,36,255,244,0,45,255,232,0,55,255,200,0,60,255,228,0,74,255,248,0,2,0,55,255,232,0,60,255,215,0,1,0,0,0,10,0,30,0,44,0,1,108,97,116,110,0,8,0,4,0,0,0,0,255,255,0,1,0,0,0,1,111,110,117,109,0,8,0,0,0,1,0,0,0,1,0,4,0,1,0,0,0,1,0,8,0,2,0,26,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,0,19,0,28,0,0 };
-#endif // NMD_GRAPHICS_DISABLE_DEFAULT_FONT
-} // namespace nmd
 
 // stb_truetype.h - v1.24 - public domain
 // authored from 2009-2020 by Sean Barrett / RAD Game Tools
