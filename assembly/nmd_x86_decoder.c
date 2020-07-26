@@ -278,7 +278,8 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruc
 
 	/* Parse legacy prefixes & REX prefixes. */
 	i = 0;
-	for (; i < NMD_X86_MAXIMUM_INSTRUCTION_LENGTH; i++, b++)
+	const size_t numMaxBytes = bufferSize < NMD_X86_MAXIMUM_INSTRUCTION_LENGTH ? bufferSize : NMD_X86_MAXIMUM_INSTRUCTION_LENGTH;
+	for (; i < numMaxBytes; i++, b++)
 	{
 		switch (*b)
 		{
