@@ -9,32 +9,32 @@ Defining types manually:
 Define the 'NMD_GRAPHICS_DEFINE_TYPES' macro to tell the library to define(typedef) the required types.
 Be aware: This feature uses platform dependent macros.
 
-Disabling default functions:
+Disable default functions:
 Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR' macro to tell the library not to include default allocators.
 
-Overview:
-The 'nmd_context'(acessible by nmd_get_context()) global variable holds the state of the entire library, it
-contains a nmd_drawlist variable which holds the vertex, index and commands buffers. Each command buffer 
-translate to a call to a rendering's API draw function. Shapes can be rendered in the drawlist by calling
-functions like nmd_add_line(), nmd_add_filled_rect(), ...
+Low level overview:
+The nmd::Context(acessible by nmd::GetContext()) global variable holds the state of the entire library, it
+contains a nmd::DrawList variable which holds the vertex, index and commands buffers. Each command buffer 
+translate to a call to a rendering's API draw function. The nmd::DrawList class has methods to draw basic 
+geometry shapes(e.g. circles, rectangles and lines).
 
-OpenGL Usage:
- Define 'NMD_GRAPHICS_OPENGL'.
- Call nmd_opengl_resize() for initialization.
- Call nmd_opengl_render() to render data in the drawlist.
+Supported rendering APIs: Direct3D 9(D3D9), Direct3D 11(D3D11).
+To use a specific rendering api define the macro 'NMD_GRAPHICS_{RENDERING API}' before including "nmd_graphics.hpp".
 
-D3D9 Usage:
- Define 'NMD_GRAPHICS_D3D9'.
- Call nmd_d3d9_set_device() and nmd_d3d9_resize() for initialization.
- Call nmd_d3d9_render() to render data in the drawlist.
+Usage:
+ - General:
+    - Call API functions between nmd::Begin() and nmd::End()
+ - D3D9:
+    - Call nmd::D3D9SetDevice() and nmd::D3D9Resize() on initialization.
+    - Call nmd::D3D9Render() after nmd::End().
 
-D3D11 Usage:
- Define 'NMD_GRAPHICS_D3D11'.
- Call nmd_d3d11_set_device_context() and nmd_d3d11_resize() for initialization.
- Call nmd_d3d11_render() to render data in the drawlist.
+ - D3D11:
+    - Call nmd::D3D11SetDeviceContext() on initialization.
+    - Call nmd::D3D11Render() after nmd::End()
 
 Default fonts:
-The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the font at compile time.
+The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the
+font at compile time. By doing so at least 15KB of code & data will be saved.
 
 NOTE: A big part of this library's code has been derived from Imgui's and Nuklear's code. Huge credit to both projects.
 
@@ -156,13 +156,10 @@ typedef unsigned long long uint64_t;
 #include <Windows.h>
 #endif /* _WIN32 */
 
-#ifdef NMD_GRAPHICS_OPENGL
-bool nmd_opengl_resize(int width, int height);
-bool nmd_opengl_render();
-#endif /* NMD_GRAPHICS_OPENGL */
-
 #ifdef NMD_GRAPHICS_D3D9
 #include <d3d9.h>
+#pragma comment(lib, "d3d9.lib")
+
 void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pDevice);
 void nmd_d3d9_resize(int width, int height);
 void nmd_d3d9_render();
@@ -170,10 +167,26 @@ void nmd_d3d9_render();
 
 #ifdef NMD_GRAPHICS_D3D11
 #include <d3d11.h>
+#pragma comment(lib, "d3d11.lib")
+
+#include <d3dcompiler.h>
+#pragma comment(lib, "d3dcompiler.lib")
+
 void nmd_d3d11_set_device_context(ID3D11DeviceContext* pDeviceContext);
-bool nmd_d3d11_resize(int width, int height);
 void nmd_d3d11_render();
 #endif /* NMD_GRAPHICS_D3D11 */
+
+#ifdef NMD_GRAPHICS_OPENGL
+bool nmd_opengl_resize(int width, int height);
+bool nmd_opengl_render();
+#endif /* NMD_GRAPHICS_OPENGL */
+
+/*
+#ifdef _WIN32
+    void Win32Init(HWND hwnd);
+    LRESULT WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+#endif
+*/
 
 enum NMD_CORNER
 {
@@ -192,8 +205,17 @@ enum NMD_CORNER
     NMD_CORNER_ALL          = (1 << 5) - 1
 };
 
-typedef uint16_t nmd_index;
-typedef void* nmd_tex_id;
+typedef uint16_t IndexType;
+typedef void* TextureId;
+
+typedef struct
+{
+    /* 'numVertices' has the type 'IndexType' because the number of vertices is always less or equal the number of indices. */
+    IndexType numVertices; 
+
+    IndexType numIndices;
+    TextureId userTextureId;
+} nmd_draw_command;
 
 typedef struct
 {
@@ -204,24 +226,6 @@ typedef struct
 {
     float x, y, z;
 } nmd_vec3;
-
-typedef struct
-{
-    nmd_vec2 p0;
-    nmd_vec2 p1;
-} nmd_rect;
-
-typedef struct
-{
-    /* 'numVertices' has the type 'nmd_index' because the number of vertices is always less or equal the number of indices. */
-    nmd_index numVertices; 
-
-    nmd_index numIndices;
-    nmd_tex_id userTextureId;
-
-    nmd_rect rect;
-    
-} nmd_draw_command;
 
 typedef struct
 {
@@ -249,7 +253,7 @@ typedef struct
     size_t numVertices; /* number of vertices in the 'vertices' buffer. */
     size_t verticesCapacity; /* size of the 'vertices' buffer in bytes. */
 
-    nmd_index* indices;
+    IndexType* indices;
     size_t numIndices; /* number of indices in the 'indices' buffer. */
     size_t indicesCapacity; /* size of the 'indices' buffer in bytes. */
 
@@ -258,14 +262,14 @@ typedef struct
     size_t drawCommandsCapacity; /* size of the 'drawCommands' buffer in bytes. */
 
     /*
-    void PushTextureDrawCommand(size_t numVertices, size_t numIndices, nmd_tex_id userTextureId);
+    void PushTextureDrawCommand(size_t numVertices, size_t numIndices, TextureId userTextureId);
     
     void AddText(const Vec2& pos, Color color, const char* text, size_t textLength);
     void AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth = 0.0f);
 
-    void AddImage(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
-    void AddImageQuad(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 0), const Vec2& uv3 = Vec2(1, 1), const Vec2& uv4 = Vec2(0, 1), Color color = Color::White);
-    void AddImageRounded(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags = CORNER_FLAGS_ALL, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
+    void AddImage(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
+    void AddImageQuad(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 0), const Vec2& uv3 = Vec2(1, 1), const Vec2& uv4 = Vec2(0, 1), Color color = Color::White);
+    void AddImageRounded(TextureId userTextureId, const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags = CORNER_FLAGS_ALL, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
 
     void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);
 
@@ -304,8 +308,6 @@ void nmd_add_quad_filled(float x0, float y0, float x1, float y1, float x2, float
 void nmd_add_triangle(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color, float thickness);
 void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color);
 
-void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing, float thickness);
-
 /*
 Set numSegments to zero if you want the function to automatically determine the number of segmnts.
 numSegments = 12
@@ -318,7 +320,7 @@ void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size
 
 void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color, bool closed, float thickness);
 void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color);
-/*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);*/
+//void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);
 
 nmd_color nmd_rgb(uint8_t r, uint8_t g, uint8_t b);
 nmd_color nmd_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
@@ -328,14 +330,8 @@ nmd_context* nmd_get_context();
 /* Starts a new empty scene. Internally this function clears all vertices, indices and command buffers. */
 void nmd_begin();
 
-/* Ends a scene, so it can be rendered. Internally this functions creates draw commands. */
+/* Ends a scene, so it can be rendered. Internally this functions creates the remaining draw commands. */
 void nmd_end();
-
-/*
-Parameters:
- clipRect [opt/in] A pointer to a rect that specifies the drawable area. If this parameter is null, the entire screen will be set as drawable.
-*/
-void nmd_push_draw_command(const nmd_rect* clipRect);
 
 #define NMD_COLOR_BLACK         nmd_rgb(0,   0,   0  )
 #define NMD_COLOR_WHITE         nmd_rgb(255, 255, 255)

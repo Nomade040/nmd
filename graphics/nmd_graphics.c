@@ -24,7 +24,7 @@ nmd_context* nmd_get_context()
     return &_nmd_context;
 }
 
-void nmd_push_draw_command(const nmd_rect* clipRect)
+void _nmd_push_remaining_draw_commands()
 {
     size_t numAccountedVertices = 0, numAccountedIndices = 0;
     size_t i = 0;
@@ -38,24 +38,20 @@ void nmd_push_draw_command(const nmd_rect* clipRect)
 
     while (numUnaccountedIndices > 0)
     {
-        /* If the number of unaccounted indices is less than the maximum number of indices that can be hold by 'nmd_index'(usually 2^16). */
-        if (numUnaccountedIndices <= (1 << (8 * sizeof(nmd_index))))
+        /* If the number of unaccounted indices is less than the maximum number of indices that can be hold by 'IndexType'(usually 2^16). */
+        if (numUnaccountedIndices <= (1 << (8 * sizeof(IndexType))))
         {
             /* Add draw command */
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numIndices - numAccountedVertices;
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numUnaccountedIndices;
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = 0;
-            if (clipRect)
-                _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect = *clipRect;
-            else
-                _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect.p1.x = -1.0f;
             _nmd_context.drawList.numDrawCommands++;
             return;
         }
         else
         {
-            size_t numIndices = (2 << (8 * sizeof(nmd_index) - 1)) - 1;
-            nmd_index lastIndex = _nmd_context.drawList.indices[numIndices - 1];
+            size_t numIndices = (2 << (8 * sizeof(IndexType) - 1)) - 1;
+            IndexType lastIndex = _nmd_context.drawList.indices[numIndices - 1];
 
             bool isLastIndexReferenced = false;
             do
@@ -114,7 +110,7 @@ void nmd_begin()
         _nmd_context.drawList.vertices = (nmd_vertex*)NMD_MALLOC(NMD_INITIAL_VERTICES_BUFFER_SIZE);
         _nmd_context.drawList.verticesCapacity = NMD_INITIAL_VERTICES_BUFFER_SIZE;
 
-        _nmd_context.drawList.indices = (nmd_index*)NMD_MALLOC(NMD_INITIAL_INDICES_BUFFER_SIZE);
+        _nmd_context.drawList.indices = (IndexType*)NMD_MALLOC(NMD_INITIAL_INDICES_BUFFER_SIZE);
         _nmd_context.drawList.indicesCapacity = NMD_INITIAL_INDICES_BUFFER_SIZE;
 
         _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_MALLOC(NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE);
@@ -129,5 +125,5 @@ void nmd_begin()
 /* Ends a scene, so it can be rendered. Internally this functions creates the remaining draw commands. */
 void nmd_end()
 {
-    nmd_push_draw_command(0);
+    _nmd_push_remaining_draw_commands();
 }
