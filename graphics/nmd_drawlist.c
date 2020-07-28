@@ -16,7 +16,7 @@ bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
     }
 
     /* Check indices */
-    futureSize = (_nmd_context.drawList.numIndices + numNewIndices) * sizeof(IndexType);
+    futureSize = (_nmd_context.drawList.numIndices + numNewIndices) * sizeof(nmd_index);
     if (futureSize > _nmd_context.drawList.indicesCapacity)
     {
         const size_t newCapacity = NMD_MAX(_nmd_context.drawList.indicesCapacity * 2, futureSize);
@@ -24,7 +24,7 @@ bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
         if (!memoryBlock)
             return false;
 
-        _nmd_context.drawList.indices = (IndexType*)memoryBlock;
+        _nmd_context.drawList.indices = (nmd_index*)memoryBlock;
         _nmd_context.drawList.indicesCapacity = newCapacity;
     }
 
@@ -64,7 +64,7 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
         const size_t offset = _nmd_context.drawList.numVertices;
 
         /* Add indices */
-        IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
         indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
         indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
         _nmd_context.drawList.numIndices += 6;
@@ -142,69 +142,70 @@ void nmd_path_stroke(nmd_color color, bool closed, float thickness)
     _nmd_context.drawList.numPoints = 0;
 }
 
-//void PathBezierToCasteljau(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, size_t level)
-//{
-//    const float dx = x4 - x1;
-//    const float dy = y4 - y1;
-//    float d2 = ((x2 - x4) * dy - (y2 - y4) * dx);
-//    float d3 = ((x3 - x4) * dy - (y3 - y4) * dx);
-//    d2 = (d2 >= 0) ? d2 : -d2;
-//    d3 = (d3 >= 0) ? d3 : -d3;
-//    if ((d2 + d3) * (d2 + d3) < GetContext().drawList.curveTessellationTolerance * (dx * dx + dy * dy))
-//        GetContext().drawList.path.emplace_back(x4, y4);
-//    else if (level < 10)
-//    {
-//        const float x12 = (x1 + x2) * 0.5f, y12 = (y1 + y2) * 0.5f;
-//        const float x23 = (x2 + x3) * 0.5f, y23 = (y2 + y3) * 0.5f;
-//        const float x34 = (x3 + x4) * 0.5f, y34 = (y3 + y4) * 0.5f;
-//        const float x123 = (x12 + x23) * 0.5f, y123 = (y12 + y23) * 0.5f;
-//        const float x234 = (x23 + x34) * 0.5f, y234 = (y23 + y34) * 0.5f;
-//        const float x1234 = (x123 + x234) * 0.5f, y1234 = (y123 + y234) * 0.5f;
-//        PathBezierToCasteljau(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1);
-//        PathBezierToCasteljau(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
-//    }
-//}
-//
-//nmd_vec2 BezierCalc(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, float t)
-//{
-//    const float u = 1.0f - t;
-//    const float w1 = u * u * u;
-//    const float w2 = 3 * u * u * t;
-//    const float w3 = 3 * u * t * t;
-//    const float w4 = t * t * t;
-//    return { w1 * p0.x + w2 * p1.x + w3 * p2.x + w4 * p3.x, w1 * p0.y + w2 * p1.y + w3 * p2.y + w4 * p3.y };
-//}
-//
-///* Distribute UV over (a, b) rectangle */
-//void ShadeVertsLinearUV(size_t startVertexIndex, nmd_vec2 p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, bool clamp)
-//{
-//    const nmd_vec2 size = p2 - p1;
-//    const nmd_vec2 uv_size = uv2 - uv1;
-//    const nmd_vec2 scale = nmd_vec2(size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f);
-//
-//    Vertex* const startVertex = GetContext().drawList.vertices.data() + startVertexIndex;
-//    const Vertex* const endVertex = &GetContext().drawList.vertices.back();
-//    if (clamp)
-//    {
-//        const nmd_vec2 min = nmd_vec2::Min(uv1, uv2), max = nmd_vec2::Max(uv1, uv2);
-//        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
-//            vertex->uv = nmd_vec2::Clamp(uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale), min, max);
-//    }
-//    else
-//    {
-//        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
-//            vertex->uv = uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale);
-//    }
-//}
-//
-//void DrawList::PushTextureDrawCommand(size_t numVertices, size_t numIndices, TextureId userTextureId)
-//{
-//    if (!drawCommands.empty() && drawCommands.back().userTextureId == userTextureId)
-//        drawCommands.back().numVertices += static_cast<IndexType>(numVertices), drawCommands.back().numIndices += static_cast<IndexType>(numIndices);
-//    else
-//        drawCommands.emplace_back(static_cast<IndexType>(numVertices), static_cast<IndexType>(numIndices), userTextureId);
-//}
-//
+/*
+void PathBezierToCasteljau(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, size_t level)
+{
+    const float dx = x4 - x1;
+    const float dy = y4 - y1;
+    float d2 = ((x2 - x4) * dy - (y2 - y4) * dx);
+    float d3 = ((x3 - x4) * dy - (y3 - y4) * dx);
+    d2 = (d2 >= 0) ? d2 : -d2;
+    d3 = (d3 >= 0) ? d3 : -d3;
+    if ((d2 + d3) * (d2 + d3) < GetContext().drawList.curveTessellationTolerance * (dx * dx + dy * dy))
+        GetContext().drawList.path.emplace_back(x4, y4);
+    else if (level < 10)
+    {
+        const float x12 = (x1 + x2) * 0.5f, y12 = (y1 + y2) * 0.5f;
+        const float x23 = (x2 + x3) * 0.5f, y23 = (y2 + y3) * 0.5f;
+        const float x34 = (x3 + x4) * 0.5f, y34 = (y3 + y4) * 0.5f;
+        const float x123 = (x12 + x23) * 0.5f, y123 = (y12 + y23) * 0.5f;
+        const float x234 = (x23 + x34) * 0.5f, y234 = (y23 + y34) * 0.5f;
+        const float x1234 = (x123 + x234) * 0.5f, y1234 = (y123 + y234) * 0.5f;
+        PathBezierToCasteljau(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1);
+        PathBezierToCasteljau(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
+    }
+}
+
+nmd_vec2 BezierCalc(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, float t)
+{
+    const float u = 1.0f - t;
+    const float w1 = u * u * u;
+    const float w2 = 3 * u * u * t;
+    const float w3 = 3 * u * t * t;
+    const float w4 = t * t * t;
+    return { w1 * p0.x + w2 * p1.x + w3 * p2.x + w4 * p3.x, w1 * p0.y + w2 * p1.y + w3 * p2.y + w4 * p3.y };
+}
+
+/* Distribute UV over (a, b) rectangle 
+void ShadeVertsLinearUV(size_t startVertexIndex, nmd_vec2 p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, bool clamp)
+{
+    const nmd_vec2 size = p2 - p1;
+    const nmd_vec2 uv_size = uv2 - uv1;
+    const nmd_vec2 scale = nmd_vec2(size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f);
+
+    Vertex* const startVertex = GetContext().drawList.vertices.data() + startVertexIndex;
+    const Vertex* const endVertex = &GetContext().drawList.vertices.back();
+    if (clamp)
+    {
+        const nmd_vec2 min = nmd_vec2::Min(uv1, uv2), max = nmd_vec2::Max(uv1, uv2);
+        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
+            vertex->uv = nmd_vec2::Clamp(uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale), min, max);
+    }
+    else
+    {
+        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
+            vertex->uv = uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale);
+    }
+}
+
+void DrawList::PushTextureDrawCommand(size_t numVertices, size_t numIndices, nmd_tex_id userTextureId)
+{
+    if (!drawCommands.empty() && drawCommands.back().userTextureId == userTextureId)
+        drawCommands.back().numVertices += static_cast<nmd_index>(numVertices), drawCommands.back().numIndices += static_cast<nmd_index>(numIndices);
+    else
+        drawCommands.emplace_back(static_cast<nmd_index>(numVertices), static_cast<nmd_index>(numIndices), userTextureId);
+}
+*/
 
 void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags, float thickness)
 {
@@ -233,7 +234,7 @@ void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color
 
         const size_t offset = _nmd_context.drawList.numVertices;
 
-        IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
         indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
         indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
         _nmd_context.drawList.numIndices += 6;
@@ -254,7 +255,7 @@ void nmd_add_rect_filled_multi_color(float x0, float y0, float x1, float y1, nmd
 
     const size_t offset = _nmd_context.drawList.numVertices;
 
-    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
     indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
     indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
     _nmd_context.drawList.numIndices += 6;
@@ -312,7 +313,7 @@ void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, f
 
     const size_t offset = _nmd_context.drawList.numVertices;
 
-    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
     indices[0] = offset + 0;
     indices[1] = offset + 1;
     indices[2] = offset + 2;
@@ -450,55 +451,57 @@ void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t startAngleO
     _nmd_context.drawList.numPoints = path - _nmd_context.drawList.path;
 }
 
-//void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, size_t numSegments)
-//{
-//    const nmd_vec2& p1 = path.back();
-//    if (numSegments == 0)
-//        PathBezierToCasteljau(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, 0);
-//    else
-//    {
-//        const float tStep = 1.0f / static_cast<float>(numSegments);
-//        for (size_t iStep = 1; iStep <= numSegments; iStep++)
-//            path.push_back(BezierCalc(p1, p2, p3, p4, tStep * iStep));
-//    }
-//}
-//
-//void DrawList::PrimRectUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
-//{
-//    const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-//
-//    vertices.emplace_back(p1, color, uv1);
-//    vertices.emplace_back(nmd_vec2(p2.x, p1.y), color, nmd_vec2(uv2.x, uv1.y));
-//    vertices.emplace_back(p2, color, uv2);
-//    vertices.emplace_back(nmd_vec2(p1.x, p2.y), color, nmd_vec2(uv1.x, uv2.y));
-//
-//    indices.push_back(nextIndex + 0);
-//    indices.push_back(nextIndex + 1);
-//    indices.push_back(nextIndex + 2);
-//
-//    indices.push_back(nextIndex + 0);
-//    indices.push_back(nextIndex + 2);
-//    indices.push_back(nextIndex + 3);
-//}
-//
-//void DrawList::PrimQuadUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
-//{
-//    const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-//
-//    vertices.emplace_back(p1, color, uv1);
-//    vertices.emplace_back(p2, color, uv2);
-//    vertices.emplace_back(p3, color, uv3);
-//    vertices.emplace_back(p4, color, uv4);
-//
-//    indices.push_back(nextIndex + 0);
-//    indices.push_back(nextIndex + 1);
-//    indices.push_back(nextIndex + 2);
-//
-//    indices.push_back(nextIndex + 0);
-//    indices.push_back(nextIndex + 2);
-//    indices.push_back(nextIndex + 3);
-//}
-//
+/*
+void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, size_t numSegments)
+{
+    const nmd_vec2& p1 = path.back();
+    if (numSegments == 0)
+        PathBezierToCasteljau(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, 0);
+    else
+    {
+        const float tStep = 1.0f / static_cast<float>(numSegments);
+        for (size_t iStep = 1; iStep <= numSegments; iStep++)
+            path.push_back(BezierCalc(p1, p2, p3, p4, tStep * iStep));
+    }
+}
+
+void DrawList::PrimRectUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+{
+    const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
+
+    vertices.emplace_back(p1, color, uv1);
+    vertices.emplace_back(nmd_vec2(p2.x, p1.y), color, nmd_vec2(uv2.x, uv1.y));
+    vertices.emplace_back(p2, color, uv2);
+    vertices.emplace_back(nmd_vec2(p1.x, p2.y), color, nmd_vec2(uv1.x, uv2.y));
+
+    indices.push_back(nextIndex + 0);
+    indices.push_back(nextIndex + 1);
+    indices.push_back(nextIndex + 2);
+
+    indices.push_back(nextIndex + 0);
+    indices.push_back(nextIndex + 2);
+    indices.push_back(nextIndex + 3);
+}
+
+void DrawList::PrimQuadUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
+{
+    const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
+
+    vertices.emplace_back(p1, color, uv1);
+    vertices.emplace_back(p2, color, uv2);
+    vertices.emplace_back(p3, color, uv3);
+    vertices.emplace_back(p4, color, uv4);
+
+    indices.push_back(nextIndex + 0);
+    indices.push_back(nextIndex + 1);
+    indices.push_back(nextIndex + 2);
+
+    indices.push_back(nextIndex + 0);
+    indices.push_back(nextIndex + 2);
+    indices.push_back(nextIndex + 3);
+}
+*/
+
 void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float thickness)
 {
     if (!color.a)
@@ -515,7 +518,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
         return;
 
     const size_t offset = _nmd_context.drawList.numVertices;
-    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
     for (size_t i = 2; i < numPoints; i++)
         indices[(i - 2) * 3 + 0] = offset, indices[(i - 2) * 3 + 1] = offset + (i - 1), indices[(i - 2) * 3 + 2] = offset + i;
     _nmd_context.drawList.numIndices += (numPoints - 2) * 3;
@@ -526,99 +529,290 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
     _nmd_context.drawList.numVertices += numPoints;
 }
 
-//void DrawList::AddBezierCurve(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, Color color, float thickness, size_t numSegments)
-//{
-//    if (!color.a)
-//        return;
-//
-//    PathLineTo(p1);
-//    PathBezierCurveTo(p2, p3, p4, numSegments);
-//    PathStroke(color, false, thickness);
-//}
-//
-//void DrawList::AddText(const nmd_vec2& pos, Color color, const char* text, size_t textLength)
-//{
-//    AddText(NULL, 0.0f, pos, color, text, textLength);
-//}
-//
-//void DrawList::AddText(const void* font, float fontSize, const nmd_vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth)
-//{
-//    if (!color.a)
-//        return;
-//    
-//    const char* const textEnd = text + textLength;
-//    
-//    float x = pos.x;
-//    float y = pos.y;
-//
-//    while (text < textEnd)
-//    {
-//        //const Glyph* glyph = font->FindGlyph(*text);
-//    
-//        //stbtt_aligned_quad q;
-//        //stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
-//        //
-//        //const size_t nextIndex = vertices.size();
-//        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y0), color, nmd_vec2(glyph->u0, glyph->v0));
-//        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y0), color, nmd_vec2(glyph->u1, glyph->v0));
-//        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y1), color, nmd_vec2(glyph->u1, glyph->v1));
-//        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y1), color, nmd_vec2(glyph->u0, glyph->v1));
-//    
-//        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-//
-//        indices.push_back(nextIndex + 0);
-//        indices.push_back(nextIndex + 1);
-//        indices.push_back(nextIndex + 2);
-//    
-//        indices.push_back(nextIndex + 0);
-//        indices.push_back(nextIndex + 2);
-//        indices.push_back(nextIndex + 3);
-//    
-//        text++;
-//    }
-//}
-//
-//void DrawList::AddImage(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
-//{
-//    if (!color.a)
-//        return;
-//
-//    PushRemainingDrawCommands();
-//
-//    PrimRectUV(p1, p2, uv1, uv2, color);
-//
-//    PushTextureDrawCommand(4, 6, userTextureId);
-//}
-//
-//void DrawList::AddImageQuad(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
-//{
-//    if (!color.a)
-//        return;
-//
-//    PushRemainingDrawCommands();
-//
-//    PrimQuadUV(p1, p2, p3, p4, uv1, uv2, uv3, uv4, color);
-//
-//    PushTextureDrawCommand(4, 6, userTextureId);
-//}
-//
-//void DrawList::AddImageRounded(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, float rounding, uint32_t cornerFlags, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
-//{
-//    if (!color.a)
-//        return;
-//
-//    if (rounding <= 0.0f || !cornerFlags)
-//        AddImage(userTextureId, p1, p2, uv1, uv2, color);
-//    else
-//    {
-//        PushRemainingDrawCommands();
-//
-//        PathRect(p1, p2, rounding, cornerFlags);
-//
-//        const size_t v0 = vertices.size(), i0 = indices.size();
-//        PathFillConvex(color);
-//        ShadeVertsLinearUV(v0, p1, p2, uv1, uv2, true);
-//
-//        PushTextureDrawCommand(vertices.size() - v0, indices.size() - i0, userTextureId);
-//    }
-//}
+#ifdef NMD_GRAPHICS_ENABLE_DUMMY_TEXT_API
+
+void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing, float thickness)
+{
+    const float initial_x = x;
+    float width = 0;
+    for (; *text; text++, x += width + spacing)
+    {
+        switch (*text)
+        {
+        case ' ':
+            width = height * 0.5f;
+            break;
+        case '\n':
+            x = initial_x;
+            y += height;
+            break;
+        case '!':
+            width = height * 0.15f;
+            nmd_add_rect_filled(x, y, x + width, y + height * (2.0f / 3), color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.75f, x + width, y + height, color, 0, 0);
+            break;
+        case '"':
+            width = height * 0.35f;
+            nmd_add_rect_filled(x, y, x + width * 0.4f, y + height * 0.25f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.6f, y, x + width, y + height * 0.25f, color, 0, 0);
+            break;
+        case '#':
+            width = height * 0.75f;
+            nmd_add_rect_filled(x, y + height * 0.2f, x + width, y + height * 0.35f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.8f, color, 0, 0);
+            nmd_add_quad_filled(x + width * 0.3f, y, x + width * 0.5f, y, x + width * 0.3f, y + height, x + width * 0.1f, y + height, color);
+            nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
+            break;
+        /*case 0x24: /* $ 
+        //    width = height * 0.75f;
+        //    nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
+        //    break;*/
+        case '%':
+            width = height * 0.5f;
+            nmd_add_rect_filled(x, y, x + width * 0.5f, y + height * 0.3f, color, 0, 0);
+            nmd_add_quad_filled(x + width * 0.7f, y, x + width, y, x + width * 0.3f, y + height, x, y + height, color);
+            nmd_add_rect_filled(x + width * 0.5f, y + height * 0.7f, x + width, y + height, color, 0, 0);
+            break;
+        case '\'':
+            width = height * 0.14f;
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.3f, color, 0, 0);
+            break;
+        case '+':
+            width = height * 0.435f;
+            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.6f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.4f, y + height * 0.3f, x + width * 0.6f, y + height * 0.7f, color, 0, 0);
+            break;
+        case '-':
+            width = height * 0.435f;
+            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.55f, color, 0, 0);
+            break;
+        case '.':
+            width = height * 0.2f;
+            nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.85f, color, 0, 0);
+            break;
+        case '/':
+            width = height * 0.57f;
+            nmd_add_quad_filled(x + width * 0.75f, y, x + width, y, x + width * 0.25f, y + height, x + width * 0.45f, y + height, color);
+            break;
+        case '0':
+            width = height * 0.5f;
+            nmd_add_rect(x + width * 0.05f, y + height * 0.05f, x + width * 0.95f, y + height * 0.95f, color, 0, 0, width * 0.2f);
+            break;
+        case '1':
+            width = height * 0.5f;
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.4f, y, x + width * 0.6f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.1f, y, x + width * 0.4f, y + height * 0.2f, color, 0, 0);
+            break;
+        case '4':
+            width = height * 0.5f;
+            nmd_add_line(x + width * 0.80f, y, x + width * 0.80f, y + height, color, height * 0.15f);
+            nmd_add_line(x, y + height * 0.7f, x + width * 0.80f, y, color, height * 0.15f);
+            nmd_add_line(x, y + height * 0.7f, x + width * 0.95f, y + height * 0.7f, color, height * 0.15f);
+            break;
+        case '7':
+            width = height * 0.5f;
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_line(x + width, y, x, y + height, color, height * 0.15f);
+            break;
+        case '8':
+            width = height * 0.5f;
+            nmd_add_circle(x + width * 0.5f, y + height * 0.25f, height * 0.3f, color, 12, height * 0.15f);
+            nmd_add_circle(x + width * 0.5f, y + height * 0.75f, height * 0.3f, color, 12, height * 0.15f);
+            break;
+        case '9':
+            width = height * 0.5f;
+            nmd_add_circle(x + width * 0.5f, y + height * 0.25f, height * 0.3f, color, 12, height * 0.15f);
+            nmd_add_line(x + width * 0.95f, y, x + width * 0.95f, y + height, color, height * 0.15f);
+            break;
+        case ':':
+            width = height * 0.2f;
+            nmd_add_rect_filled(x, y + height * 0.1f, x + width, y + height * 0.3f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.7f, x + width, y + height * 0.9f, color, 0, 0);
+            break;
+        case '=':
+            width = height * 0.65f;
+            nmd_add_rect_filled(x, y + height * 0.2f, x + width, y + height * 0.35f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.8f, color, 0, 0);
+            break;
+        case 'A':
+            width = height * 0.6f;
+            nmd_add_line(x, y + height, x + width * 0.5f, y, color, height * 0.15f);
+            nmd_add_line(x + width * 0.1f, y + height * 0.7f, x + width * 0.9f, y + height * 0.7f, color, height * 0.15f);
+            nmd_add_line(x + width * 0.5f, y, x + width, y + height, color, height * 0.15f);
+            break;
+        case 'E':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.15f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.55f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            break;
+        case 'F':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.5f, x + width, y + height * 0.65f, color, 0, 0);
+            break;
+        case 'H':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.22f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.6f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
+            break;
+        case 'I':
+            width = height * 0.15f;
+            nmd_add_rect_filled(x, y, x + width, y + height, color, 0, 0);
+            break;
+        case 'L':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            break;
+        case 'M':
+            width = height * 0.7f;
+            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
+            nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
+            break;
+        case 'N':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.8f, y + height, x + width, y + height, color);
+            nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
+            break;
+        case 'T':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.45f, y, x + width * 0.65f, y + height, color, 0, 0);
+            break;
+        case 'V':
+            width = height * 0.7f;
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
+            break;
+        case 'X':
+            width = height * 0.7f;
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.8f, y + height, x + width, y + height, color);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x, y + height, x + width * 0.2f, y + height, color);
+            break;
+        case 'Y':
+            width = height * 0.7f;
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height * 0.5f, color);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height * 0.5f, color);
+            nmd_add_rect_filled(x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height, color, 0, 0);
+            break;
+        case 'Z':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.2f, y + height, x, y + height, color);
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            break;
+        case '_':
+            width = height * 0.7f;
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            break;
+        }
+    }
+}
+#endif /* NMD_GRAPHICS_ENABLE_DUMMY_TEXT_API */
+
+/*
+void DrawList::AddBezierCurve(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, Color color, float thickness, size_t numSegments)
+{
+    if (!color.a)
+        return;
+
+    PathLineTo(p1);
+    PathBezierCurveTo(p2, p3, p4, numSegments);
+    PathStroke(color, false, thickness);
+}
+
+void DrawList::AddText(const nmd_vec2& pos, Color color, const char* text, size_t textLength)
+{
+    AddText(NULL, 0.0f, pos, color, text, textLength);
+}
+
+void DrawList::AddText(const void* font, float fontSize, const nmd_vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth)
+{
+    if (!color.a)
+        return;
+    
+    const char* const textEnd = text + textLength;
+    
+    float x = pos.x;
+    float y = pos.y;
+
+    while (text < textEnd)
+    {
+        //const Glyph* glyph = font->FindGlyph(*text);
+    
+        //stbtt_aligned_quad q;
+        //stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
+        //
+        //const size_t nextIndex = vertices.size();
+        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y0), color, nmd_vec2(glyph->u0, glyph->v0));
+        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y0), color, nmd_vec2(glyph->u1, glyph->v0));
+        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y1), color, nmd_vec2(glyph->u1, glyph->v1));
+        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y1), color, nmd_vec2(glyph->u0, glyph->v1));
+    
+        const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
+
+        indices.push_back(nextIndex + 0);
+        indices.push_back(nextIndex + 1);
+        indices.push_back(nextIndex + 2);
+    
+        indices.push_back(nextIndex + 0);
+        indices.push_back(nextIndex + 2);
+        indices.push_back(nextIndex + 3);
+    
+        text++;
+    }
+}
+
+void DrawList::AddImage(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+{
+    if (!color.a)
+        return;
+
+    PushRemainingDrawCommands();
+
+    PrimRectUV(p1, p2, uv1, uv2, color);
+
+    PushTextureDrawCommand(4, 6, userTextureId);
+}
+
+void DrawList::AddImageQuad(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
+{
+    if (!color.a)
+        return;
+
+    PushRemainingDrawCommands();
+
+    PrimQuadUV(p1, p2, p3, p4, uv1, uv2, uv3, uv4, color);
+
+    PushTextureDrawCommand(4, 6, userTextureId);
+}
+
+void DrawList::AddImageRounded(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, float rounding, uint32_t cornerFlags, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+{
+    if (!color.a)
+        return;
+
+    if (rounding <= 0.0f || !cornerFlags)
+        AddImage(userTextureId, p1, p2, uv1, uv2, color);
+    else
+    {
+        PushRemainingDrawCommands();
+
+        PathRect(p1, p2, rounding, cornerFlags);
+
+        const size_t v0 = vertices.size(), i0 = indices.size();
+        PathFillConvex(color);
+        ShadeVertsLinearUV(v0, p1, p2, uv1, uv2, true);
+
+        PushTextureDrawCommand(vertices.size() - v0, indices.size() - i0, userTextureId);
+    }
+}
+*/

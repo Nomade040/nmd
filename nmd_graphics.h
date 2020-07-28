@@ -9,32 +9,32 @@ Defining types manually:
 Define the 'NMD_GRAPHICS_DEFINE_TYPES' macro to tell the library to define(typedef) the required types.
 Be aware: This feature uses platform dependent macros.
 
-Disable default functions:
+Disabling default functions:
 Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR' macro to tell the library not to include default allocators.
 
-Low level overview:
-The nmd::Context(acessible by nmd::GetContext()) global variable holds the state of the entire library, it
-contains a nmd::DrawList variable which holds the vertex, index and commands buffers. Each command buffer 
-translate to a call to a rendering's API draw function. The nmd::DrawList class has methods to draw basic 
-geometry shapes(e.g. circles, rectangles and lines).
+Overview:
+The 'nmd_context'(acessible by nmd_get_context()) global variable holds the state of the entire library, it
+contains a nmd_drawlist variable which holds the vertex, index and commands buffers. Each command buffer 
+translate to a call to a rendering's API draw function. Shapes can be rendered in the drawlist by calling
+functions like nmd_add_line(), nmd_add_filled_rect(), ...
 
-Supported rendering APIs: Direct3D 9(D3D9), Direct3D 11(D3D11).
-To use a specific rendering api define the macro 'NMD_GRAPHICS_{RENDERING API}' before including "nmd_graphics.hpp".
+OpenGL Usage:
+ Define 'NMD_GRAPHICS_OPENGL'.
+ Call nmd_opengl_resize() for initialization.
+ Call nmd_opengl_render() to render data in the drawlist.
 
-Usage:
- - General:
-    - Call API functions between nmd::Begin() and nmd::End()
- - D3D9:
-    - Call nmd::D3D9SetDevice() and nmd::D3D9Resize() on initialization.
-    - Call nmd::D3D9Render() after nmd::End().
+D3D9 Usage:
+ Define 'NMD_GRAPHICS_D3D9'.
+ Call nmd_d3d9_set_device() and nmd_d3d9_resize() for initialization.
+ Call nmd_d3d9_render() to render data in the drawlist.
 
- - D3D11:
-    - Call nmd::D3D11SetDeviceContext() on initialization.
-    - Call nmd::D3D11Render() after nmd::End()
+D3D11 Usage:
+ Define 'NMD_GRAPHICS_D3D11'.
+ Call nmd_d3d11_set_device_context() and nmd_d3d11_resize() for initialization.
+ Call nmd_d3d11_render() to render data in the drawlist.
 
 Default fonts:
-The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the
-font at compile time. By doing so at least 15KB of code & data will be saved.
+The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the font at compile time.
 
 NOTE: A big part of this library's code has been derived from Imgui's and Nuklear's code. Huge credit to both projects.
 
@@ -156,10 +156,13 @@ typedef unsigned long long uint64_t;
 #include <Windows.h>
 #endif /* _WIN32 */
 
+#ifdef NMD_GRAPHICS_OPENGL
+bool nmd_opengl_resize(int width, int height);
+bool nmd_opengl_render();
+#endif /* NMD_GRAPHICS_OPENGL */
+
 #ifdef NMD_GRAPHICS_D3D9
 #include <d3d9.h>
-#pragma comment(lib, "d3d9.lib")
-
 void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pDevice);
 void nmd_d3d9_resize(int width, int height);
 void nmd_d3d9_render();
@@ -167,26 +170,10 @@ void nmd_d3d9_render();
 
 #ifdef NMD_GRAPHICS_D3D11
 #include <d3d11.h>
-#pragma comment(lib, "d3d11.lib")
-
-#include <d3dcompiler.h>
-#pragma comment(lib, "d3dcompiler.lib")
-
 void nmd_d3d11_set_device_context(ID3D11DeviceContext* pDeviceContext);
+bool nmd_d3d11_resize(int width, int height);
 void nmd_d3d11_render();
 #endif /* NMD_GRAPHICS_D3D11 */
-
-#ifdef NMD_GRAPHICS_OPENGL
-bool nmd_opengl_resize(int width, int height);
-bool nmd_opengl_render();
-#endif /* NMD_GRAPHICS_OPENGL */
-
-/*
-#ifdef _WIN32
-    void Win32Init(HWND hwnd);
-    LRESULT WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-#endif
-*/
 
 enum NMD_CORNER
 {
@@ -205,17 +192,8 @@ enum NMD_CORNER
     NMD_CORNER_ALL          = (1 << 5) - 1
 };
 
-typedef uint16_t IndexType;
-typedef void* TextureId;
-
-typedef struct
-{
-    /* 'numVertices' has the type 'IndexType' because the number of vertices is always less or equal the number of indices. */
-    IndexType numVertices; 
-
-    IndexType numIndices;
-    TextureId userTextureId;
-} nmd_draw_command;
+typedef uint16_t nmd_index;
+typedef void* nmd_tex_id;
 
 typedef struct
 {
@@ -226,6 +204,24 @@ typedef struct
 {
     float x, y, z;
 } nmd_vec3;
+
+typedef struct
+{
+    nmd_vec2 p0;
+    nmd_vec2 p1;
+} nmd_rect;
+
+typedef struct
+{
+    /* 'numVertices' has the type 'nmd_index' because the number of vertices is always less or equal the number of indices. */
+    nmd_index numVertices; 
+
+    nmd_index numIndices;
+    nmd_tex_id userTextureId;
+
+    nmd_rect rect;
+    
+} nmd_draw_command;
 
 typedef struct
 {
@@ -253,7 +249,7 @@ typedef struct
     size_t numVertices; /* number of vertices in the 'vertices' buffer. */
     size_t verticesCapacity; /* size of the 'vertices' buffer in bytes. */
 
-    IndexType* indices;
+    nmd_index* indices;
     size_t numIndices; /* number of indices in the 'indices' buffer. */
     size_t indicesCapacity; /* size of the 'indices' buffer in bytes. */
 
@@ -262,14 +258,14 @@ typedef struct
     size_t drawCommandsCapacity; /* size of the 'drawCommands' buffer in bytes. */
 
     /*
-    void PushTextureDrawCommand(size_t numVertices, size_t numIndices, TextureId userTextureId);
+    void PushTextureDrawCommand(size_t numVertices, size_t numIndices, nmd_tex_id userTextureId);
     
     void AddText(const Vec2& pos, Color color, const char* text, size_t textLength);
     void AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth = 0.0f);
 
-    void AddImage(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
-    void AddImageQuad(TextureId userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 0), const Vec2& uv3 = Vec2(1, 1), const Vec2& uv4 = Vec2(0, 1), Color color = Color::White);
-    void AddImageRounded(TextureId userTextureId, const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags = CORNER_FLAGS_ALL, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
+    void AddImage(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
+    void AddImageQuad(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 0), const Vec2& uv3 = Vec2(1, 1), const Vec2& uv4 = Vec2(0, 1), Color color = Color::White);
+    void AddImageRounded(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags = CORNER_FLAGS_ALL, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
 
     void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);
 
@@ -308,6 +304,8 @@ void nmd_add_quad_filled(float x0, float y0, float x1, float y1, float x2, float
 void nmd_add_triangle(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color, float thickness);
 void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color);
 
+void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing, float thickness);
+
 /*
 Set numSegments to zero if you want the function to automatically determine the number of segmnts.
 numSegments = 12
@@ -320,7 +318,7 @@ void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size
 
 void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color, bool closed, float thickness);
 void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color);
-//void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);
+/*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);*/
 
 nmd_color nmd_rgb(uint8_t r, uint8_t g, uint8_t b);
 nmd_color nmd_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
@@ -330,8 +328,14 @@ nmd_context* nmd_get_context();
 /* Starts a new empty scene. Internally this function clears all vertices, indices and command buffers. */
 void nmd_begin();
 
-/* Ends a scene, so it can be rendered. Internally this functions creates the remaining draw commands. */
+/* Ends a scene, so it can be rendered. Internally this functions creates draw commands. */
 void nmd_end();
+
+/*
+Parameters:
+ clipRect [opt/in] A pointer to a rect that specifies the drawable area. If this parameter is null, the entire screen will be set as drawable.
+*/
+void nmd_push_draw_command(const nmd_rect* clipRect);
 
 #define NMD_COLOR_BLACK         nmd_rgb(0,   0,   0  )
 #define NMD_COLOR_WHITE         nmd_rgb(255, 255, 255)
@@ -363,6 +367,8 @@ void nmd_end();
 #define NMD_CIRCLE_AUTO_SEGMENT_MIN 12
 #define NMD_CIRCLE_AUTO_SEGMENT_MAX 512
 #define NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, maxError) NMD_CLAMP(NMD_2PI / NMD_ACOS((radius - maxError) / radius), NMD_CIRCLE_AUTO_SEGMENT_MIN, NMD_CIRCLE_AUTO_SEGMENT_MAX)
+
+#define _NMD_OFFSETOF(TYPE, NAME) (&((TYPE*)0)->NAME)
 
 
 /*
@@ -403,7 +409,7 @@ nmd_context* nmd_get_context()
     return &_nmd_context;
 }
 
-void _nmd_push_remaining_draw_commands()
+void nmd_push_draw_command(const nmd_rect* clipRect)
 {
     size_t numAccountedVertices = 0, numAccountedIndices = 0;
     size_t i = 0;
@@ -417,20 +423,24 @@ void _nmd_push_remaining_draw_commands()
 
     while (numUnaccountedIndices > 0)
     {
-        /* If the number of unaccounted indices is less than the maximum number of indices that can be hold by 'IndexType'(usually 2^16). */
-        if (numUnaccountedIndices <= (1 << (8 * sizeof(IndexType))))
+        /* If the number of unaccounted indices is less than the maximum number of indices that can be hold by 'nmd_index'(usually 2^16). */
+        if (numUnaccountedIndices <= (1 << (8 * sizeof(nmd_index))))
         {
             /* Add draw command */
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numIndices - numAccountedVertices;
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numUnaccountedIndices;
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = 0;
+            if (clipRect)
+                _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect = *clipRect;
+            else
+                _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect.p1.x = -1.0f;
             _nmd_context.drawList.numDrawCommands++;
             return;
         }
         else
         {
-            size_t numIndices = (2 << (8 * sizeof(IndexType) - 1)) - 1;
-            IndexType lastIndex = _nmd_context.drawList.indices[numIndices - 1];
+            size_t numIndices = (2 << (8 * sizeof(nmd_index) - 1)) - 1;
+            nmd_index lastIndex = _nmd_context.drawList.indices[numIndices - 1];
 
             bool isLastIndexReferenced = false;
             do
@@ -489,7 +499,7 @@ void nmd_begin()
         _nmd_context.drawList.vertices = (nmd_vertex*)NMD_MALLOC(NMD_INITIAL_VERTICES_BUFFER_SIZE);
         _nmd_context.drawList.verticesCapacity = NMD_INITIAL_VERTICES_BUFFER_SIZE;
 
-        _nmd_context.drawList.indices = (IndexType*)NMD_MALLOC(NMD_INITIAL_INDICES_BUFFER_SIZE);
+        _nmd_context.drawList.indices = (nmd_index*)NMD_MALLOC(NMD_INITIAL_INDICES_BUFFER_SIZE);
         _nmd_context.drawList.indicesCapacity = NMD_INITIAL_INDICES_BUFFER_SIZE;
 
         _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_MALLOC(NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE);
@@ -504,7 +514,7 @@ void nmd_begin()
 /* Ends a scene, so it can be rendered. Internally this functions creates the remaining draw commands. */
 void nmd_end()
 {
-    _nmd_push_remaining_draw_commands();
+    nmd_push_draw_command(0);
 }
 
 bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
@@ -523,7 +533,7 @@ bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
     }
 
     /* Check indices */
-    futureSize = (_nmd_context.drawList.numIndices + numNewIndices) * sizeof(IndexType);
+    futureSize = (_nmd_context.drawList.numIndices + numNewIndices) * sizeof(nmd_index);
     if (futureSize > _nmd_context.drawList.indicesCapacity)
     {
         const size_t newCapacity = NMD_MAX(_nmd_context.drawList.indicesCapacity * 2, futureSize);
@@ -531,7 +541,7 @@ bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
         if (!memoryBlock)
             return false;
 
-        _nmd_context.drawList.indices = (IndexType*)memoryBlock;
+        _nmd_context.drawList.indices = (nmd_index*)memoryBlock;
         _nmd_context.drawList.indicesCapacity = newCapacity;
     }
 
@@ -571,7 +581,7 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
         const size_t offset = _nmd_context.drawList.numVertices;
 
         /* Add indices */
-        IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
         indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
         indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
         _nmd_context.drawList.numIndices += 6;
@@ -649,69 +659,70 @@ void nmd_path_stroke(nmd_color color, bool closed, float thickness)
     _nmd_context.drawList.numPoints = 0;
 }
 
-//void PathBezierToCasteljau(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, size_t level)
-//{
-//    const float dx = x4 - x1;
-//    const float dy = y4 - y1;
-//    float d2 = ((x2 - x4) * dy - (y2 - y4) * dx);
-//    float d3 = ((x3 - x4) * dy - (y3 - y4) * dx);
-//    d2 = (d2 >= 0) ? d2 : -d2;
-//    d3 = (d3 >= 0) ? d3 : -d3;
-//    if ((d2 + d3) * (d2 + d3) < GetContext().drawList.curveTessellationTolerance * (dx * dx + dy * dy))
-//        GetContext().drawList.path.emplace_back(x4, y4);
-//    else if (level < 10)
-//    {
-//        const float x12 = (x1 + x2) * 0.5f, y12 = (y1 + y2) * 0.5f;
-//        const float x23 = (x2 + x3) * 0.5f, y23 = (y2 + y3) * 0.5f;
-//        const float x34 = (x3 + x4) * 0.5f, y34 = (y3 + y4) * 0.5f;
-//        const float x123 = (x12 + x23) * 0.5f, y123 = (y12 + y23) * 0.5f;
-//        const float x234 = (x23 + x34) * 0.5f, y234 = (y23 + y34) * 0.5f;
-//        const float x1234 = (x123 + x234) * 0.5f, y1234 = (y123 + y234) * 0.5f;
-//        PathBezierToCasteljau(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1);
-//        PathBezierToCasteljau(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
-//    }
-//}
-//
-//nmd_vec2 BezierCalc(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, float t)
-//{
-//    const float u = 1.0f - t;
-//    const float w1 = u * u * u;
-//    const float w2 = 3 * u * u * t;
-//    const float w3 = 3 * u * t * t;
-//    const float w4 = t * t * t;
-//    return { w1 * p0.x + w2 * p1.x + w3 * p2.x + w4 * p3.x, w1 * p0.y + w2 * p1.y + w3 * p2.y + w4 * p3.y };
-//}
-//
-///* Distribute UV over (a, b) rectangle */
-//void ShadeVertsLinearUV(size_t startVertexIndex, nmd_vec2 p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, bool clamp)
-//{
-//    const nmd_vec2 size = p2 - p1;
-//    const nmd_vec2 uv_size = uv2 - uv1;
-//    const nmd_vec2 scale = nmd_vec2(size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f);
-//
-//    Vertex* const startVertex = GetContext().drawList.vertices.data() + startVertexIndex;
-//    const Vertex* const endVertex = &GetContext().drawList.vertices.back();
-//    if (clamp)
-//    {
-//        const nmd_vec2 min = nmd_vec2::Min(uv1, uv2), max = nmd_vec2::Max(uv1, uv2);
-//        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
-//            vertex->uv = nmd_vec2::Clamp(uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale), min, max);
-//    }
-//    else
-//    {
-//        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
-//            vertex->uv = uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale);
-//    }
-//}
-//
-//void DrawList::PushTextureDrawCommand(size_t numVertices, size_t numIndices, TextureId userTextureId)
-//{
-//    if (!drawCommands.empty() && drawCommands.back().userTextureId == userTextureId)
-//        drawCommands.back().numVertices += static_cast<IndexType>(numVertices), drawCommands.back().numIndices += static_cast<IndexType>(numIndices);
-//    else
-//        drawCommands.emplace_back(static_cast<IndexType>(numVertices), static_cast<IndexType>(numIndices), userTextureId);
-//}
-//
+/*
+void PathBezierToCasteljau(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, size_t level)
+{
+    const float dx = x4 - x1;
+    const float dy = y4 - y1;
+    float d2 = ((x2 - x4) * dy - (y2 - y4) * dx);
+    float d3 = ((x3 - x4) * dy - (y3 - y4) * dx);
+    d2 = (d2 >= 0) ? d2 : -d2;
+    d3 = (d3 >= 0) ? d3 : -d3;
+    if ((d2 + d3) * (d2 + d3) < GetContext().drawList.curveTessellationTolerance * (dx * dx + dy * dy))
+        GetContext().drawList.path.emplace_back(x4, y4);
+    else if (level < 10)
+    {
+        const float x12 = (x1 + x2) * 0.5f, y12 = (y1 + y2) * 0.5f;
+        const float x23 = (x2 + x3) * 0.5f, y23 = (y2 + y3) * 0.5f;
+        const float x34 = (x3 + x4) * 0.5f, y34 = (y3 + y4) * 0.5f;
+        const float x123 = (x12 + x23) * 0.5f, y123 = (y12 + y23) * 0.5f;
+        const float x234 = (x23 + x34) * 0.5f, y234 = (y23 + y34) * 0.5f;
+        const float x1234 = (x123 + x234) * 0.5f, y1234 = (y123 + y234) * 0.5f;
+        PathBezierToCasteljau(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1);
+        PathBezierToCasteljau(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
+    }
+}
+
+nmd_vec2 BezierCalc(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, float t)
+{
+    const float u = 1.0f - t;
+    const float w1 = u * u * u;
+    const float w2 = 3 * u * u * t;
+    const float w3 = 3 * u * t * t;
+    const float w4 = t * t * t;
+    return { w1 * p0.x + w2 * p1.x + w3 * p2.x + w4 * p3.x, w1 * p0.y + w2 * p1.y + w3 * p2.y + w4 * p3.y };
+}
+
+/* Distribute UV over (a, b) rectangle 
+void ShadeVertsLinearUV(size_t startVertexIndex, nmd_vec2 p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, bool clamp)
+{
+    const nmd_vec2 size = p2 - p1;
+    const nmd_vec2 uv_size = uv2 - uv1;
+    const nmd_vec2 scale = nmd_vec2(size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f);
+
+    Vertex* const startVertex = GetContext().drawList.vertices.data() + startVertexIndex;
+    const Vertex* const endVertex = &GetContext().drawList.vertices.back();
+    if (clamp)
+    {
+        const nmd_vec2 min = nmd_vec2::Min(uv1, uv2), max = nmd_vec2::Max(uv1, uv2);
+        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
+            vertex->uv = nmd_vec2::Clamp(uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale), min, max);
+    }
+    else
+    {
+        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
+            vertex->uv = uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale);
+    }
+}
+
+void DrawList::PushTextureDrawCommand(size_t numVertices, size_t numIndices, nmd_tex_id userTextureId)
+{
+    if (!drawCommands.empty() && drawCommands.back().userTextureId == userTextureId)
+        drawCommands.back().numVertices += static_cast<nmd_index>(numVertices), drawCommands.back().numIndices += static_cast<nmd_index>(numIndices);
+    else
+        drawCommands.emplace_back(static_cast<nmd_index>(numVertices), static_cast<nmd_index>(numIndices), userTextureId);
+}
+*/
 
 void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags, float thickness)
 {
@@ -740,7 +751,7 @@ void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color
 
         const size_t offset = _nmd_context.drawList.numVertices;
 
-        IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
         indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
         indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
         _nmd_context.drawList.numIndices += 6;
@@ -761,7 +772,7 @@ void nmd_add_rect_filled_multi_color(float x0, float y0, float x1, float y1, nmd
 
     const size_t offset = _nmd_context.drawList.numVertices;
 
-    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
     indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
     indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
     _nmd_context.drawList.numIndices += 6;
@@ -819,7 +830,7 @@ void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, f
 
     const size_t offset = _nmd_context.drawList.numVertices;
 
-    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
     indices[0] = offset + 0;
     indices[1] = offset + 1;
     indices[2] = offset + 2;
@@ -957,55 +968,57 @@ void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t startAngleO
     _nmd_context.drawList.numPoints = path - _nmd_context.drawList.path;
 }
 
-//void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, size_t numSegments)
-//{
-//    const nmd_vec2& p1 = path.back();
-//    if (numSegments == 0)
-//        PathBezierToCasteljau(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, 0);
-//    else
-//    {
-//        const float tStep = 1.0f / static_cast<float>(numSegments);
-//        for (size_t iStep = 1; iStep <= numSegments; iStep++)
-//            path.push_back(BezierCalc(p1, p2, p3, p4, tStep * iStep));
-//    }
-//}
-//
-//void DrawList::PrimRectUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
-//{
-//    const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-//
-//    vertices.emplace_back(p1, color, uv1);
-//    vertices.emplace_back(nmd_vec2(p2.x, p1.y), color, nmd_vec2(uv2.x, uv1.y));
-//    vertices.emplace_back(p2, color, uv2);
-//    vertices.emplace_back(nmd_vec2(p1.x, p2.y), color, nmd_vec2(uv1.x, uv2.y));
-//
-//    indices.push_back(nextIndex + 0);
-//    indices.push_back(nextIndex + 1);
-//    indices.push_back(nextIndex + 2);
-//
-//    indices.push_back(nextIndex + 0);
-//    indices.push_back(nextIndex + 2);
-//    indices.push_back(nextIndex + 3);
-//}
-//
-//void DrawList::PrimQuadUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
-//{
-//    const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-//
-//    vertices.emplace_back(p1, color, uv1);
-//    vertices.emplace_back(p2, color, uv2);
-//    vertices.emplace_back(p3, color, uv3);
-//    vertices.emplace_back(p4, color, uv4);
-//
-//    indices.push_back(nextIndex + 0);
-//    indices.push_back(nextIndex + 1);
-//    indices.push_back(nextIndex + 2);
-//
-//    indices.push_back(nextIndex + 0);
-//    indices.push_back(nextIndex + 2);
-//    indices.push_back(nextIndex + 3);
-//}
-//
+/*
+void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, size_t numSegments)
+{
+    const nmd_vec2& p1 = path.back();
+    if (numSegments == 0)
+        PathBezierToCasteljau(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, 0);
+    else
+    {
+        const float tStep = 1.0f / static_cast<float>(numSegments);
+        for (size_t iStep = 1; iStep <= numSegments; iStep++)
+            path.push_back(BezierCalc(p1, p2, p3, p4, tStep * iStep));
+    }
+}
+
+void DrawList::PrimRectUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+{
+    const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
+
+    vertices.emplace_back(p1, color, uv1);
+    vertices.emplace_back(nmd_vec2(p2.x, p1.y), color, nmd_vec2(uv2.x, uv1.y));
+    vertices.emplace_back(p2, color, uv2);
+    vertices.emplace_back(nmd_vec2(p1.x, p2.y), color, nmd_vec2(uv1.x, uv2.y));
+
+    indices.push_back(nextIndex + 0);
+    indices.push_back(nextIndex + 1);
+    indices.push_back(nextIndex + 2);
+
+    indices.push_back(nextIndex + 0);
+    indices.push_back(nextIndex + 2);
+    indices.push_back(nextIndex + 3);
+}
+
+void DrawList::PrimQuadUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
+{
+    const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
+
+    vertices.emplace_back(p1, color, uv1);
+    vertices.emplace_back(p2, color, uv2);
+    vertices.emplace_back(p3, color, uv3);
+    vertices.emplace_back(p4, color, uv4);
+
+    indices.push_back(nextIndex + 0);
+    indices.push_back(nextIndex + 1);
+    indices.push_back(nextIndex + 2);
+
+    indices.push_back(nextIndex + 0);
+    indices.push_back(nextIndex + 2);
+    indices.push_back(nextIndex + 3);
+}
+*/
+
 void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float thickness)
 {
     if (!color.a)
@@ -1022,7 +1035,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
         return;
 
     const size_t offset = _nmd_context.drawList.numVertices;
-    IndexType* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
     for (size_t i = 2; i < numPoints; i++)
         indices[(i - 2) * 3 + 0] = offset, indices[(i - 2) * 3 + 1] = offset + (i - 1), indices[(i - 2) * 3 + 2] = offset + i;
     _nmd_context.drawList.numIndices += (numPoints - 2) * 3;
@@ -1033,104 +1046,296 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
     _nmd_context.drawList.numVertices += numPoints;
 }
 
-//void DrawList::AddBezierCurve(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, Color color, float thickness, size_t numSegments)
-//{
-//    if (!color.a)
-//        return;
-//
-//    PathLineTo(p1);
-//    PathBezierCurveTo(p2, p3, p4, numSegments);
-//    PathStroke(color, false, thickness);
-//}
-//
-//void DrawList::AddText(const nmd_vec2& pos, Color color, const char* text, size_t textLength)
-//{
-//    AddText(NULL, 0.0f, pos, color, text, textLength);
-//}
-//
-//void DrawList::AddText(const void* font, float fontSize, const nmd_vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth)
-//{
-//    if (!color.a)
-//        return;
-//    
-//    const char* const textEnd = text + textLength;
-//    
-//    float x = pos.x;
-//    float y = pos.y;
-//
-//    while (text < textEnd)
-//    {
-//        //const Glyph* glyph = font->FindGlyph(*text);
-//    
-//        //stbtt_aligned_quad q;
-//        //stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
-//        //
-//        //const size_t nextIndex = vertices.size();
-//        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y0), color, nmd_vec2(glyph->u0, glyph->v0));
-//        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y0), color, nmd_vec2(glyph->u1, glyph->v0));
-//        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y1), color, nmd_vec2(glyph->u1, glyph->v1));
-//        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y1), color, nmd_vec2(glyph->u0, glyph->v1));
-//    
-//        const IndexType nextIndex = static_cast<IndexType>(vertices.size());
-//
-//        indices.push_back(nextIndex + 0);
-//        indices.push_back(nextIndex + 1);
-//        indices.push_back(nextIndex + 2);
-//    
-//        indices.push_back(nextIndex + 0);
-//        indices.push_back(nextIndex + 2);
-//        indices.push_back(nextIndex + 3);
-//    
-//        text++;
-//    }
-//}
-//
-//void DrawList::AddImage(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
-//{
-//    if (!color.a)
-//        return;
-//
-//    PushRemainingDrawCommands();
-//
-//    PrimRectUV(p1, p2, uv1, uv2, color);
-//
-//    PushTextureDrawCommand(4, 6, userTextureId);
-//}
-//
-//void DrawList::AddImageQuad(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
-//{
-//    if (!color.a)
-//        return;
-//
-//    PushRemainingDrawCommands();
-//
-//    PrimQuadUV(p1, p2, p3, p4, uv1, uv2, uv3, uv4, color);
-//
-//    PushTextureDrawCommand(4, 6, userTextureId);
-//}
-//
-//void DrawList::AddImageRounded(TextureId userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, float rounding, uint32_t cornerFlags, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
-//{
-//    if (!color.a)
-//        return;
-//
-//    if (rounding <= 0.0f || !cornerFlags)
-//        AddImage(userTextureId, p1, p2, uv1, uv2, color);
-//    else
-//    {
-//        PushRemainingDrawCommands();
-//
-//        PathRect(p1, p2, rounding, cornerFlags);
-//
-//        const size_t v0 = vertices.size(), i0 = indices.size();
-//        PathFillConvex(color);
-//        ShadeVertsLinearUV(v0, p1, p2, uv1, uv2, true);
-//
-//        PushTextureDrawCommand(vertices.size() - v0, indices.size() - i0, userTextureId);
-//    }
-//}
+#ifdef NMD_GRAPHICS_ENABLE_DUMMY_TEXT_API
+
+void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing, float thickness)
+{
+    const float initial_x = x;
+    float width = 0;
+    for (; *text; text++, x += width + spacing)
+    {
+        switch (*text)
+        {
+        case ' ':
+            width = height * 0.5f;
+            break;
+        case '\n':
+            x = initial_x;
+            y += height;
+            break;
+        case '!':
+            width = height * 0.15f;
+            nmd_add_rect_filled(x, y, x + width, y + height * (2.0f / 3), color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.75f, x + width, y + height, color, 0, 0);
+            break;
+        case '"':
+            width = height * 0.35f;
+            nmd_add_rect_filled(x, y, x + width * 0.4f, y + height * 0.25f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.6f, y, x + width, y + height * 0.25f, color, 0, 0);
+            break;
+        case '#':
+            width = height * 0.75f;
+            nmd_add_rect_filled(x, y + height * 0.2f, x + width, y + height * 0.35f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.8f, color, 0, 0);
+            nmd_add_quad_filled(x + width * 0.3f, y, x + width * 0.5f, y, x + width * 0.3f, y + height, x + width * 0.1f, y + height, color);
+            nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
+            break;
+        /*case 0x24: /* $ 
+        //    width = height * 0.75f;
+        //    nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
+        //    break;*/
+        case '%':
+            width = height * 0.5f;
+            nmd_add_rect_filled(x, y, x + width * 0.5f, y + height * 0.3f, color, 0, 0);
+            nmd_add_quad_filled(x + width * 0.7f, y, x + width, y, x + width * 0.3f, y + height, x, y + height, color);
+            nmd_add_rect_filled(x + width * 0.5f, y + height * 0.7f, x + width, y + height, color, 0, 0);
+            break;
+        case '\'':
+            width = height * 0.14f;
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.3f, color, 0, 0);
+            break;
+        case '+':
+            width = height * 0.435f;
+            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.6f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.4f, y + height * 0.3f, x + width * 0.6f, y + height * 0.7f, color, 0, 0);
+            break;
+        case '-':
+            width = height * 0.435f;
+            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.55f, color, 0, 0);
+            break;
+        case '.':
+            width = height * 0.2f;
+            nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.85f, color, 0, 0);
+            break;
+        case '/':
+            width = height * 0.57f;
+            nmd_add_quad_filled(x + width * 0.75f, y, x + width, y, x + width * 0.25f, y + height, x + width * 0.45f, y + height, color);
+            break;
+        case '0':
+            width = height * 0.5f;
+            nmd_add_rect(x + width * 0.05f, y + height * 0.05f, x + width * 0.95f, y + height * 0.95f, color, 0, 0, width * 0.2f);
+            break;
+        case '1':
+            width = height * 0.5f;
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.4f, y, x + width * 0.6f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.1f, y, x + width * 0.4f, y + height * 0.2f, color, 0, 0);
+            break;
+        case '4':
+            width = height * 0.5f;
+            nmd_add_line(x + width * 0.80f, y, x + width * 0.80f, y + height, color, height * 0.15f);
+            nmd_add_line(x, y + height * 0.7f, x + width * 0.80f, y, color, height * 0.15f);
+            nmd_add_line(x, y + height * 0.7f, x + width * 0.95f, y + height * 0.7f, color, height * 0.15f);
+            break;
+        case '7':
+            width = height * 0.5f;
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_line(x + width, y, x, y + height, color, height * 0.15f);
+            break;
+        case '8':
+            width = height * 0.5f;
+            nmd_add_circle(x + width * 0.5f, y + height * 0.25f, height * 0.3f, color, 12, height * 0.15f);
+            nmd_add_circle(x + width * 0.5f, y + height * 0.75f, height * 0.3f, color, 12, height * 0.15f);
+            break;
+        case '9':
+            width = height * 0.5f;
+            nmd_add_circle(x + width * 0.5f, y + height * 0.25f, height * 0.3f, color, 12, height * 0.15f);
+            nmd_add_line(x + width * 0.95f, y, x + width * 0.95f, y + height, color, height * 0.15f);
+            break;
+        case ':':
+            width = height * 0.2f;
+            nmd_add_rect_filled(x, y + height * 0.1f, x + width, y + height * 0.3f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.7f, x + width, y + height * 0.9f, color, 0, 0);
+            break;
+        case '=':
+            width = height * 0.65f;
+            nmd_add_rect_filled(x, y + height * 0.2f, x + width, y + height * 0.35f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.8f, color, 0, 0);
+            break;
+        case 'A':
+            width = height * 0.6f;
+            nmd_add_line(x, y + height, x + width * 0.5f, y, color, height * 0.15f);
+            nmd_add_line(x + width * 0.1f, y + height * 0.7f, x + width * 0.9f, y + height * 0.7f, color, height * 0.15f);
+            nmd_add_line(x + width * 0.5f, y, x + width, y + height, color, height * 0.15f);
+            break;
+        case 'E':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.15f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.55f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            break;
+        case 'F':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.5f, x + width, y + height * 0.65f, color, 0, 0);
+            break;
+        case 'H':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.22f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.6f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
+            break;
+        case 'I':
+            width = height * 0.15f;
+            nmd_add_rect_filled(x, y, x + width, y + height, color, 0, 0);
+            break;
+        case 'L':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            break;
+        case 'M':
+            width = height * 0.7f;
+            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
+            nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
+            break;
+        case 'N':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.8f, y + height, x + width, y + height, color);
+            nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
+            break;
+        case 'T':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.45f, y, x + width * 0.65f, y + height, color, 0, 0);
+            break;
+        case 'V':
+            width = height * 0.7f;
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
+            break;
+        case 'X':
+            width = height * 0.7f;
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.8f, y + height, x + width, y + height, color);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x, y + height, x + width * 0.2f, y + height, color);
+            break;
+        case 'Y':
+            width = height * 0.7f;
+            nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height * 0.5f, color);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height * 0.5f, color);
+            nmd_add_rect_filled(x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height, color, 0, 0);
+            break;
+        case 'Z':
+            width = height * 0.6f;
+            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
+            nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.2f, y + height, x, y + height, color);
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            break;
+        case '_':
+            width = height * 0.7f;
+            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            break;
+        }
+    }
+}
+#endif /* NMD_GRAPHICS_ENABLE_DUMMY_TEXT_API */
+
+/*
+void DrawList::AddBezierCurve(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, Color color, float thickness, size_t numSegments)
+{
+    if (!color.a)
+        return;
+
+    PathLineTo(p1);
+    PathBezierCurveTo(p2, p3, p4, numSegments);
+    PathStroke(color, false, thickness);
+}
+
+void DrawList::AddText(const nmd_vec2& pos, Color color, const char* text, size_t textLength)
+{
+    AddText(NULL, 0.0f, pos, color, text, textLength);
+}
+
+void DrawList::AddText(const void* font, float fontSize, const nmd_vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth)
+{
+    if (!color.a)
+        return;
+    
+    const char* const textEnd = text + textLength;
+    
+    float x = pos.x;
+    float y = pos.y;
+
+    while (text < textEnd)
+    {
+        //const Glyph* glyph = font->FindGlyph(*text);
+    
+        //stbtt_aligned_quad q;
+        //stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
+        //
+        //const size_t nextIndex = vertices.size();
+        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y0), color, nmd_vec2(glyph->u0, glyph->v0));
+        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y0), color, nmd_vec2(glyph->u1, glyph->v0));
+        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y1), color, nmd_vec2(glyph->u1, glyph->v1));
+        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y1), color, nmd_vec2(glyph->u0, glyph->v1));
+    
+        const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
+
+        indices.push_back(nextIndex + 0);
+        indices.push_back(nextIndex + 1);
+        indices.push_back(nextIndex + 2);
+    
+        indices.push_back(nextIndex + 0);
+        indices.push_back(nextIndex + 2);
+        indices.push_back(nextIndex + 3);
+    
+        text++;
+    }
+}
+
+void DrawList::AddImage(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+{
+    if (!color.a)
+        return;
+
+    PushRemainingDrawCommands();
+
+    PrimRectUV(p1, p2, uv1, uv2, color);
+
+    PushTextureDrawCommand(4, 6, userTextureId);
+}
+
+void DrawList::AddImageQuad(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
+{
+    if (!color.a)
+        return;
+
+    PushRemainingDrawCommands();
+
+    PrimQuadUV(p1, p2, p3, p4, uv1, uv2, uv3, uv4, color);
+
+    PushTextureDrawCommand(4, 6, userTextureId);
+}
+
+void DrawList::AddImageRounded(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, float rounding, uint32_t cornerFlags, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+{
+    if (!color.a)
+        return;
+
+    if (rounding <= 0.0f || !cornerFlags)
+        AddImage(userTextureId, p1, p2, uv1, uv2, color);
+    else
+    {
+        PushRemainingDrawCommands();
+
+        PathRect(p1, p2, rounding, cornerFlags);
+
+        const size_t v0 = vertices.size(), i0 = indices.size();
+        PathFillConvex(color);
+        ShadeVertsLinearUV(v0, p1, p2, uv1, uv2, true);
+
+        PushTextureDrawCommand(vertices.size() - v0, indices.size() - i0, userTextureId);
+    }
+}
+*/
 
 #ifdef NMD_GRAPHICS_D3D9
+#pragma comment(lib, "d3d9.lib")
 static LPDIRECT3DDEVICE9 _nmd_d3d9_device = 0;
 static LPDIRECT3DVERTEXBUFFER9 _nmd_d3d9_vb = 0; /* vertex buffer */
 static LPDIRECT3DINDEXBUFFER9 _nmd_d3d9_ib = 0; /* index buffer*/
@@ -1214,7 +1419,7 @@ void nmd_d3d9_render()
         }
 
         _nmd_d3d9_ib_size = _nmd_context.drawList.numIndices + 10000;
-        if (_nmd_d3d9_device->CreateIndexBuffer((UINT)(_nmd_d3d9_ib_size * sizeof(IndexType)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(IndexType) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9_ib, NULL) < 0)
+        if (_nmd_d3d9_device->CreateIndexBuffer((UINT)(_nmd_d3d9_ib_size * sizeof(nmd_index)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9_ib, NULL) < 0)
             return;
     }
     
@@ -1236,10 +1441,10 @@ void nmd_d3d9_render()
     _nmd_d3d9_vb->Unlock();
 
     /* Copy indices to the gpu. */
-    IndexType* pIndices = 0;
-    if (_nmd_d3d9_ib->Lock(0, (UINT)(_nmd_context.drawList.numIndices * sizeof(IndexType)), (void**)&pIndices, D3DLOCK_DISCARD) != D3D_OK)
+    nmd_index* pIndices = 0;
+    if (_nmd_d3d9_ib->Lock(0, (UINT)(_nmd_context.drawList.numIndices * sizeof(nmd_index)), (void**)&pIndices, D3DLOCK_DISCARD) != D3D_OK)
         return;
-    memcpy(pIndices, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(IndexType));
+    memcpy(pIndices, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
     _nmd_d3d9_ib->Unlock();
     
     /* Backup current render state. */
@@ -1295,380 +1500,464 @@ void nmd_d3d9_render()
 
 
 #ifdef NMD_GRAPHICS_D3D11
-    static ID3D11Device* g_pD3D11Device = NULL;
-    static ID3D11DeviceContext* g_pD3D11DeviceContext = NULL;
-    static ID3D11Buffer* g_pD3D11VertexBuffer = NULL;
-    static ID3D11Buffer* g_pD3D11IndexBuffer = NULL;
-    static size_t g_D3D11VertexBufferSize = 0, g_D3D11IndexBufferSize = 0;
-    static ID3DBlob* g_pD3D11ShaderBlob = NULL;
-    static ID3D11VertexShader* g_pD3D11VertexShader = NULL;
-    static ID3D11PixelShader* g_pD3D11PixelShader = NULL;
-    static ID3D11SamplerState* g_pD3D11SamplerState = NULL;
-    static ID3D11InputLayout* g_pD3D11InputLayout = NULL;
-    static ID3D11Buffer* g_pD3D11VertexConstantBuffer = NULL;
-    static ID3D11BlendState* g_pD3D11BlendState = NULL;
-    static ID3D11RasterizerState* g_pD3D11RasterizerState = NULL;
-    static ID3D11DepthStencilState* g_pD3D11DepthStencilState = NULL;
-    static ID3D11ShaderResourceView* g_pD3D11FontTextureView = NULL;
 
-    struct D3D11_RENDER_STATE
+#include <d3d11.h>
+#pragma comment(lib, "d3d11")
+
+#include <d3dcompiler.h>
+#pragma comment(lib, "d3dcompiler")
+
+struct
+{
+    ID3D11Device* device;
+    ID3D11DeviceContext* device_context;
+    ID3D11Buffer* vertex_buffer;
+    ID3D11Buffer* index_buffer;
+    int vertex_buffer_size = 5000, index_buffer_size = 10000;
+    ID3D11VertexShader* vertex_shader;
+    ID3D11PixelShader* pixel_shader;
+    ID3D11InputLayout* input_layout;
+    D3D11_VIEWPORT viewport;
+    ID3D11Buffer* const_buffer;
+    ID3D11SamplerState* font_sampler = NULL;
+    ID3D11ShaderResourceView* font_texture_view;
+    ID3D11RasterizerState* rasterizer_state;
+    ID3D11BlendState* blend_state;
+    ID3D11DepthStencilState* depth_stencil_state;
+} _nmd_d3d11;
+
+void nmd_d3d11_set_device_context(ID3D11DeviceContext* device_context)
+{
+    _nmd_d3d11.device_context = device_context;
+    _nmd_d3d11.device_context->GetDevice(&_nmd_d3d11.device);
+}
+
+bool _nmd_d3d11_create_objects()
+{
+    if (!_nmd_d3d11.device)
+        return false;
+
+    if (_nmd_d3d11.font_sampler)
+        return true;
+
+    _nmd_d3d11.viewport.MinDepth = 0.0f;
+    _nmd_d3d11.viewport.MaxDepth = 1.0f;
+    _nmd_d3d11.viewport.TopLeftX = 0.0f;
+    _nmd_d3d11.viewport.TopLeftY = 0;
+
+    static const char* vertexShader =
+        "cbuffer vertexBuffer : register(b0) \
+        {\
+          float4x4 ProjectionMatrix; \
+        };\
+        struct VS_INPUT\
+        {\
+          float2 pos : POSITION;\
+          float4 col : COLOR0;\
+          float2 uv  : TEXCOORD0;\
+        };\
+        \
+        struct PS_INPUT\
+        {\
+          float4 pos : SV_POSITION;\
+          float4 col : COLOR0;\
+          float2 uv  : TEXCOORD0;\
+        };\
+        \
+        PS_INPUT main(VS_INPUT input)\
+        {\
+          PS_INPUT output;\
+          output.pos = mul( ProjectionMatrix, float4(input.pos.xy, 0.f, 1.f));\
+          output.col = input.col;\
+          output.uv  = input.uv;\
+          return output;\
+        }";
+
+    ID3DBlob* vertexShaderBlob;
+    if (FAILED(D3DCompile(vertexShader, strlen(vertexShader), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vertexShaderBlob, NULL)))
+        return false;
+    if (_nmd_d3d11.device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), NULL, &_nmd_d3d11.vertex_shader) != S_OK)
     {
-        UINT ScissorRectsCount, ViewportsCount;
-        D3D11_RECT ScissorRects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
-        D3D11_VIEWPORT Viewports[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
-        ID3D11RasterizerState* RS;
-        ID3D11BlendState* BlendState;
-        FLOAT BlendFactor[4];
-        UINT SampleMask;
-        UINT StencilRef;
-        ID3D11DepthStencilState* DepthStencilState;
-        ID3D11ShaderResourceView* PSShaderResource;
-        ID3D11SamplerState* PSSampler;
-        ID3D11PixelShader* PS;
-        ID3D11VertexShader* VS;
-        ID3D11GeometryShader* GS;
-        UINT PSInstancesCount, VSInstancesCount, GSInstancesCount;
-        ID3D11ClassInstance* PSInstances[256], * VSInstances[256], * GSInstances[256];
-        D3D11_PRIMITIVE_TOPOLOGY PrimitiveTopology;
-        ID3D11Buffer* IndexBuffer, * VertexBuffer, * VSConstantBuffer;
-        UINT IndexBufferOffset, VertexBufferStride, VertexBufferOffset;
-        DXGI_FORMAT IndexBufferFormat;
-        ID3D11InputLayout* InputLayout;
+        vertexShaderBlob->Release();
+        return false;
+    }
+
+    // Create the input layout
+    D3D11_INPUT_ELEMENT_DESC local_layout[] =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,   0, (UINT)_NMD_OFFSETOF(nmd_vertex, pos), D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,   0, (UINT)_NMD_OFFSETOF(nmd_vertex, uv),  D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR",    0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, (UINT)_NMD_OFFSETOF(nmd_vertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
-    struct VERTEX_CONSTANT_BUFFER { float mvp[4][4]; };
-
-    void D3D11SetDeviceContext(ID3D11DeviceContext* pD3D11DeviceContext)
+    if (_nmd_d3d11.device->CreateInputLayout(local_layout, 3, vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &_nmd_d3d11.input_layout) != S_OK)
     {
-        g_pD3D11DeviceContext = pD3D11DeviceContext;
-        g_pD3D11DeviceContext->GetDevice(&g_pD3D11Device);
+        vertexShaderBlob->Release();
+        return false;
     }
 
-    void D3D11Render()
+    vertexShaderBlob->Release();
+
+    // Create the constant buffer
+    D3D11_BUFFER_DESC bufferDesc;
+    bufferDesc.ByteWidth = sizeof(float) * 4 * 4;
+    bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    bufferDesc.MiscFlags = 0;
+    _nmd_d3d11.device->CreateBuffer(&bufferDesc, NULL, &_nmd_d3d11.const_buffer);
+
+    // Create the pixel shader
+    static const char* pixelShader =
+        "struct PS_INPUT\
+        {\
+        float4 pos : SV_POSITION;\
+        float4 col : COLOR0;\
+        float2 uv  : TEXCOORD0;\
+        };\
+        sampler sampler0;\
+        Texture2D texture0;\
+        \
+        float4 main(PS_INPUT input) : SV_Target\
+        {\
+        float4 out_col = input.col * texture0.Sample(sampler0, input.uv); \
+        return out_col; \
+        }";
+
+    ID3DBlob* pixelShaderBlob;
+    if (FAILED(D3DCompile(pixelShader, strlen(pixelShader), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &pixelShaderBlob, NULL)))
+        return false;
+    if (_nmd_d3d11.device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), NULL, &_nmd_d3d11.pixel_shader) != S_OK)
     {
-        Context& context = GetContext();
-
-        //Don't render if screen is minimized.
-        //if (context.io.displaySize.x <= 0.0f || context.io.displaySize.y <= 0.0f)
-        //    return;
-
-        //If not initialized, create pixel shader, vertex shader, input layout, etc..
-        if (!g_pD3D11VertexShader)
-        {
-            const char* const pixelShaderCode = "\
-            struct PS_INPUT { float4 pos : SV_POSITION; float4 color : COLOR0; };\
-            float4 main(PS_INPUT ps_input) : SV_TARGET\
-            {\
-                return ps_input.color;\
-            }";
-
-            if (D3DCompile(pixelShaderCode, strlen(pixelShaderCode), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &g_pD3D11ShaderBlob, NULL) != S_OK)
-                return;
-
-            if (g_pD3D11Device->CreatePixelShader(g_pD3D11ShaderBlob->GetBufferPointer(), g_pD3D11ShaderBlob->GetBufferSize(), NULL, &g_pD3D11PixelShader) != S_OK)
-                return;
-
-            const char* const vertexShaderCode = "\
-            cbuffer vertexBuffer : register(b0) { float4x4 projectionMatrix; };\
-            struct VS_INPUT { float2 pos : POSITION; float4 color : COLOR0; };\
-            struct PS_INPUT { float4 pos : SV_POSITION; float4 color : COLOR0; };\
-            PS_INPUT main(VS_INPUT vs_input)\
-            {\
-                PS_INPUT ps_input;\
-                ps_input.pos = mul(projectionMatrix, float4(vs_input.pos.xy, 0.0f, 1.0f));\
-                ps_input.color = vs_input.color;\
-                return ps_input;\
-            }";
-
-            if (D3DCompile(vertexShaderCode, strlen(vertexShaderCode), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &g_pD3D11ShaderBlob, NULL) != S_OK)
-                return;
-
-            if (g_pD3D11Device->CreateVertexShader(g_pD3D11ShaderBlob->GetBufferPointer(), g_pD3D11ShaderBlob->GetBufferSize(), NULL, &g_pD3D11VertexShader) != S_OK)
-                return;
-
-            D3D11_INPUT_ELEMENT_DESC inputs[] = {
-                { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-                { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            };
-            if (g_pD3D11Device->CreateInputLayout(inputs, 2, g_pD3D11ShaderBlob->GetBufferPointer(), g_pD3D11ShaderBlob->GetBufferSize(), &g_pD3D11InputLayout) != S_OK)
-                return;
-
-            g_pD3D11ShaderBlob->Release();
-
-            D3D11_BUFFER_DESC desc;
-            desc.ByteWidth = sizeof(VERTEX_CONSTANT_BUFFER);
-            desc.Usage = D3D11_USAGE_DYNAMIC;
-            desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-            desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            desc.MiscFlags = 0;
-            g_pD3D11Device->CreateBuffer(&desc, NULL, &g_pD3D11VertexConstantBuffer);
-        }
-
-
-        //Create/recreate vertex/index buffer if it doesn't exist or more space is needed.
-        {
-            if (!g_pD3D11VertexBuffer || g_D3D11VertexBufferSize < context.drawList.vertices.size())
-            {
-                if (g_pD3D11VertexBuffer)
-                    g_pD3D11VertexBuffer->Release(), g_pD3D11VertexBuffer = NULL;
-
-                g_D3D11VertexBufferSize = context.drawList.vertices.size() + 5000;
-
-                D3D11_BUFFER_DESC desc;
-                desc.Usage = D3D11_USAGE_DYNAMIC;
-                desc.ByteWidth = static_cast<UINT>(g_D3D11VertexBufferSize * sizeof(Vertex));
-                desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-                desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-                desc.MiscFlags = 0;
-
-                if (g_pD3D11Device->CreateBuffer(&desc, NULL, &g_pD3D11VertexBuffer) != S_OK)
-                    return;
-            }
-
-            if (!g_pD3D11IndexBuffer || g_D3D11IndexBufferSize < context.drawList.indices.size())
-            {
-                if (g_pD3D11IndexBuffer)
-                    g_pD3D11IndexBuffer->Release(), g_pD3D11IndexBuffer = NULL;
-
-                g_D3D11IndexBufferSize = context.drawList.indices.size() + 10000;
-
-                D3D11_BUFFER_DESC desc;
-                desc.Usage = D3D11_USAGE_DYNAMIC;
-                desc.ByteWidth = static_cast<UINT>(g_D3D11IndexBufferSize * sizeof(IndexType));
-                desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-                desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-                desc.MiscFlags = 0;
-
-                if (g_pD3D11Device->CreateBuffer(&desc, NULL, &g_pD3D11IndexBuffer) != S_OK)
-                    return;
-            }
-        }
-
-        //Copy data to GPU.
-        {
-            D3D11_MAPPED_SUBRESOURCE mappedResource = { NULL, 0, 0 };
-
-            //Copy vertices.
-            if (g_pD3D11DeviceContext->Map(g_pD3D11VertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
-                return;
-            size_t i = 0;
-            for (auto& vertex : context.drawList.vertices)
-                memcpy(reinterpret_cast<uint8_t*>(mappedResource.pData) + i * 12, &vertex, 12), i++;
-            g_pD3D11DeviceContext->Unmap(g_pD3D11VertexBuffer, 0);
-
-            //Copy indices.
-            if (g_pD3D11DeviceContext->Map(g_pD3D11IndexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
-                return;
-            memcpy(mappedResource.pData, context.drawList.indices.data(), sizeof(IndexType) * context.drawList.indices.size());
-            g_pD3D11DeviceContext->Unmap(g_pD3D11IndexBuffer, 0);
-
-            //Copy matrix allowing us to specify pixel coordinates(e.g. (250, 250)) instead of normalized coordinates([-1, +1]).
-            if (g_pD3D11DeviceContext->Map(g_pD3D11VertexConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
-                return;
-            const float L = 0.0f;
-            const float R = 800; // 0.0f + context.io.displaySize.x;
-            const float T = 0.0f;
-            const float B = 600; // 0.0f + context.io.displaySize.y;
-            const float mvp[4][4] =
-            {
-                { 2.0f / (R - L),   0.0f,           0.0f,       0.0f },
-                { 0.0f,         2.0f / (T - B),     0.0f,       0.0f },
-                { 0.0f,         0.0f,           0.5f,       0.0f },
-                { (R + L) / (L - R),  (T + B) / (B - T),    0.5f,       1.0f },
-            };
-            memcpy(mappedResource.pData, mvp, sizeof(mvp));
-            g_pD3D11DeviceContext->Unmap(g_pD3D11VertexConstantBuffer, 0);
-        }
-
-        //Backup current render state.
-        D3D11_RENDER_STATE renderState;
-        {
-            renderState.ScissorRectsCount = renderState.ViewportsCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
-            g_pD3D11DeviceContext->RSGetScissorRects(&renderState.ScissorRectsCount, renderState.ScissorRects);
-            g_pD3D11DeviceContext->RSGetViewports(&renderState.ViewportsCount, renderState.Viewports);
-            g_pD3D11DeviceContext->RSGetState(&renderState.RS);
-            g_pD3D11DeviceContext->OMGetBlendState(&renderState.BlendState, renderState.BlendFactor, &renderState.SampleMask);
-            g_pD3D11DeviceContext->OMGetDepthStencilState(&renderState.DepthStencilState, &renderState.StencilRef);
-            g_pD3D11DeviceContext->PSGetShaderResources(0, 1, &renderState.PSShaderResource);
-            g_pD3D11DeviceContext->PSGetSamplers(0, 1, &renderState.PSSampler);
-            renderState.PSInstancesCount = renderState.VSInstancesCount = renderState.GSInstancesCount = 256;
-            g_pD3D11DeviceContext->PSGetShader(&renderState.PS, renderState.PSInstances, &renderState.PSInstancesCount);
-            g_pD3D11DeviceContext->VSGetShader(&renderState.VS, renderState.VSInstances, &renderState.VSInstancesCount);
-            g_pD3D11DeviceContext->VSGetConstantBuffers(0, 1, &renderState.VSConstantBuffer);
-            g_pD3D11DeviceContext->GSGetShader(&renderState.GS, renderState.GSInstances, &renderState.GSInstancesCount);
-            g_pD3D11DeviceContext->IAGetPrimitiveTopology(&renderState.PrimitiveTopology);
-            g_pD3D11DeviceContext->IAGetIndexBuffer(&renderState.IndexBuffer, &renderState.IndexBufferFormat, &renderState.IndexBufferOffset);
-            g_pD3D11DeviceContext->IAGetVertexBuffers(0, 1, &renderState.VertexBuffer, &renderState.VertexBufferStride, &renderState.VertexBufferOffset);
-            g_pD3D11DeviceContext->IAGetInputLayout(&renderState.InputLayout);
-        }
-
-        //Set our render state
-        {
-            D3D11_VIEWPORT vp;
-            vp.Width = 800;// context.io.displaySize.x;
-            vp.Height = 600;// context.io.displaySize.y;
-            vp.MinDepth = 0.0f;
-            vp.MaxDepth = 1.0f;
-            vp.TopLeftX = vp.TopLeftY = 0;
-            g_pD3D11DeviceContext->RSSetViewports(1, &vp);
-
-            const UINT stride = 12, offset = 0;
-            g_pD3D11DeviceContext->IASetInputLayout(g_pD3D11InputLayout);
-            g_pD3D11DeviceContext->IASetVertexBuffers(0, 1, &g_pD3D11VertexBuffer, &stride, &offset);
-            g_pD3D11DeviceContext->IASetIndexBuffer(g_pD3D11IndexBuffer, sizeof(IndexType) == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT, 0);
-            g_pD3D11DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            g_pD3D11DeviceContext->VSSetShader(g_pD3D11VertexShader, NULL, 0);
-            g_pD3D11DeviceContext->PSSetShader(g_pD3D11PixelShader, NULL, 0);
-            g_pD3D11DeviceContext->VSSetConstantBuffers(0, 1, &g_pD3D11VertexConstantBuffer);
-        }
-
-        //Issue draw calls to the GPU.
-        {
-            size_t vertexBufferOffset = 0, indexBufferOffset = 0;
-            for (auto& drawCommand : context.drawList.drawCommands)
-            {
-                //ID3D11ShaderResourceView* pD3D11Texture = reinterpret_cast<ID3D11ShaderResourceView*>(drawCommand.userTextureId);
-                //g_pD3D11DeviceContext->PSSetShaderResources(0, 1, &pD3D11Texture);
-                g_pD3D11DeviceContext->DrawIndexed(static_cast<UINT>(drawCommand.numIndices), static_cast<UINT>(indexBufferOffset), 0/*static_cast<INT>(vertexBufferOffset)*/);
-                vertexBufferOffset += drawCommand.numVertices, indexBufferOffset += drawCommand.numIndices;
-            }
-        }
-
-        //Restore render state.
-        {
-            g_pD3D11DeviceContext->RSSetScissorRects(renderState.ScissorRectsCount, renderState.ScissorRects);
-            g_pD3D11DeviceContext->RSSetViewports(renderState.ViewportsCount, renderState.Viewports);
-            g_pD3D11DeviceContext->RSSetState(renderState.RS);
-            g_pD3D11DeviceContext->OMSetBlendState(renderState.BlendState, renderState.BlendFactor, renderState.SampleMask);
-            g_pD3D11DeviceContext->OMSetDepthStencilState(renderState.DepthStencilState, renderState.StencilRef);
-            g_pD3D11DeviceContext->PSSetShaderResources(0, 1, &renderState.PSShaderResource);
-            g_pD3D11DeviceContext->PSSetSamplers(0, 1, &renderState.PSSampler);
-            g_pD3D11DeviceContext->PSSetShader(renderState.PS, renderState.PSInstances, renderState.PSInstancesCount);
-            g_pD3D11DeviceContext->VSSetShader(renderState.VS, renderState.VSInstances, renderState.VSInstancesCount);
-            g_pD3D11DeviceContext->VSSetConstantBuffers(0, 1, &renderState.VSConstantBuffer);
-            g_pD3D11DeviceContext->IASetPrimitiveTopology(renderState.PrimitiveTopology);
-            g_pD3D11DeviceContext->IASetIndexBuffer(renderState.IndexBuffer, renderState.IndexBufferFormat, renderState.IndexBufferOffset);
-            g_pD3D11DeviceContext->IASetVertexBuffers(0, 1, &renderState.VertexBuffer, &renderState.VertexBufferStride, &renderState.VertexBufferOffset);
-            g_pD3D11DeviceContext->IASetInputLayout(renderState.InputLayout);
-        }
+        pixelShaderBlob->Release();
+        return false;
     }
+    pixelShaderBlob->Release();
+
+    // Create the blending setup
+    D3D11_BLEND_DESC blendDesc;
+    memset(&blendDesc, 0, sizeof(blendDesc));
+    blendDesc.AlphaToCoverageEnable = false;
+    blendDesc.RenderTarget[0].BlendEnable = true;
+    blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+    blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+    blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    _nmd_d3d11.device->CreateBlendState(&blendDesc, &_nmd_d3d11.blend_state);
+
+    // Create the rasterizer state
+    D3D11_RASTERIZER_DESC rasterizerDesc;
+    memset(&rasterizerDesc, 0, sizeof(rasterizerDesc));
+    rasterizerDesc.FillMode = D3D11_FILL_SOLID;
+    rasterizerDesc.CullMode = D3D11_CULL_NONE;
+    rasterizerDesc.ScissorEnable = true;
+    rasterizerDesc.DepthClipEnable = true;
+    _nmd_d3d11.device->CreateRasterizerState(&rasterizerDesc, &_nmd_d3d11.rasterizer_state);
+
+    // Create depth-stencil State
+    D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
+    memset(&depthStencilDesc, 0, sizeof(depthStencilDesc));
+    depthStencilDesc.DepthEnable = false;
+    depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    depthStencilDesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+    depthStencilDesc.StencilEnable = false;
+    depthStencilDesc.FrontFace.StencilFailOp = depthStencilDesc.FrontFace.StencilDepthFailOp = depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    depthStencilDesc.BackFace = depthStencilDesc.FrontFace;
+    _nmd_d3d11.device->CreateDepthStencilState(&depthStencilDesc, &_nmd_d3d11.depth_stencil_state);
+
+    int width = 16, height = 16;
+    unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
+    memset(pixels, 0xff, width * height * 4);
+
+    // Upload texture to graphics system
+    D3D11_TEXTURE2D_DESC texDesc;
+    memset(&texDesc, 0, sizeof(texDesc));
+    texDesc.Width = width;
+    texDesc.Height = height;
+    texDesc.MipLevels = 1;
+    texDesc.ArraySize = 1;
+    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.Usage = D3D11_USAGE_DEFAULT;
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    texDesc.CPUAccessFlags = 0;
+
+    ID3D11Texture2D* pTexture = NULL;
+    D3D11_SUBRESOURCE_DATA subResource;
+    subResource.pSysMem = pixels;
+    subResource.SysMemPitch = texDesc.Width * 4;
+    subResource.SysMemSlicePitch = 0;
+    _nmd_d3d11.device->CreateTexture2D(&texDesc, &subResource, &pTexture);
+
+    // Create texture view
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+    ZeroMemory(&srvDesc, sizeof(srvDesc));
+    srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    _nmd_d3d11.device->CreateShaderResourceView(pTexture, &srvDesc, &_nmd_d3d11.font_texture_view);
+    pTexture->Release();
+
+    // Create texture sampler
+    D3D11_SAMPLER_DESC samplerDesc;
+    memset(&samplerDesc, 0, sizeof(samplerDesc));
+    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.MipLODBias = 0.f;
+    samplerDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+    samplerDesc.MinLOD = 0.f;
+    samplerDesc.MaxLOD = 0.f;
+    _nmd_d3d11.device->CreateSamplerState(&samplerDesc, &_nmd_d3d11.font_sampler);
+
+    return true;
+}
+
+bool nmd_d3d11_resize(int width, int height)
+{
+    if (!_nmd_d3d11.font_sampler && !_nmd_d3d11_create_objects())
+        return false;
+
+    D3D11_MAPPED_SUBRESOURCE mapped_resource;
+    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.const_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource) != S_OK)
+        return false;
+
+    float L = 0;
+    float R = 0 + width;
+    float T = 0;
+    float B = 0 + height;
+    float mvp[4][4] =
+    {
+        { 2.0f / (R - L),   0.0f,           0.0f,       0.0f },
+        { 0.0f,         2.0f / (T - B),     0.0f,       0.0f },
+        { 0.0f,         0.0f,           0.5f,       0.0f },
+        { (R + L) / (L - R),  (T + B) / (B - T),    0.5f,       1.0f },
+    };
+    memcpy(mapped_resource.pData, mvp, sizeof(mvp));
+    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.const_buffer, 0);
+
+    // Setup viewport
+    _nmd_d3d11.viewport.Width = width;
+    _nmd_d3d11.viewport.Height = height;
+
+    return true;
+}
+
+void nmd_d3d11_render()
+{
+    if (!_nmd_d3d11.font_sampler)
+        _nmd_d3d11_create_objects();
+
+    // Create/Recreate vertex/index buffers if needed
+    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices)
+    {
+        if (_nmd_d3d11.vertex_buffer)
+            _nmd_d3d11.vertex_buffer->Release();
+
+        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices + 5000;
+
+        D3D11_BUFFER_DESC desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size * sizeof(nmd_vertex);
+        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        desc.MiscFlags = 0;
+        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.vertex_buffer)))
+            return;
+    }
+
+    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices)
+    {
+        if (_nmd_d3d11.index_buffer)
+            _nmd_d3d11.index_buffer->Release();
+
+        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices + 10000;
+
+        D3D11_BUFFER_DESC desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.ByteWidth = _nmd_d3d11.index_buffer_size * sizeof(nmd_index);
+        desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.index_buffer)))
+            return;
+    }
+
+    // Copy vertices and indices and to the GPU 
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+        return;
+    memcpy(mappedResource.pData, _nmd_context.drawList.vertices, _nmd_context.drawList.numVertices * sizeof(nmd_vertex));
+    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.vertex_buffer, 0);
+
+    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+        return;
+    memcpy(mappedResource.pData, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
+    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.index_buffer, 0);
+
+    // Set render state
+    unsigned int stride = sizeof(nmd_vertex);
+    unsigned int offset = 0;
+    _nmd_d3d11.device_context->IASetInputLayout(_nmd_d3d11.input_layout);
+    _nmd_d3d11.device_context->IASetVertexBuffers(0, 1, &_nmd_d3d11.vertex_buffer, &stride, &offset);
+    _nmd_d3d11.device_context->IASetIndexBuffer(_nmd_d3d11.index_buffer, sizeof(nmd_index) == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT, 0);
+    _nmd_d3d11.device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    _nmd_d3d11.device_context->VSSetShader(_nmd_d3d11.vertex_shader, NULL, 0);
+    _nmd_d3d11.device_context->VSSetConstantBuffers(0, 1, &_nmd_d3d11.const_buffer);
+    _nmd_d3d11.device_context->PSSetShader(_nmd_d3d11.pixel_shader, NULL, 0);
+    _nmd_d3d11.device_context->PSSetSamplers(0, 1, &_nmd_d3d11.font_sampler);
+    _nmd_d3d11.device_context->GSSetShader(NULL, NULL, 0);
+    _nmd_d3d11.device_context->HSSetShader(NULL, NULL, 0);
+    _nmd_d3d11.device_context->DSSetShader(NULL, NULL, 0);
+    _nmd_d3d11.device_context->CSSetShader(NULL, NULL, 0);
+    _nmd_d3d11.device_context->RSSetViewports(1, &_nmd_d3d11.viewport);
+    const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
+    _nmd_d3d11.device_context->OMSetBlendState(_nmd_d3d11.blend_state, blend_factor, 0xffffffff);
+    _nmd_d3d11.device_context->OMSetDepthStencilState(_nmd_d3d11.depth_stencil_state, 0);
+    _nmd_d3d11.device_context->RSSetState(_nmd_d3d11.rasterizer_state);
+
+    // Render draw commands
+    int vertexOffset = 0;
+    int indexOffset = 0;
+    for (int i = 0; i < _nmd_context.drawList.numDrawCommands; i++)
+    {
+        // Apply scissor rectangle
+        D3D11_RECT r;
+        if (_nmd_context.drawList.drawCommands[i].rect.p1.x == -1.0f)
+            r = { (LONG)_nmd_d3d11.viewport.TopLeftX, (LONG)_nmd_d3d11.viewport.TopLeftY, (LONG)_nmd_d3d11.viewport.Width, (LONG)_nmd_d3d11.viewport.Height };
+        else
+            r = { (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.y, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.y };
+        _nmd_d3d11.device_context->RSSetScissorRects(1, &r);
+
+        _nmd_d3d11.device_context->PSSetShaderResources(0, 1, &_nmd_d3d11.font_texture_view);
+        _nmd_d3d11.device_context->DrawIndexed(_nmd_context.drawList.drawCommands[i].numIndices, indexOffset, vertexOffset);
+
+        vertexOffset += _nmd_context.drawList.drawCommands[i].numVertices;
+        indexOffset += _nmd_context.drawList.drawCommands[i].numIndices;
+    }
+}
+
 #endif /* NMD_GRAPHICS_D3D11 */
 
 
-#include "glad/glad.h"
-
+#ifdef NMD_GRAPHICS_OPENGL
 static GLuint _nmd_vbo = 0, _nmd_vao, _nmd_ebo;
 static GLuint _nmd_vs, _nmd_fs, _nmd_program;
 static GLuint _nmd_uniform_tex, _nmd_uniform_proj, _nmd_attrib_pos, _nmd_attrib_uv, _nmd_attrib_color;
 
-#ifdef NMD_GRAPHICS_OPENGL
-
-    bool _nmd_opengl_create_objects()
-    {
-        if (_nmd_vbo)
-            return true;
-
-        const char* vertexShaderSource = "#version 330 core\n"
-            "uniform mat4 projection;\n"
-            "layout (location = 0) in vec2 pos;\n"
-            "layout (location = 1) in vec2 uv;\n"
-            "layout (location = 2) in vec4 color;\n"
-            "out vec4 fragColor;\n"
-            "void main() { fragColor = color; gl_Position = projection * vec4(pos.xy, 0.0, 1.0); }";
-
-        const char* fragmentShaderSource = "#version 330 core\n"
-            "in vec4 fragColor;\n"
-            "out vec4 outColor;\n"
-            "void main() { outColor = fragColor; }";
-
-        int success = 0;
-
-        _nmd_vs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(_nmd_vs, 1, &vertexShaderSource, NULL);
-        glCompileShader(_nmd_vs);
-        glGetShaderiv(_nmd_vs, GL_COMPILE_STATUS, &success);
-        if (!success)
-            return false;
-
-        _nmd_fs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(_nmd_fs, 1, &fragmentShaderSource, NULL);
-        glCompileShader(_nmd_fs);
-        glGetShaderiv(_nmd_fs, GL_COMPILE_STATUS, &success);
-        if (!success)
-            return false;
-
-        _nmd_program = glCreateProgram();
-        glAttachShader(_nmd_program, _nmd_vs);
-        glAttachShader(_nmd_program, _nmd_fs);
-        glLinkProgram(_nmd_program);
-        glGetProgramiv(_nmd_program, GL_LINK_STATUS, &success);
-        if(!success)
-            return false;
-
-        glDeleteShader(_nmd_vs);
-        glDeleteShader(_nmd_fs);
-
-        glGenVertexArrays(1, &_nmd_vao);
-        glGenBuffers(1, &_nmd_vbo);
-        glGenBuffers(1, &_nmd_ebo);
-
+bool _nmd_opengl_create_objects()
+{
+    if (_nmd_vbo)
         return true;
+
+    const char* vertexShaderSource = "#version 330 core\n"
+        "uniform mat4 projection;\n"
+        "layout (location = 0) in vec2 pos;\n"
+        "layout (location = 1) in vec2 uv;\n"
+        "layout (location = 2) in vec4 color;\n"
+        "out vec4 fragColor;\n"
+        "void main() { fragColor = color; gl_Position = projection * vec4(pos.xy, 0.0, 1.0); }";
+
+    const char* fragmentShaderSource = "#version 330 core\n"
+        "in vec4 fragColor;\n"
+        "out vec4 outColor;\n"
+        "void main() { outColor = fragColor; }";
+
+    int success = 0;
+
+    _nmd_vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(_nmd_vs, 1, &vertexShaderSource, NULL);
+    glCompileShader(_nmd_vs);
+    glGetShaderiv(_nmd_vs, GL_COMPILE_STATUS, &success);
+    if (!success)
+        return false;
+
+    _nmd_fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(_nmd_fs, 1, &fragmentShaderSource, NULL);
+    glCompileShader(_nmd_fs);
+    glGetShaderiv(_nmd_fs, GL_COMPILE_STATUS, &success);
+    if (!success)
+        return false;
+
+    _nmd_program = glCreateProgram();
+    glAttachShader(_nmd_program, _nmd_vs);
+    glAttachShader(_nmd_program, _nmd_fs);
+    glLinkProgram(_nmd_program);
+    glGetProgramiv(_nmd_program, GL_LINK_STATUS, &success);
+    if(!success)
+        return false;
+
+    glDeleteShader(_nmd_vs);
+    glDeleteShader(_nmd_fs);
+
+    glGenVertexArrays(1, &_nmd_vao);
+    glGenBuffers(1, &_nmd_vbo);
+    glGenBuffers(1, &_nmd_ebo);
+
+    return true;
+}
+
+bool nmd_opengl_resize(int width, int height)
+{
+    if (!_nmd_opengl_create_objects())
+        return false;
+
+    glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+    GLfloat ortho[4][4] = {
+    {2.0f, 0.0f, 0.0f, 0.0f},
+    {0.0f,-2.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f,-1.0f, 0.0f},
+    {-1.0f,1.0f, 0.0f, 1.0f},
+    };
+    ortho[0][0] /= (GLfloat)width;
+    ortho[1][1] /= (GLfloat)height;
+    glUseProgram(_nmd_program);
+    glUniformMatrix4fv(glGetUniformLocation(_nmd_program, "projection"), 1, GL_FALSE, &ortho[0][0]);
+
+    return true;
+}
+
+bool nmd_opengl_render()
+{
+    if (!_nmd_opengl_create_objects())
+        return false;
+
+    glUseProgram(_nmd_program);
+
+    glBindVertexArray(_nmd_vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, _nmd_vbo);
+    glBufferData(GL_ARRAY_BUFFER, _nmd_context.drawList.numVertices * sizeof(nmd_vertex), _nmd_context.drawList.vertices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (void*)8);
+    glEnableVertexAttribArray(1);
+
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(nmd_vertex), (void*)16);
+    glEnableVertexAttribArray(2);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _nmd_ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, _nmd_context.drawList.numIndices * sizeof(nmd_index), _nmd_context.drawList.indices, GL_STATIC_DRAW);
+
+    size_t offset = 0;
+    size_t i = 0;
+    for (; i < _nmd_context.drawList.numDrawCommands; i++)
+    {
+        glDrawElements(GL_TRIANGLES, _nmd_context.drawList.drawCommands[i].numIndices, sizeof(nmd_index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)offset);
+        offset += _nmd_context.drawList.drawCommands[i].numIndices;
     }
 
-    bool nmd_opengl_resize(int width, int height)
-    {
-        if (!_nmd_opengl_create_objects())
-            return false;
-
-        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
-        GLfloat ortho[4][4] = {
-        {2.0f, 0.0f, 0.0f, 0.0f},
-        {0.0f,-2.0f, 0.0f, 0.0f},
-        {0.0f, 0.0f,-1.0f, 0.0f},
-        {-1.0f,1.0f, 0.0f, 1.0f},
-        };
-        ortho[0][0] /= (GLfloat)width;
-        ortho[1][1] /= (GLfloat)height;
-        glUseProgram(_nmd_program);
-        glUniformMatrix4fv(glGetUniformLocation(_nmd_program, "projection"), 1, GL_FALSE, &ortho[0][0]);
-
-        return true;
-    }
-
-    bool nmd_opengl_render()
-    {
-        if (!_nmd_opengl_create_objects())
-            return false;
-
-        glUseProgram(_nmd_program);
-
-        glBindVertexArray(_nmd_vao);
-
-        glBindBuffer(GL_ARRAY_BUFFER, _nmd_vbo);
-        glBufferData(GL_ARRAY_BUFFER, _nmd_context.drawList.numVertices * sizeof(nmd_vertex), _nmd_context.drawList.vertices, GL_STATIC_DRAW);
-
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (void*)0);
-        glEnableVertexAttribArray(0);
-
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (void*)8);
-        glEnableVertexAttribArray(1);
-
-        glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(nmd_vertex), (void*)16);
-        glEnableVertexAttribArray(2);
-
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _nmd_ebo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, _nmd_context.drawList.numIndices * sizeof(IndexType), _nmd_context.drawList.indices, GL_STATIC_DRAW);
-
-        size_t offset = 0;
-        size_t i = 0;
-        for (; i < _nmd_context.drawList.numDrawCommands; i++)
-        {
-            glDrawElements(GL_TRIANGLES, _nmd_context.drawList.drawCommands[i].numIndices, sizeof(IndexType) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)offset);
-            offset += _nmd_context.drawList.drawCommands[i].numIndices;
-        }
-
-        return true;
-    }
+    return true;
+}
 
 #endif /* NMD_GRAPHICS_OPENGL */
 
