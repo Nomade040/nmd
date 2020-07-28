@@ -14,9 +14,9 @@
 #define NMD_CIRCLE_AUTO_SEGMENT_MAX 512
 #define NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, maxError) NMD_CLAMP(NMD_2PI / NMD_ACOS((radius - maxError) / radius), NMD_CIRCLE_AUTO_SEGMENT_MIN, NMD_CIRCLE_AUTO_SEGMENT_MAX)
 
+#define _NMD_OFFSETOF(TYPE, NAME) (&((TYPE*)0)->NAME)
+
 extern nmd_context _nmd_context;
 extern const uint8_t nmd_karla_ttf_regular[14824];
-
-void _nmd_push_remaining_draw_commands();
 
 #endif /* NMD_COMMON_H */
