@@ -1,7 +1,6 @@
 #include "nmd_common.h"
 
 #ifdef NMD_GRAPHICS_D3D9
-#pragma comment(lib, "d3d9.lib")
 static LPDIRECT3DDEVICE9 _nmd_d3d9_device = 0;
 static LPDIRECT3DVERTEXBUFFER9 _nmd_d3d9_vb = 0; /* vertex buffer */
 static LPDIRECT3DINDEXBUFFER9 _nmd_d3d9_ib = 0; /* index buffer*/
@@ -85,7 +84,7 @@ void nmd_d3d9_render()
         }
 
         _nmd_d3d9_ib_size = _nmd_context.drawList.numIndices + 10000;
-        if (_nmd_d3d9_device->CreateIndexBuffer((UINT)(_nmd_d3d9_ib_size * sizeof(nmd_index)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9_ib, NULL) < 0)
+        if (_nmd_d3d9_device->CreateIndexBuffer((UINT)(_nmd_d3d9_ib_size * sizeof(IndexType)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(IndexType) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9_ib, NULL) < 0)
             return;
     }
     
@@ -107,10 +106,10 @@ void nmd_d3d9_render()
     _nmd_d3d9_vb->Unlock();
 
     /* Copy indices to the gpu. */
-    nmd_index* pIndices = 0;
-    if (_nmd_d3d9_ib->Lock(0, (UINT)(_nmd_context.drawList.numIndices * sizeof(nmd_index)), (void**)&pIndices, D3DLOCK_DISCARD) != D3D_OK)
+    IndexType* pIndices = 0;
+    if (_nmd_d3d9_ib->Lock(0, (UINT)(_nmd_context.drawList.numIndices * sizeof(IndexType)), (void**)&pIndices, D3DLOCK_DISCARD) != D3D_OK)
         return;
-    memcpy(pIndices, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
+    memcpy(pIndices, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(IndexType));
     _nmd_d3d9_ib->Unlock();
     
     /* Backup current render state. */
