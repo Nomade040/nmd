@@ -48,71 +48,267 @@ bool _nmd_reserve_points(size_t numNewPoints)
     return true;
 }
 
+#define NMD_NORMALIZE2F_OVER_ZERO(VX,VY) { float d2 = VX*VX + VY*VY; if (d2 > 0.0f) { float inv_len = 1.0f / NMD_SQRT(d2); VX *= inv_len; VY *= inv_len; } }
+#define NMD_FIXNORMAL2F(VX,VY) { float d2 = VX*VX + VY*VY; if (d2 < 0.5f) d2 = 0.5f; float inv_lensq = 1.0f / d2; VX *= inv_lensq; VY *= inv_lensq; }
+
 void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color, bool closed, float thickness)
 {
+    const size_t numSegments = closed ? numPoints : numPoints - 1;
+
+    const bool thick_line = thickness > 1.0f;
+    nmd_color col_trans;
     if (numPoints < 2)
         return;
 
-    const size_t numInterations = closed ? numPoints : numPoints - 1;
-    if (!_nmd_reserve(4 * numPoints, 6 * numPoints))
-        return;
+    col_trans = color;
+    col_trans.a = 0;
 
-    const float halfThickness = (thickness * 0.5f);
-
-    for (size_t i = 0; i < numInterations; i++)
+    if (_nmd_context.drawList.lineAntiAliasing)
     {
-        const size_t offset = _nmd_context.drawList.numVertices;
+        const float AA_SIZE = 1.0f;
 
-        /* Add indices */
-        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
-        indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
-        indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
-        _nmd_context.drawList.numIndices += 6;
+        size_t i1 = 0;
 
-        const nmd_vec2* p0_tmp = &points[i];
-        const nmd_vec2* p1_tmp = &points[(i + 1) == numPoints ? 0 : i + 1];
-        const float dx = p1_tmp->x - p0_tmp->x;
-        const float dy = p1_tmp->y - p0_tmp->y;
+        const size_t idx_count = thick_line ? (numSegments * 18) : (numSegments * 12);
+        const size_t vtx_count = thick_line ? (numPoints * 4) : (numPoints * 3);
+        if (!_nmd_reserve(vtx_count, idx_count))
+            return;
 
-        /* If we didn't swap the points in this case the triangles would be drawn in the counter clockwise direction, which may cause issues in some rendering APIs. */
-        const bool swapPoints = (dx < 0.0f || dy < 0.0f) || (dx > 0.0f && dy > 0.0f);
-        const nmd_vec2* p0 = swapPoints ? p1_tmp : p0_tmp;
-        const nmd_vec2* p1 = swapPoints ? p0_tmp : p1_tmp;
+        size_t size;
+        nmd_vec2* normals, * temp;
+        normals = (nmd_vec2*)NMD_ALLOCA(sizeof(nmd_vec2) * ((thick_line) ? 5 : 3) * numPoints);
 
-        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+        temp = normals + numPoints;
 
-        if (dy == 0) /* Horizontal line */
-        {
-            const int factor = dx > 0.0f ? 1 : -1;
-            vertices[0].pos.x = p0->x - halfThickness * factor; vertices[0].pos.y = p0->y - halfThickness; vertices[0].color = color;
-            vertices[1].pos.x = p1->x + halfThickness * factor; vertices[1].pos.y = p1->y - halfThickness; vertices[1].color = color;
-            vertices[2].pos.x = p1->x + halfThickness * factor; vertices[2].pos.y = p1->y + halfThickness; vertices[2].color = color;
-            vertices[3].pos.x = p0->x - halfThickness * factor; vertices[3].pos.y = p0->y + halfThickness; vertices[3].color = color;
+        /* Calculate normals */
+        for (i1 = 0; i1 < numSegments; ++i1) {
+            const int i2 = (i1 + 1) == numPoints ? 0 : i1 + 1;
+            float dx = points[i2].x - points[i1].x;
+            float dy = points[i2].y - points[i1].y;
+            NMD_NORMALIZE2F_OVER_ZERO(dx, dy);
+            normals[i1].x = dy;
+            normals[i1].y = -dx;
         }
-        else if (dx == 0) /* Vertical line */
-        {
-            const int factor = dy > 0.0f ? 1 : -1;
-            vertices[0].pos.x = p0->x + halfThickness; vertices[0].pos.y = p0->y - halfThickness * factor; vertices[0].color = color;
-            vertices[1].pos.x = p1->x + halfThickness; vertices[1].pos.y = p1->y + halfThickness * factor; vertices[1].color = color;
-            vertices[2].pos.x = p1->x - halfThickness; vertices[2].pos.y = p1->y + halfThickness * factor; vertices[2].color = color;
-            vertices[3].pos.x = p0->x - halfThickness; vertices[3].pos.y = p0->y - halfThickness * factor; vertices[3].color = color;
+
+        if (!closed)
+            normals[numPoints - 1] = normals[numPoints - 2];
+
+        if (!thick_line) {
+            size_t idx1, i;
+            if (!closed) {
+                nmd_vec2 d;
+
+                temp[0].x = points[0].x + normals[0].x * AA_SIZE;
+                temp[0].y = points[0].y + normals[0].y * AA_SIZE;
+
+                temp[1].x = points[0].x - normals[0].x * AA_SIZE;
+                temp[1].y = points[0].y - normals[0].y * AA_SIZE;
+
+                d.x = normals[numPoints - 1].x * AA_SIZE;
+                d.y = normals[numPoints - 1].y * AA_SIZE;
+
+                temp[(numPoints - 1) * 2 + 0].x = points[numPoints - 1].x + d.x;
+                temp[(numPoints - 1) * 2 + 0].y = points[numPoints - 1].y + d.y;
+
+                temp[(numPoints - 1) * 2 + 1].x = points[numPoints - 1].x - d.x;
+                temp[(numPoints - 1) * 2 + 1].y = points[numPoints - 1].y - d.y;
+            }
+
+            /* Fill elements */
+            idx1 = _nmd_context.drawList.numVertices;
+            for (i1 = 0; i1 < numSegments; i1++) {
+                nmd_vec2 dm;
+                float dmr2;
+                size_t i2 = ((i1 + 1) == numPoints) ? 0 : (i1 + 1);
+                size_t idx2 = ((i1 + 1) == numPoints) ? _nmd_context.drawList.numVertices : (idx1 + 3);
+
+                /* Average normals */
+                dm.x = (normals[i1].x + normals[i2].x) * 0.5f;
+                dm.y = (normals[i1].y + normals[i2].y) * 0.5f;
+
+                dmr2 = dm.x * dm.x + dm.y * dm.y;
+                if (dmr2 > 0.000001f) {
+                    float scale = 1.0f / dmr2;
+
+                    scale = NMD_MIN(100.0f, scale);
+
+                    dm.x = dm.x * scale;
+                    dm.y = dm.y * scale;
+                }
+
+                dm.x = dm.x * AA_SIZE;
+                dm.y = dm.y * AA_SIZE;
+
+                temp[i2 * 2 + 0].x = points[i2].x + dm.x;
+                temp[i2 * 2 + 0].y = points[i2].y + dm.y;
+
+                temp[i2 * 2 + 1].x = points[i2].x - dm.x;
+                temp[i2 * 2 + 1].y = points[i2].y - dm.y;
+
+                nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+                indices[0]  = idx2 + 0; indices[1]  = idx1 + 0;
+                indices[2]  = idx1 + 2; indices[3]  = idx1 + 2;
+                indices[4]  = idx2 + 2; indices[5]  = idx2 + 0;
+                indices[6]  = idx2 + 1; indices[7]  = idx1 + 1;
+                indices[8]  = idx1 + 0; indices[9]  = idx1 + 0;
+                indices[10] = idx2 + 0; indices[11] = idx2 + 1;
+                _nmd_context.drawList.numIndices += 12;
+
+                idx1 = idx2;
+            }
+
+            /* Fill vertices */
+            for (i = 0; i < numPoints; ++i) {
+                nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+                vertices[0].pos = points[i];       vertices[0].color = color;
+                vertices[1].pos = temp[i * 2 + 0]; vertices[1].color = col_trans;
+                vertices[2].pos = temp[i * 2 + 1]; vertices[2].color = col_trans;
+                _nmd_context.drawList.numVertices += 3;
+            }
         }
-        else /* Inclined line */
-        {
-            const float lineWidth = NMD_SQRT(dx * dx + dy * dy);
+        else {
+            size_t idx1, i;
+            const float half_inner_thickness = (thickness - AA_SIZE) * 0.5f;
+            if (!closed) {
+                nmd_vec2 d1;
+                d1.x = normals[0].x * (half_inner_thickness + AA_SIZE);
+                d1.y = normals[0].y * (half_inner_thickness + AA_SIZE);
 
-            const float cosine = dx / lineWidth;
-            const float sine = dy / lineWidth;
+                nmd_vec2 d2;
+                d2.x = normals[0].x * half_inner_thickness;
+                d2.y = normals[0].y * half_inner_thickness;
+        
+                temp[0].x = points[0].x + d1.x;
+                temp[0].y = points[0].y + d1.y;
 
-            const float xFactor = cosine * halfThickness;
-            const float yFactor = sine * halfThickness;
+                temp[1].x = points[0].x + d2.x;
+                temp[1].y = points[0].y + d2.y;
 
-            vertices[0].pos.x = p0->x - yFactor; vertices[0].pos.y = p0->y + xFactor; vertices[0].color = color;
-            vertices[1].pos.x = p1->x - yFactor; vertices[1].pos.y = p1->y + xFactor; vertices[1].color = color;
-            vertices[2].pos.x = p1->x + yFactor; vertices[2].pos.y = p1->y - xFactor; vertices[2].color = color;
-            vertices[3].pos.x = p0->x + yFactor; vertices[3].pos.y = p0->y - xFactor; vertices[3].color = color;
+                temp[2].x = points[0].x - d2.x;
+                temp[2].y = points[0].y - d2.y;
+
+                temp[3].x = points[0].x - d1.x;
+                temp[3].y = points[0].y - d1.y;
+        
+                d1.x = normals[numPoints - 1].x * (half_inner_thickness + AA_SIZE);
+                d1.y = normals[numPoints - 1].y * (half_inner_thickness + AA_SIZE);
+
+                d2.x = normals[numPoints - 1].x * half_inner_thickness;
+                d2.y = normals[numPoints - 1].y * half_inner_thickness;
+        
+                temp[(numPoints - 1) * 4 + 0].x = points[numPoints - 1].x + d1.x;
+                temp[(numPoints - 1) * 4 + 0].y = points[numPoints - 1].y + d1.y;
+
+                temp[(numPoints - 1) * 4 + 1].x = points[numPoints - 1].x + d2.x;
+                temp[(numPoints - 1) * 4 + 1].y = points[numPoints - 1].y + d2.y;
+
+                temp[(numPoints - 1) * 4 + 2].x = points[numPoints - 1].x - d2.x;
+                temp[(numPoints - 1) * 4 + 2].y = points[numPoints - 1].y - d2.y;
+
+                temp[(numPoints - 1) * 4 + 3].x = points[numPoints - 1].x - d1.x;
+                temp[(numPoints - 1) * 4 + 3].y = points[numPoints - 1].y - d1.y;
+            }
+        
+            /* Add all elements */
+            idx1 = _nmd_context.drawList.numVertices;
+            for (i1 = 0; i1 < numSegments; ++i1) {
+                nmd_vec2 dm_out, dm_in;
+                const size_t i2 = ((i1 + 1) == numPoints) ? 0 : (i1 + 1);
+                size_t idx2 = ((i1 + 1) == numPoints) ? _nmd_context.drawList.numVertices : (idx1 + 4);
+        
+                /* Average normals */
+                nmd_vec2 dm;
+                dm.x = (normals[i1].x + normals[i2].x) * 0.5f;
+                dm.y = (normals[i1].y + normals[i2].y) * 0.5f;
+
+                float dmr2 = dm.x * dm.x + dm.y * dm.y;
+                if (dmr2 > 0.000001f) {
+                    float scale = 1.0f / dmr2;
+                    scale = NMD_MIN(100.0f, scale);
+                    dm.x = dm.x * scale;
+                    dm.y = dm.y * scale;
+                }
+        
+                dm_out.x = dm.x * ((half_inner_thickness)+AA_SIZE);
+                dm_out.y = dm.y * ((half_inner_thickness)+AA_SIZE);
+
+                dm_in.x = dm.x * half_inner_thickness;
+                dm_in.y = dm.y * half_inner_thickness;
+
+
+                temp[i2 * 4 + 0].x = points[i2].x + dm_out.x;
+                temp[i2 * 4 + 0].y = points[i2].y + dm_out.y;
+
+                temp[i2 * 4 + 1].x = points[i2].x + dm_in.x;
+                temp[i2 * 4 + 1].y = points[i2].y + dm_in.y;
+
+                temp[i2 * 4 + 2].x = points[i2].x - dm_in.x;
+                temp[i2 * 4 + 2].y = points[i2].y - dm_in.y;
+
+                temp[i2 * 4 + 3].x = points[i2].x - dm_out.x;
+                temp[i2 * 4 + 3].y = points[i2].y - dm_out.y;
+        
+                nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+                indices[0]  = idx2 + 1; indices[1]  = idx1 + 1;
+                indices[2]  = idx1 + 2; indices[3]  = idx1 + 2;
+                indices[4]  = idx2 + 2; indices[5]  = idx2 + 1;
+                indices[6]  = idx2 + 1; indices[7]  = idx1 + 1;
+                indices[8]  = idx1 + 0; indices[9]  = idx1 + 0;
+                indices[10] = idx2 + 0; indices[11] = idx2 + 1;
+                indices[12] = idx2 + 2; indices[13] = idx1 + 2;
+                indices[14] = idx1 + 3; indices[15] = idx1 + 3;
+                indices[16] = idx2 + 3; indices[17] = idx2 + 2;
+                _nmd_context.drawList.numIndices += 18;
+
+                idx1 = idx2;                
+            }
+        
+            /* Add vertices */
+            for (i = 0; i < numPoints; i++) {
+                nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+                vertices[0].pos = temp[i * 4 + 0]; vertices[0].color = col_trans;
+                vertices[1].pos = temp[i * 4 + 1]; vertices[1].color = color;
+                vertices[2].pos = temp[i * 4 + 2]; vertices[2].color = color;
+                vertices[3].pos = temp[i * 4 + 3]; vertices[3].color = col_trans;
+                _nmd_context.drawList.numVertices += 4;
+            }
         }
-        _nmd_context.drawList.numVertices += 4;
+    }
+    else /* Non anti-alised */
+    {
+        const size_t numIndices = numSegments * 6;
+        const size_t numVertices = numSegments * 4;
+        
+        if (!_nmd_reserve(numVertices, numIndices))
+            return;
+
+        for (size_t i = 0; i < numSegments; i++)
+        {
+            const size_t j = (i + 1) == numPoints ? 0 : i + 1;
+            const nmd_vec2* p0 = &points[i];
+            const nmd_vec2* p1 = &points[j];
+
+            float dx = p1->x - p0->x;
+            float dy = p1->y - p0->y;
+
+            NMD_NORMALIZE2F_OVER_ZERO(dx, dy);
+            dx *= (thickness * 0.5f);
+            dy *= (thickness * 0.5f);
+
+            const size_t offset = _nmd_context.drawList.numVertices;
+
+            nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+            indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
+            indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
+            _nmd_context.drawList.numIndices += 6;
+
+            nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+            vertices[0].pos.x = p0->x + dy; vertices[0].pos.y = p0->y - dx; vertices[0].color = color;
+            vertices[1].pos.x = p1->x + dy; vertices[1].pos.y = p1->y - dx; vertices[1].color = color;
+            vertices[2].pos.x = p1->x - dy; vertices[2].pos.y = p1->y + dx; vertices[2].color = color;
+            vertices[3].pos.x = p0->x - dy; vertices[3].pos.y = p0->y + dx; vertices[3].color = color;
+            _nmd_context.drawList.numVertices += 4;
+        }
     }
 }
 
@@ -505,19 +701,86 @@ void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float
 
 void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color)
 {
-    if (numPoints < 3 || !_nmd_reserve(numPoints, (numPoints - 2) * 3))
+    if (numPoints < 3)
         return;
 
-    const size_t offset = _nmd_context.drawList.numVertices;
-    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
-    for (size_t i = 2; i < numPoints; i++)
-        indices[(i - 2) * 3 + 0] = offset, indices[(i - 2) * 3 + 1] = offset + (i - 1), indices[(i - 2) * 3 + 2] = offset + i;
-    _nmd_context.drawList.numIndices += (numPoints - 2) * 3;
+    if (_nmd_context.drawList.fillAntiAliasing)
+    {
+        // Anti-aliased Fill
+        const float AA_SIZE = 1.0f;
+        nmd_color col_trans = color;
+        col_trans.a = 0;
 
-    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
-    for (size_t i = 0; i < numPoints; i++)
-        vertices[i].pos.x = points[i].x, vertices[i].pos.y = points[i].y, vertices[i].color = color;
-    _nmd_context.drawList.numVertices += numPoints;
+        const int idx_count = (numPoints - 2) * 3 + numPoints * 6;
+        const int vtx_count = (numPoints * 2);
+        if (!_nmd_reserve(idx_count, vtx_count))
+            return;
+
+        // Add indexes for fill
+        unsigned int vtx_inner_idx = _nmd_context.drawList.numVertices;
+        unsigned int vtx_outer_idx = _nmd_context.drawList.numVertices + 1;
+        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        for (int i = 2; i < numPoints; i++)
+        {
+            indices[0] = vtx_inner_idx; indices[1] = vtx_inner_idx + ((i - 1) << 1); indices[2] = vtx_inner_idx + (i << 1);
+            indices += 3;
+        }
+
+        // Compute normals
+        nmd_vec2* temp_normals = (nmd_vec2*)NMD_ALLOCA(numPoints * sizeof(nmd_vec2));
+        for (int i0 = numPoints - 1, i1 = 0; i1 < numPoints; i0 = i1++)
+        {
+            const nmd_vec2* p0 = &points[i0];
+            const nmd_vec2* p1 = &points[i1];
+            float dx = p1->x - p0->x;
+            float dy = p1->y - p0->y;
+            NMD_NORMALIZE2F_OVER_ZERO(dx, dy);
+            temp_normals[i0].x = dy;
+            temp_normals[i0].y = -dx;
+        }
+
+        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+        for (int i0 = numPoints - 1, i1 = 0; i1 < numPoints; i0 = i1++)
+        {
+            // Average normals
+            const nmd_vec2* n0 = &temp_normals[i0];
+            const nmd_vec2* n1 = &temp_normals[i1];
+            float dm_x = (n0->x + n1->x) * 0.5f;
+            float dm_y = (n0->y + n1->y) * 0.5f;
+            NMD_FIXNORMAL2F(dm_x, dm_y);
+            dm_x *= AA_SIZE * 0.5f;
+            dm_y *= AA_SIZE * 0.5f;
+
+            // Add vertices
+            vertices[0].pos.x = (points[i1].x - dm_x); vertices[0].pos.y = (points[i1].y - dm_y); vertices[0].color = color;
+            vertices[1].pos.x = (points[i1].x + dm_x); vertices[1].pos.y = (points[i1].y + dm_y); vertices[1].color = col_trans;
+            vertices += 2;
+
+            // Add indexes for fringes
+            indices[0] = vtx_inner_idx + (i1 << 1); indices[1] = vtx_inner_idx + (i0 << 1); indices[2] = vtx_outer_idx + (i0 << 1);
+            indices[3] = vtx_outer_idx + (i0 << 1); indices[4] = vtx_outer_idx + (i1 << 1); indices[5] = vtx_inner_idx + (i1 << 1);
+            indices += 6;
+        }
+        _nmd_context.drawList.numVertices = vertices - _nmd_context.drawList.vertices;
+        _nmd_context.drawList.numIndices = indices - _nmd_context.drawList.indices;
+    }
+    else
+    {
+
+        if (!_nmd_reserve(numPoints, (numPoints - 2) * 3))
+            return;
+
+        const size_t offset = _nmd_context.drawList.numVertices;
+        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        for (size_t i = 2; i < numPoints; i++)
+            indices[(i - 2) * 3 + 0] = offset, indices[(i - 2) * 3 + 1] = offset + (i - 1), indices[(i - 2) * 3 + 2] = offset + i;
+        _nmd_context.drawList.numIndices += (numPoints - 2) * 3;
+
+        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+        for (size_t i = 0; i < numPoints; i++)
+            vertices[i].pos.x = points[i].x, vertices[i].pos.y = points[i].y, vertices[i].color = color;
+        _nmd_context.drawList.numVertices += numPoints;
+    }
 }
 
 #ifdef NMD_GRAPHICS_ENABLE_DUMMY_TEXT_API
