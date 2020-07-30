@@ -33,6 +33,49 @@ void nmd_d3d11_set_device_context(ID3D11DeviceContext* device_context)
     _nmd_d3d11.device_context->GetDevice(&_nmd_d3d11.device);
 }
 
+bool nmd_d3d11_create_texture(void* pixels, int width, int height, ID3D11ShaderResourceView** textureViewOut)
+{
+    if (!_nmd_d3d11.device)
+        return false;
+
+    D3D11_TEXTURE2D_DESC texDesc;
+    memset(&texDesc, 0, sizeof(texDesc));
+    texDesc.Width = width;
+    texDesc.Height = height;
+    texDesc.MipLevels = 1;
+    texDesc.ArraySize = 1;
+    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.Usage = D3D11_USAGE_DEFAULT;
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    texDesc.CPUAccessFlags = 0;
+
+    ID3D11Texture2D* pTexture = NULL;
+    D3D11_SUBRESOURCE_DATA subResource;
+    subResource.pSysMem = pixels;
+    subResource.SysMemPitch = texDesc.Width * 4;
+    subResource.SysMemSlicePitch = 0;
+    if(FAILED(_nmd_d3d11.device->CreateTexture2D(&texDesc, &subResource, &pTexture)))
+        return false;
+
+    // Create texture view
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+    ZeroMemory(&srvDesc, sizeof(srvDesc));
+    srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    if (FAILED(_nmd_d3d11.device->CreateShaderResourceView(pTexture, &srvDesc, textureViewOut)))
+    {
+        pTexture->Release();
+        return false;
+    }
+
+    pTexture->Release();
+
+    return true;
+}
+
 bool _nmd_d3d11_create_objects()
 {
     if (!_nmd_d3d11.device)
@@ -175,34 +218,10 @@ bool _nmd_d3d11_create_objects()
     memset(pixels, 0xff, width * height * 4);
 
     // Upload texture to graphics system
-    D3D11_TEXTURE2D_DESC texDesc;
-    memset(&texDesc, 0, sizeof(texDesc));
-    texDesc.Width = width;
-    texDesc.Height = height;
-    texDesc.MipLevels = 1;
-    texDesc.ArraySize = 1;
-    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    texDesc.SampleDesc.Count = 1;
-    texDesc.Usage = D3D11_USAGE_DEFAULT;
-    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    texDesc.CPUAccessFlags = 0;
+    if (!nmd_d3d11_create_texture(pixels, width, height, &_nmd_d3d11.font_texture_view))
+        return false;
 
-    ID3D11Texture2D* pTexture = NULL;
-    D3D11_SUBRESOURCE_DATA subResource;
-    subResource.pSysMem = pixels;
-    subResource.SysMemPitch = texDesc.Width * 4;
-    subResource.SysMemSlicePitch = 0;
-    _nmd_d3d11.device->CreateTexture2D(&texDesc, &subResource, &pTexture);
-
-    // Create texture view
-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-    ZeroMemory(&srvDesc, sizeof(srvDesc));
-    srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-    _nmd_d3d11.device->CreateShaderResourceView(pTexture, &srvDesc, &_nmd_d3d11.font_texture_view);
-    pTexture->Release();
+    _nmd_context.drawList.font = (nmd_tex_id)_nmd_d3d11.font_texture_view;
 
     // Create texture sampler
     D3D11_SAMPLER_DESC samplerDesc;
@@ -230,9 +249,9 @@ bool nmd_d3d11_resize(int width, int height)
         return false;
 
     float L = 0;
-    float R = 0 + width;
+    float R = width;
     float T = 0;
-    float B = 0 + height;
+    float B = height;
     float mvp[4][4] =
     {
         { 2.0f / (R - L),   0.0f,           0.0f,       0.0f },
@@ -325,7 +344,6 @@ void nmd_d3d11_render()
     _nmd_d3d11.device_context->RSSetState(_nmd_d3d11.rasterizer_state);
 
     // Render draw commands
-    int vertexOffset = 0;
     int indexOffset = 0;
     for (int i = 0; i < _nmd_context.drawList.numDrawCommands; i++)
     {
@@ -337,10 +355,11 @@ void nmd_d3d11_render()
             r = { (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.y, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.y };
         _nmd_d3d11.device_context->RSSetScissorRects(1, &r);
 
-        _nmd_d3d11.device_context->PSSetShaderResources(0, 1, &_nmd_d3d11.font_texture_view);
-        _nmd_d3d11.device_context->DrawIndexed(_nmd_context.drawList.drawCommands[i].numIndices, indexOffset, vertexOffset);
+        ID3D11ShaderResourceView* texture_srv = (ID3D11ShaderResourceView*)_nmd_context.drawList.drawCommands[i].userTextureId;
+        _nmd_d3d11.device_context->PSSetShaderResources(0, 1, &texture_srv);
 
-        vertexOffset += _nmd_context.drawList.drawCommands[i].numVertices;
+        _nmd_d3d11.device_context->DrawIndexed(_nmd_context.drawList.drawCommands[i].numIndices, indexOffset, 0);
+
         indexOffset += _nmd_context.drawList.drawCommands[i].numIndices;
     }
 }
