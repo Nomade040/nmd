@@ -42,9 +42,9 @@ void nmd_push_draw_command(const nmd_rect* clipRect)
         if (numUnaccountedIndices <= (1 << (8 * sizeof(nmd_index))))
         {
             /* Add draw command */
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numIndices - numAccountedVertices;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numVertices - numAccountedVertices;
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numUnaccountedIndices;
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = 0;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = _nmd_context.drawList.font;
             if (clipRect)
                 _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect = *clipRect;
             else
@@ -80,6 +80,28 @@ void nmd_push_draw_command(const nmd_rect* clipRect)
             numUnaccountedIndices -= numIndices;
         }
     }
+}
+
+void nmd_push_texture_draw_command(nmd_tex_id userTextureId, const nmd_rect* clipRect)
+{
+    size_t numAccountedVertices = 0, numAccountedIndices = 0;
+    size_t i = 0;
+    for (; i < _nmd_context.drawList.numDrawCommands; i++)
+    {
+        numAccountedVertices += _nmd_context.drawList.drawCommands[i].numVertices;
+        numAccountedIndices += _nmd_context.drawList.drawCommands[i].numIndices;
+    }
+
+    const size_t numUnaccountedIndices = _nmd_context.drawList.numIndices - numAccountedIndices;
+
+    _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numVertices - numAccountedVertices;
+    _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numUnaccountedIndices;
+    _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = userTextureId;
+    if (clipRect)
+        _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect = *clipRect;
+    else
+        _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect.p1.x = -1.0f;
+    _nmd_context.drawList.numDrawCommands++;
 }
 
 void _nmd_calculate_circle_segments(float maxError)

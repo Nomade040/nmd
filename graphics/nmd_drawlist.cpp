@@ -175,37 +175,30 @@ nmd_vec2 BezierCalc(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, float t)
     const float w4 = t * t * t;
     return { w1 * p0.x + w2 * p1.x + w3 * p2.x + w4 * p3.x, w1 * p0.y + w2 * p1.y + w3 * p2.y + w4 * p3.y };
 }
+*/
 
-/* Distribute UV over (a, b) rectangle 
-void ShadeVertsLinearUV(size_t startVertexIndex, nmd_vec2 p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, bool clamp)
+/* Distribute UV over (a, b) rectangle */
+void _nmd_shade_verts_linear_uv(size_t startVertexIndex, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, bool clamp)
 {
-    const nmd_vec2 size = p2 - p1;
-    const nmd_vec2 uv_size = uv2 - uv1;
-    const nmd_vec2 scale = nmd_vec2(size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f);
+    const nmd_vec2 size = { x1 - x0, y1 - y1 };
+    const nmd_vec2 uv_size = { uv_x1 - uv_x0, uv_y1 - uv_y0 };
+    const nmd_vec2 scale = { size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f };
 
-    Vertex* const startVertex = GetContext().drawList.vertices.data() + startVertexIndex;
-    const Vertex* const endVertex = &GetContext().drawList.vertices.back();
+    nmd_vertex* const startVertex = _nmd_context.drawList.vertices + startVertexIndex;
+    const nmd_vertex* const endVertex = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
     if (clamp)
     {
-        const nmd_vec2 min = nmd_vec2::Min(uv1, uv2), max = nmd_vec2::Max(uv1, uv2);
-        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
-            vertex->uv = nmd_vec2::Clamp(uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale), min, max);
+        const nmd_vec2 min = { NMD_MIN(uv_x0, uv_x1), NMD_MIN(uv_y0, uv_y1) };
+        const nmd_vec2 max = { NMD_MAX(uv_x0, uv_x1), NMD_MAX(uv_y0, uv_y1) };
+        for (nmd_vertex* vertex = startVertex; vertex < endVertex; vertex++)
+            vertex->uv = { NMD_CLAMP(uv_x0 + (vertex->pos.x - x0) * scale.x, min.x, max.x), NMD_CLAMP(uv_y0 + (vertex->pos.y - y0) * scale.y, min.y, max.y) };
     }
     else
     {
-        for (Vertex* vertex = startVertex; vertex < endVertex; ++vertex)
-            vertex->uv = uv1 + ((nmd_vec2(vertex->pos.x, vertex->pos.y) - p1) * scale);
+        for (nmd_vertex* vertex = startVertex; vertex < endVertex; vertex++)
+            vertex->uv = { uv_x0 + (vertex->pos.x - x0) * scale.x, uv_y0 + (vertex->pos.y - y0) * scale.y };
     }
 }
-
-void DrawList::PushTextureDrawCommand(size_t numVertices, size_t numIndices, nmd_tex_id userTextureId)
-{
-    if (!drawCommands.empty() && drawCommands.back().userTextureId == userTextureId)
-        drawCommands.back().numVertices += static_cast<nmd_index>(numVertices), drawCommands.back().numIndices += static_cast<nmd_index>(numIndices);
-    else
-        drawCommands.emplace_back(static_cast<nmd_index>(numVertices), static_cast<nmd_index>(numIndices), userTextureId);
-}
-*/
 
 void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags, float thickness)
 {
@@ -464,43 +457,41 @@ void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const n
             path.push_back(BezierCalc(p1, p2, p3, p4, tStep * iStep));
     }
 }
-
-void DrawList::PrimRectUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
-{
-    const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
-
-    vertices.emplace_back(p1, color, uv1);
-    vertices.emplace_back(nmd_vec2(p2.x, p1.y), color, nmd_vec2(uv2.x, uv1.y));
-    vertices.emplace_back(p2, color, uv2);
-    vertices.emplace_back(nmd_vec2(p1.x, p2.y), color, nmd_vec2(uv1.x, uv2.y));
-
-    indices.push_back(nextIndex + 0);
-    indices.push_back(nextIndex + 1);
-    indices.push_back(nextIndex + 2);
-
-    indices.push_back(nextIndex + 0);
-    indices.push_back(nextIndex + 2);
-    indices.push_back(nextIndex + 3);
-}
-
-void DrawList::PrimQuadUV(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
-{
-    const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
-
-    vertices.emplace_back(p1, color, uv1);
-    vertices.emplace_back(p2, color, uv2);
-    vertices.emplace_back(p3, color, uv3);
-    vertices.emplace_back(p4, color, uv4);
-
-    indices.push_back(nextIndex + 0);
-    indices.push_back(nextIndex + 1);
-    indices.push_back(nextIndex + 2);
-
-    indices.push_back(nextIndex + 0);
-    indices.push_back(nextIndex + 2);
-    indices.push_back(nextIndex + 3);
-}
 */
+
+void nmd_prim_rect_uv(float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color)
+{
+    const size_t offset = _nmd_context.drawList.numVertices;
+
+    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
+    indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
+    _nmd_context.drawList.numIndices += 6;
+
+    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].uv.x = uv_x0; vertices[0].uv.y = uv_y0; vertices[0].color = color;
+    vertices[1].pos.x = x1; vertices[1].pos.y = y0; vertices[1].uv.x = uv_x1; vertices[1].uv.y = uv_y0; vertices[1].color = color;
+    vertices[2].pos.x = x1; vertices[2].pos.y = y1; vertices[2].uv.x = uv_x1; vertices[2].uv.y = uv_y1; vertices[2].color = color;
+    vertices[3].pos.x = x0; vertices[3].pos.y = y1; vertices[3].uv.x = uv_x0; vertices[3].uv.y = uv_y1; vertices[3].color = color;
+    _nmd_context.drawList.numVertices += 4;
+}
+
+void nmd_prim_quad_uv(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color)
+{
+    const size_t offset = _nmd_context.drawList.numVertices;
+
+    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
+    indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
+    _nmd_context.drawList.numIndices += 6;
+
+    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].uv.x = uv_x0; vertices[0].uv.y = uv_y0; vertices[0].color = color;
+    vertices[1].pos.x = x1; vertices[1].pos.y = y1; vertices[1].uv.x = uv_x1; vertices[1].uv.y = uv_y1; vertices[1].color = color;
+    vertices[2].pos.x = x2; vertices[2].pos.y = y2; vertices[2].uv.x = uv_x2; vertices[2].uv.y = uv_y2; vertices[2].color = color;
+    vertices[3].pos.x = x3; vertices[3].pos.y = y3; vertices[3].uv.x = uv_x3; vertices[3].uv.y = uv_y3; vertices[3].color = color;
+    _nmd_context.drawList.numVertices += 4;
+}
 
 void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float thickness)
 {
@@ -564,9 +555,9 @@ void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_co
             nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
             break;
         /*case 0x24: /* $ 
-        //    width = height * 0.75f;
-        //    nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
-        //    break;*/
+            width = height * 0.75f;
+            nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
+            break;*/
         case '%':
             width = height * 0.5f;
             nmd_add_rect_filled(x, y, x + width * 0.5f, y + height * 0.3f, color, 0, 0);
@@ -746,16 +737,16 @@ void DrawList::AddText(const void* font, float fontSize, const nmd_vec2& pos, Co
 
     while (text < textEnd)
     {
-        //const Glyph* glyph = font->FindGlyph(*text);
+        const Glyph* glyph = font->FindGlyph(*text);
     
-        //stbtt_aligned_quad q;
-        //stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
-        //
-        //const size_t nextIndex = vertices.size();
-        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y0), color, nmd_vec2(glyph->u0, glyph->v0));
-        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y0), color, nmd_vec2(glyph->u1, glyph->v0));
-        //vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y1), color, nmd_vec2(glyph->u1, glyph->v1));
-        //vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y1), color, nmd_vec2(glyph->u0, glyph->v1));
+        stbtt_aligned_quad q;
+        stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
+        
+        const size_t nextIndex = vertices.size();
+        vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y0), color, nmd_vec2(glyph->u0, glyph->v0));
+        vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y0), color, nmd_vec2(glyph->u1, glyph->v0));
+        vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y1), color, nmd_vec2(glyph->u1, glyph->v1));
+        vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y1), color, nmd_vec2(glyph->u0, glyph->v1));
     
         const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
 
@@ -770,49 +761,64 @@ void DrawList::AddText(const void* font, float fontSize, const nmd_vec2& pos, Co
         text++;
     }
 }
+*/
 
-void DrawList::AddImage(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color)
+{
+    nmd_add_image_uv(userTextureId, x0, y0, x1, y1, 0.0f, 0.0f, 1.0f, 1.0f, color);
+}
+
+void nmd_add_image_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color)
 {
     if (!color.a)
         return;
 
-    PushRemainingDrawCommands();
+    nmd_push_draw_command(0);
 
-    PrimRectUV(p1, p2, uv1, uv2, color);
-
-    PushTextureDrawCommand(4, 6, userTextureId);
+    nmd_prim_rect_uv(x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, color);
+    
+    nmd_push_texture_draw_command(userTextureId, 0);
 }
 
-void DrawList::AddImageQuad(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, const nmd_vec2& uv1, const nmd_vec2& uv2, const nmd_vec2& uv3, const nmd_vec2& uv4, Color color)
+void nmd_add_image_quad(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color)
+{
+    nmd_add_image_quad_uv(userTextureId, x0, y0, x1, y1, x2, y2, x3, y3, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, color);
+}
+
+void nmd_add_image_quad_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color)
 {
     if (!color.a)
         return;
 
-    PushRemainingDrawCommands();
+    nmd_push_draw_command(0);
 
-    PrimQuadUV(p1, p2, p3, p4, uv1, uv2, uv3, uv4, color);
+    nmd_prim_quad_uv(x0, y0, x1, y1, x2, y2, x3, y3, uv_x0, uv_y0, uv_x1, uv_y1, uv_x2, uv_y2, uv_x3, uv_y3, color);
 
-    PushTextureDrawCommand(4, 6, userTextureId);
+    nmd_push_texture_draw_command(userTextureId, 0);
 }
 
-void DrawList::AddImageRounded(nmd_tex_id userTextureId, const nmd_vec2& p1, const nmd_vec2& p2, float rounding, uint32_t cornerFlags, const nmd_vec2& uv1, const nmd_vec2& uv2, Color color)
+void nmd_add_image_rounded(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags, nmd_color color)
+{
+    nmd_add_image_rounded_uv(userTextureId, x0, y0, x1, y1, rounding, cornerFlags, 0.0f, 0.0f, 1.0f, 1.0f, color);
+}
+
+void nmd_add_image_rounded_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color)
 {
     if (!color.a)
         return;
 
     if (rounding <= 0.0f || !cornerFlags)
-        AddImage(userTextureId, p1, p2, uv1, uv2, color);
+        nmd_add_image_uv(userTextureId, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, color);
     else
     {
-        PushRemainingDrawCommands();
+        nmd_push_draw_command(0);
 
-        PathRect(p1, p2, rounding, cornerFlags);
+        nmd_path_rect(x0, y0, x1, y1, rounding, cornerFlags);
 
-        const size_t v0 = vertices.size(), i0 = indices.size();
-        PathFillConvex(color);
-        ShadeVertsLinearUV(v0, p1, p2, uv1, uv2, true);
+        nmd_path_fill_convex(color);
 
-        PushTextureDrawCommand(vertices.size() - v0, indices.size() - i0, userTextureId);
+        _nmd_shade_verts_linear_uv(_nmd_context.drawList.numVertices, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, true);
+
+        nmd_push_texture_draw_command(userTextureId, 0);
     }
 }
-*/

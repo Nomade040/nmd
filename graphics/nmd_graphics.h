@@ -173,6 +173,7 @@ void nmd_d3d9_render();
 void nmd_d3d11_set_device_context(ID3D11DeviceContext* pDeviceContext);
 bool nmd_d3d11_resize(int width, int height);
 void nmd_d3d11_render();
+bool nmd_d3d11_create_texture(void* pixels, int width, int height, ID3D11ShaderResourceView** textureViewOut);
 #endif /* NMD_GRAPHICS_D3D11 */
 
 enum NMD_CORNER
@@ -257,21 +258,13 @@ typedef struct
     size_t numDrawCommands; /* number of draw commands in the 'drawCommands' buffer. */
     size_t drawCommandsCapacity; /* size of the 'drawCommands' buffer in bytes. */
 
+    nmd_tex_id font;
+
     /*
-    void PushTextureDrawCommand(size_t numVertices, size_t numIndices, nmd_tex_id userTextureId);
-    
     void AddText(const Vec2& pos, Color color, const char* text, size_t textLength);
     void AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth = 0.0f);
-
-    void AddImage(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
-    void AddImageQuad(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 0), const Vec2& uv3 = Vec2(1, 1), const Vec2& uv4 = Vec2(0, 1), Color color = Color::White);
-    void AddImageRounded(nmd_tex_id userTextureId, const Vec2& p1, const Vec2& p2, float rounding, uint32_t cornerFlags = CORNER_FLAGS_ALL, const Vec2& uv1 = Vec2(0, 0), const Vec2& uv2 = Vec2(1, 1), Color color = Color::White);
-
-    void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);
-
-    void PrimRectUV(const Vec2& p1, const Vec2& p2, const Vec2& uv1, const Vec2& uv2, Color color);
-    void PrimQuadUV(const Vec2& p1, const Vec2& p2, const Vec2& p3, const Vec2& p4, const Vec2& uv1, const Vec2& uv2, const Vec2& uv3, const Vec2& uv4, Color color);
-    */
+        
+    void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);*/
 } nmd_drawlist;
 
 typedef struct
@@ -320,6 +313,18 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
 void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color);
 /*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);*/
 
+void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color);
+void nmd_add_image_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
+
+void nmd_add_image_quad(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color);
+void nmd_add_image_quad_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color);
+
+void nmd_add_image_rounded(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags, nmd_color color);
+void nmd_add_image_rounded_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
+
+void nmd_prim_rect_uv(float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
+void nmd_prim_quad_uv(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color);
+
 nmd_color nmd_rgb(uint8_t r, uint8_t g, uint8_t b);
 nmd_color nmd_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
@@ -336,6 +341,7 @@ Parameters:
  clipRect [opt/in] A pointer to a rect that specifies the drawable area. If this parameter is null, the entire screen will be set as drawable.
 */
 void nmd_push_draw_command(const nmd_rect* clipRect);
+void nmd_push_texture_draw_command(nmd_tex_id userTextureId, const nmd_rect* clipRect);
 
 #define NMD_COLOR_BLACK         nmd_rgb(0,   0,   0  )
 #define NMD_COLOR_WHITE         nmd_rgb(255, 255, 255)
