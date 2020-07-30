@@ -120,6 +120,9 @@ void nmd_begin()
     {
         _nmd_initialized = true;
 
+        _nmd_context.drawList.lineAntiAliasing = true;
+        _nmd_context.drawList.fillAntiAliasing = true;
+
         for (size_t i = 0; i < 12; i++)
         {
             const float angle = (i / 12.0f) * NMD_2PI;

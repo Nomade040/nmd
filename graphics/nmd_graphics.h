@@ -104,6 +104,7 @@ typedef unsigned long long uint64_t;
 
 #ifndef NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR
 #include <stdlib.h>
+#include <malloc.h>
 
 #ifndef NMD_MALLOC
 #define NMD_MALLOC malloc
@@ -112,6 +113,10 @@ typedef unsigned long long uint64_t;
 #ifndef NMD_REALLOC
 #define NMD_REALLOC realloc
 #endif /* NMD_REALLOC */
+
+#ifndef NMD_ALLOCA
+#define NMD_ALLOCA alloca
+#endif /* NMD_ALLOCA */
 
 #endif /* NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR */
 
@@ -238,6 +243,9 @@ typedef struct
 
 typedef struct
 {
+    bool lineAntiAliasing; /* If true, all lines will have AA applied to them. */
+    bool fillAntiAliasing; /* If true, all filled polygons will have AA applied to them. */
+
     nmd_vec2 cachedCircleVertices12[12];
     uint8_t cachedCircleSegmentCounts64[64];
     float curveTessellationTolerance;
