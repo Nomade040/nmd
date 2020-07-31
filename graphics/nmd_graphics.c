@@ -24,6 +24,11 @@ nmd_context* nmd_get_context()
     return &_nmd_context;
 }
 
+/*
+Creates one or more draw commands for the unaccounted vertices and indices.
+Parameters:
+ clipRect [opt/in] A pointer to a rect that specifies the clip area. This parameter can be null.
+*/
 void nmd_push_draw_command(const nmd_rect* clipRect)
 {
     size_t numAccountedVertices = 0, numAccountedIndices = 0;
@@ -113,8 +118,8 @@ void _nmd_calculate_circle_segments(float maxError)
     }
 }
 
-/* Starts a new empty scene. Internally this function clears all vertices, indices and command buffers. */
-void nmd_begin()
+/* Starts a new empty scene/frame. Internally this function clears all vertices, indices and command buffers. */
+void nmd_new_frame()
 {
     if (!_nmd_initialized)
     {
@@ -151,8 +156,8 @@ void nmd_begin()
     _nmd_context.drawList.numDrawCommands = 0;
 }
 
-/* Ends a scene, so it can be rendered. Internally this functions creates the remaining draw commands. */
-void nmd_end()
+/* "Ends" a frame. Wrapper around nmd_push_draw_command(). */
+void nmd_end_frame()
 {
     nmd_push_draw_command(0);
 }

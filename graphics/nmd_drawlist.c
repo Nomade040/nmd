@@ -374,25 +374,39 @@ nmd_vec2 BezierCalc(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, float t)
 */
 
 /* Distribute UV over (a, b) rectangle */
-void _nmd_shade_verts_linear_uv(size_t startVertexIndex, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, bool clamp)
+void _nmd_shade_verts_linear_uv(int vert_start_idx, int vert_end_idx, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, bool clamp)
 {
-    const nmd_vec2 size = { x1 - x0, y1 - y1 };
-    const nmd_vec2 uv_size = { uv_x1 - uv_x0, uv_y1 - uv_y0 };
-    const nmd_vec2 scale = { size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f };
+    const float size_x = x1 - x0;
+    const float size_y = y1 - y0;
 
-    nmd_vertex* const startVertex = _nmd_context.drawList.vertices + startVertexIndex;
-    const nmd_vertex* const endVertex = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    const float uv_size_x = uv_x1 - uv_x0;
+    const float uv_size_y = uv_y1 - uv_y0;
+
+    const float scale_x = size_x != 0.0f ? (uv_size_x / size_x) : 0.0f;
+    const float scale_y = size_y != 0.0f ? (uv_size_y / size_y) : 0.0f;
+
+    nmd_vertex* vert_start = _nmd_context.drawList.vertices + vert_start_idx;
+    nmd_vertex* vert_end = _nmd_context.drawList.vertices + vert_end_idx;
     if (clamp)
     {
-        const nmd_vec2 min = { NMD_MIN(uv_x0, uv_x1), NMD_MIN(uv_y0, uv_y1) };
-        const nmd_vec2 max = { NMD_MAX(uv_x0, uv_x1), NMD_MAX(uv_y0, uv_y1) };
-        for (nmd_vertex* vertex = startVertex; vertex < endVertex; vertex++)
-            vertex->uv = { NMD_CLAMP(uv_x0 + (vertex->pos.x - x0) * scale.x, min.x, max.x), NMD_CLAMP(uv_y0 + (vertex->pos.y - y0) * scale.y, min.y, max.y) };
+        const float min_x = NMD_MIN(uv_x0, uv_x1);
+        const float min_y = NMD_MIN(uv_y0, uv_y1);
+
+        const float max_x = NMD_MAX(uv_x0, uv_x1);
+        const float max_y = NMD_MAX(uv_y1, uv_y1);
+        for (nmd_vertex* vertex = vert_start; vertex < vert_end; ++vertex)
+        {
+            vertex->uv.x = NMD_CLAMP(uv_x0 + (vertex->pos.x - x0) * scale_x, min_x, max_x);
+            vertex->uv.y = NMD_CLAMP(uv_y0 + (vertex->pos.y - y0) * scale_y, min_x, max_x);
+        }
     }
     else
     {
-        for (nmd_vertex* vertex = startVertex; vertex < endVertex; vertex++)
-            vertex->uv = { uv_x0 + (vertex->pos.x - x0) * scale.x, uv_y0 + (vertex->pos.y - y0) * scale.y };
+        for (nmd_vertex* vertex = vert_start; vertex < vert_end; ++vertex)
+        {
+            vertex->uv.x = uv_x0 + (vertex->pos.x - x0) * scale_x;
+            vertex->uv.y = uv_y0 + (vertex->pos.y - y0) * scale_y;
+        }
     }
 }
 
@@ -706,7 +720,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
 
     if (_nmd_context.drawList.fillAntiAliasing)
     {
-        // Anti-aliased Fill
+        /* Anti-aliased fill */
         const float AA_SIZE = 1.0f;
         nmd_color col_trans = color;
         col_trans.a = 0;
@@ -716,7 +730,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
         if (!_nmd_reserve(vtx_count, idx_count))
             return;
 
-        // Add indexes for fill
+        /* Add indexes for fill */
         unsigned int vtx_inner_idx = _nmd_context.drawList.numVertices;
         unsigned int vtx_outer_idx = _nmd_context.drawList.numVertices + 1;
         nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
@@ -726,7 +740,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
             indices += 3;
         }
 
-        // Compute normals
+        /* Compute normals */
         nmd_vec2* temp_normals = (nmd_vec2*)NMD_ALLOCA(numPoints * sizeof(nmd_vec2));
         for (int i0 = numPoints - 1, i1 = 0; i1 < numPoints; i0 = i1++)
         {
@@ -742,7 +756,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
         nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
         for (int i0 = numPoints - 1, i1 = 0; i1 < numPoints; i0 = i1++)
         {
-            // Average normals
+            /* Average normals */
             const nmd_vec2* n0 = &temp_normals[i0];
             const nmd_vec2* n1 = &temp_normals[i1];
             float dm_x = (n0->x + n1->x) * 0.5f;
@@ -751,12 +765,12 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
             dm_x *= AA_SIZE * 0.5f;
             dm_y *= AA_SIZE * 0.5f;
 
-            // Add vertices
+            /* Add vertices */
             vertices[0].pos.x = (points[i1].x - dm_x); vertices[0].pos.y = (points[i1].y - dm_y); vertices[0].color = color;
             vertices[1].pos.x = (points[i1].x + dm_x); vertices[1].pos.y = (points[i1].y + dm_y); vertices[1].color = col_trans;
             vertices += 2;
 
-            // Add indexes for fringes
+            /* Add indexes for fringes */
             indices[0] = vtx_inner_idx + (i1 << 1); indices[1] = vtx_inner_idx + (i0 << 1); indices[2] = vtx_outer_idx + (i0 << 1);
             indices[3] = vtx_outer_idx + (i0 << 1); indices[4] = vtx_outer_idx + (i1 << 1); indices[5] = vtx_inner_idx + (i1 << 1);
             indices += 6;
@@ -1076,11 +1090,12 @@ void nmd_add_image_rounded_uv(nmd_tex_id userTextureId, float x0, float y0, floa
     {
         nmd_push_draw_command(0);
 
+        const int vert_start_idx = _nmd_context.drawList.numVertices;
         nmd_path_rect(x0, y0, x1, y1, rounding, cornerFlags);
-
         nmd_path_fill_convex(color);
+        const int vert_end_idx = _nmd_context.drawList.numVertices;
 
-        _nmd_shade_verts_linear_uv(_nmd_context.drawList.numVertices, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, true);
+        _nmd_shade_verts_linear_uv(vert_start_idx, vert_end_idx, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, true);
 
         nmd_push_texture_draw_command(userTextureId, 0);
     }
