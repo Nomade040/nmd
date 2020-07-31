@@ -1,9 +1,47 @@
-/* This is a C89 platform independent immediate mode 2D graphics library.
+/* This is a C89 platform independent 2D immediate mode graphics library.
 
 Setup:
 Define the 'NMD_GRAPHICS_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
 #define NMD_GRAPHICS_IMPLEMENTATION
 #include "nmd_graphics.h"
+
+The general workflow for using the library is the following:
+ 1 - Call nmd_new_frame() to clear all vertex, index and command buffers.
+ 2 - Call whatever primitive function you need(e.g. nmd_add_line(), nmd_add_rect_filled()).
+ 3 - Call nmd_end_frame() to create the necessary draw command(s) that describe the data(vertices and indices) for redering.
+ 4 - Now you can do anything with the data. You probably want to call nmd_opengl_render(), nmd_d3d9_render() or nmd_d3d11_render() here.
+
+OpenGL Usage:
+ You MUST define the 'NMD_GRAPHICS_OPENGL' macro once project-wise(compiler dependent) or for every include statement that you'll use any of the following functions.
+ You MUST call nmd_opengl_resize() once for initialization and every time the window resizes.
+ You MUST call nmd_opengl_render() to issue draw calls that render the data in the drawlist.
+ You may call nmd_opengl_create_texture() if a helper function for texture creation is desired.
+ You may define the 'NMD_GRAPHICS_OPENGL_DONT_BACKUP_RENDER_STATE' macro if you don't mind the library overriding the render state.
+ You may define the 'NMD_GRAPHICS_OPENGL_OPTIMIZE_RENDER_STATE' macro so the render state only changes when necessary. Note that this option may only be used if this library is the only component that uses OpenGL.
+
+D3D9 Usage:
+ You MUST define the 'NMD_GRAPHICS_D3D9' macro once project-wise(compiler dependent) or for every include statement that you'll use any of the following functions.
+ You MUST call nmd_d3d9_set_device() once for initialization and every time the device changes.
+ You MUST call nmd_d3d9_resize() once for initialization and every time the window resizes.
+ You MUST call nmd_d3d9_render() to issue draw calls that render the data in the drawlist.
+ You may call nmd_d3d9_create_texture() if a helper function for texture creation is desired.
+ You may define the 'NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE' macro if you don't mind the library overriding the render state.
+ You may define the 'NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE' macro so the render state only changes when necessary. Note that this option may only be used if this library is the only component that uses Direct3D 9.
+
+D3D11 Usage:
+ You MUST define the 'NMD_GRAPHICS_D3D11' macro once project-wise(compiler dependent) or for every include statement that you'll use any of the following functions.
+ You MUST call nmd_d3d11_set_device_context() once for initialization and every time the device context changes.
+ You MUST call nmd_d3d11_resize() once for initialization and every time the window resizes.
+ You MUST call nmd_d3d11_render() to issue draw calls that render the data in the drawlist.
+ You may call nmd_d3d11_create_texture() if a helper function for texture creation is desired.
+ You may define the 'NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE' macro if you don't mind the library overriding the render state.
+ You may define the 'NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE' macro so the render state only changes when necessary. Note that this option may only be used if this library is the only component that uses Direct3D 11.
+
+Internals:
+The 'nmd_context'(acessible by nmd_get_context()) global variable holds the state of the entire library, it
+contains a 'nmd_drawlist' variable which holds the vertex, index and command buffers. Each command buffer
+translate to a call to a rendering's API draw function. Shapes can be rendered in the drawlist by calling
+functions like nmd_add_line() and nmd_add_filled_rect().
 
 Defining types manually:
 Define the 'NMD_GRAPHICS_DEFINE_TYPES' macro to tell the library to define(typedef) the required types.
@@ -12,36 +50,10 @@ Be aware: This feature uses platform dependent macros.
 Disabling default functions:
 Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR' macro to tell the library not to include default allocators.
 
-Overview:
-The 'nmd_context'(acessible by nmd_get_context()) global variable holds the state of the entire library, it
-contains a nmd_drawlist variable which holds the vertex, index and commands buffers. Each command buffer 
-translate to a call to a rendering's API draw function. Shapes can be rendered in the drawlist by calling
-functions like nmd_add_line(), nmd_add_filled_rect(), ...
-
-OpenGL Usage:
- Define 'NMD_GRAPHICS_OPENGL'.
- Call nmd_opengl_resize() for initialization.
- Call nmd_opengl_render() to render data in the drawlist.
-
-D3D9 Usage:
- Define 'NMD_GRAPHICS_D3D9'.
- Call nmd_d3d9_set_device() and nmd_d3d9_resize() for initialization.
- Call nmd_d3d9_render() to render data in the drawlist.
-
-D3D11 Usage:
- Define 'NMD_GRAPHICS_D3D11'.
- Call nmd_d3d11_set_device_context() and nmd_d3d11_resize() for initialization.
- Call nmd_d3d11_render() to render data in the drawlist.
-
 Default fonts:
 The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the font at compile time.
 
 NOTE: A big part of this library's code has been derived from Imgui's and Nuklear's code. Huge credit to both projects.
-
-TODO:
- - Add support for textures in Direct3D 11.
- - Add AddText() method to DrawList.
- - Add support for the remaining rendering APIs: Direct3D 12, OpenGL and Vulkan.
 
 Credits:
  - imgui: https://github.com/ocornut/imgui
@@ -161,9 +173,13 @@ typedef unsigned long long uint64_t;
 #include <Windows.h>
 #endif /* _WIN32 */
 
+typedef uint16_t nmd_index;
+typedef void* nmd_tex_id;
+
 #ifdef NMD_GRAPHICS_OPENGL
 bool nmd_opengl_resize(int width, int height);
-bool nmd_opengl_render();
+void nmd_opengl_render();
+nmd_tex_id nmd_opengl_create_texture(void* pixels, int width, int height);
 #endif /* NMD_GRAPHICS_OPENGL */
 
 #ifdef NMD_GRAPHICS_D3D9
@@ -171,6 +187,7 @@ bool nmd_opengl_render();
 void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pDevice);
 void nmd_d3d9_resize(int width, int height);
 void nmd_d3d9_render();
+nmd_tex_id nmd_d3d9_create_texture(void* pixels, int width, int height);
 #endif /* NMD_GRAPHICS_D3D9 */
 
 #ifdef NMD_GRAPHICS_D3D11
@@ -178,7 +195,7 @@ void nmd_d3d9_render();
 void nmd_d3d11_set_device_context(ID3D11DeviceContext* pDeviceContext);
 bool nmd_d3d11_resize(int width, int height);
 void nmd_d3d11_render();
-bool nmd_d3d11_create_texture(void* pixels, int width, int height, ID3D11ShaderResourceView** textureViewOut);
+nmd_tex_id nmd_d3d11_create_texture(void* pixels, int width, int height);
 #endif /* NMD_GRAPHICS_D3D11 */
 
 enum NMD_CORNER
@@ -197,9 +214,6 @@ enum NMD_CORNER
 
     NMD_CORNER_ALL          = (1 << 5) - 1
 };
-
-typedef uint16_t nmd_index;
-typedef void* nmd_tex_id;
 
 typedef struct
 {
@@ -338,17 +352,19 @@ nmd_color nmd_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
 nmd_context* nmd_get_context();
 
-/* Starts a new empty scene. Internally this function clears all vertices, indices and command buffers. */
-void nmd_begin();
+/* Starts a new empty scene/frame. Internally this function clears all vertices, indices and command buffers. */
+void nmd_new_frame();
 
-/* Ends a scene, so it can be rendered. Internally this functions creates draw commands. */
-void nmd_end();
+/* "Ends" a frame. Wrapper around nmd_push_draw_command(). */
+void nmd_end_frame();
 
 /*
+Creates one or more draw commands for the unaccounted vertices and indices.
 Parameters:
- clipRect [opt/in] A pointer to a rect that specifies the drawable area. If this parameter is null, the entire screen will be set as drawable.
+ clipRect [opt/in] A pointer to a rect that specifies the clip area. This parameter can be null.
 */
 void nmd_push_draw_command(const nmd_rect* clipRect);
+
 void nmd_push_texture_draw_command(nmd_tex_id userTextureId, const nmd_rect* clipRect);
 
 #define NMD_COLOR_BLACK         nmd_rgb(0,   0,   0  )
@@ -423,6 +439,11 @@ nmd_context* nmd_get_context()
     return &_nmd_context;
 }
 
+/*
+Creates one or more draw commands for the unaccounted vertices and indices.
+Parameters:
+ clipRect [opt/in] A pointer to a rect that specifies the clip area. This parameter can be null.
+*/
 void nmd_push_draw_command(const nmd_rect* clipRect)
 {
     size_t numAccountedVertices = 0, numAccountedIndices = 0;
@@ -512,8 +533,8 @@ void _nmd_calculate_circle_segments(float maxError)
     }
 }
 
-/* Starts a new empty scene. Internally this function clears all vertices, indices and command buffers. */
-void nmd_begin()
+/* Starts a new empty scene/frame. Internally this function clears all vertices, indices and command buffers. */
+void nmd_new_frame()
 {
     if (!_nmd_initialized)
     {
@@ -550,8 +571,8 @@ void nmd_begin()
     _nmd_context.drawList.numDrawCommands = 0;
 }
 
-/* Ends a scene, so it can be rendered. Internally this functions creates the remaining draw commands. */
-void nmd_end()
+/* "Ends" a frame. Wrapper around nmd_push_draw_command(). */
+void nmd_end_frame()
 {
     nmd_push_draw_command(0);
 }
@@ -930,25 +951,39 @@ nmd_vec2 BezierCalc(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, float t)
 */
 
 /* Distribute UV over (a, b) rectangle */
-void _nmd_shade_verts_linear_uv(size_t startVertexIndex, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, bool clamp)
+void _nmd_shade_verts_linear_uv(int vert_start_idx, int vert_end_idx, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, bool clamp)
 {
-    const nmd_vec2 size = { x1 - x0, y1 - y1 };
-    const nmd_vec2 uv_size = { uv_x1 - uv_x0, uv_y1 - uv_y0 };
-    const nmd_vec2 scale = { size.x != 0.0f ? (uv_size.x / size.x) : 0.0f, size.y != 0.0f ? (uv_size.y / size.y) : 0.0f };
+    const float size_x = x1 - x0;
+    const float size_y = y1 - y0;
 
-    nmd_vertex* const startVertex = _nmd_context.drawList.vertices + startVertexIndex;
-    const nmd_vertex* const endVertex = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    const float uv_size_x = uv_x1 - uv_x0;
+    const float uv_size_y = uv_y1 - uv_y0;
+
+    const float scale_x = size_x != 0.0f ? (uv_size_x / size_x) : 0.0f;
+    const float scale_y = size_y != 0.0f ? (uv_size_y / size_y) : 0.0f;
+
+    nmd_vertex* vert_start = _nmd_context.drawList.vertices + vert_start_idx;
+    nmd_vertex* vert_end = _nmd_context.drawList.vertices + vert_end_idx;
     if (clamp)
     {
-        const nmd_vec2 min = { NMD_MIN(uv_x0, uv_x1), NMD_MIN(uv_y0, uv_y1) };
-        const nmd_vec2 max = { NMD_MAX(uv_x0, uv_x1), NMD_MAX(uv_y0, uv_y1) };
-        for (nmd_vertex* vertex = startVertex; vertex < endVertex; vertex++)
-            vertex->uv = { NMD_CLAMP(uv_x0 + (vertex->pos.x - x0) * scale.x, min.x, max.x), NMD_CLAMP(uv_y0 + (vertex->pos.y - y0) * scale.y, min.y, max.y) };
+        const float min_x = NMD_MIN(uv_x0, uv_x1);
+        const float min_y = NMD_MIN(uv_y0, uv_y1);
+
+        const float max_x = NMD_MAX(uv_x0, uv_x1);
+        const float max_y = NMD_MAX(uv_y1, uv_y1);
+        for (nmd_vertex* vertex = vert_start; vertex < vert_end; ++vertex)
+        {
+            vertex->uv.x = NMD_CLAMP(uv_x0 + (vertex->pos.x - x0) * scale_x, min_x, max_x);
+            vertex->uv.y = NMD_CLAMP(uv_y0 + (vertex->pos.y - y0) * scale_y, min_x, max_x);
+        }
     }
     else
     {
-        for (nmd_vertex* vertex = startVertex; vertex < endVertex; vertex++)
-            vertex->uv = { uv_x0 + (vertex->pos.x - x0) * scale.x, uv_y0 + (vertex->pos.y - y0) * scale.y };
+        for (nmd_vertex* vertex = vert_start; vertex < vert_end; ++vertex)
+        {
+            vertex->uv.x = uv_x0 + (vertex->pos.x - x0) * scale_x;
+            vertex->uv.y = uv_y0 + (vertex->pos.y - y0) * scale_y;
+        }
     }
 }
 
@@ -1262,7 +1297,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
 
     if (_nmd_context.drawList.fillAntiAliasing)
     {
-        // Anti-aliased Fill
+        /* Anti-aliased fill */
         const float AA_SIZE = 1.0f;
         nmd_color col_trans = color;
         col_trans.a = 0;
@@ -1272,7 +1307,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
         if (!_nmd_reserve(vtx_count, idx_count))
             return;
 
-        // Add indexes for fill
+        /* Add indexes for fill */
         unsigned int vtx_inner_idx = _nmd_context.drawList.numVertices;
         unsigned int vtx_outer_idx = _nmd_context.drawList.numVertices + 1;
         nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
@@ -1282,7 +1317,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
             indices += 3;
         }
 
-        // Compute normals
+        /* Compute normals */
         nmd_vec2* temp_normals = (nmd_vec2*)NMD_ALLOCA(numPoints * sizeof(nmd_vec2));
         for (int i0 = numPoints - 1, i1 = 0; i1 < numPoints; i0 = i1++)
         {
@@ -1298,7 +1333,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
         nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
         for (int i0 = numPoints - 1, i1 = 0; i1 < numPoints; i0 = i1++)
         {
-            // Average normals
+            /* Average normals */
             const nmd_vec2* n0 = &temp_normals[i0];
             const nmd_vec2* n1 = &temp_normals[i1];
             float dm_x = (n0->x + n1->x) * 0.5f;
@@ -1307,12 +1342,12 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
             dm_x *= AA_SIZE * 0.5f;
             dm_y *= AA_SIZE * 0.5f;
 
-            // Add vertices
+            /* Add vertices */
             vertices[0].pos.x = (points[i1].x - dm_x); vertices[0].pos.y = (points[i1].y - dm_y); vertices[0].color = color;
             vertices[1].pos.x = (points[i1].x + dm_x); vertices[1].pos.y = (points[i1].y + dm_y); vertices[1].color = col_trans;
             vertices += 2;
 
-            // Add indexes for fringes
+            /* Add indexes for fringes */
             indices[0] = vtx_inner_idx + (i1 << 1); indices[1] = vtx_inner_idx + (i0 << 1); indices[2] = vtx_outer_idx + (i0 << 1);
             indices[3] = vtx_outer_idx + (i0 << 1); indices[4] = vtx_outer_idx + (i1 << 1); indices[5] = vtx_inner_idx + (i1 << 1);
             indices += 6;
@@ -1632,11 +1667,12 @@ void nmd_add_image_rounded_uv(nmd_tex_id userTextureId, float x0, float y0, floa
     {
         nmd_push_draw_command(0);
 
+        const int vert_start_idx = _nmd_context.drawList.numVertices;
         nmd_path_rect(x0, y0, x1, y1, rounding, cornerFlags);
-
         nmd_path_fill_convex(color);
+        const int vert_end_idx = _nmd_context.drawList.numVertices;
 
-        _nmd_shade_verts_linear_uv(_nmd_context.drawList.numVertices, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, true);
+        _nmd_shade_verts_linear_uv(vert_start_idx, vert_end_idx, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, true);
 
         nmd_push_texture_draw_command(userTextureId, 0);
     }
@@ -1645,174 +1681,225 @@ void nmd_add_image_rounded_uv(nmd_tex_id userTextureId, float x0, float y0, floa
 
 #ifdef NMD_GRAPHICS_D3D9
 #pragma comment(lib, "d3d9.lib")
-static LPDIRECT3DDEVICE9 _nmd_d3d9_device = 0;
-static LPDIRECT3DVERTEXBUFFER9 _nmd_d3d9_vb = 0; /* vertex buffer */
-static LPDIRECT3DINDEXBUFFER9 _nmd_d3d9_ib = 0; /* index buffer*/
-static LPDIRECT3DTEXTURE9 _nmd_d3d9_font = 0;
-static size_t _nmd_d3d9_vb_size, _nmd_d3d9_ib_size;
-static D3DMATRIX _nmd_d3d9_proj;
+struct
+{
+    LPDIRECT3DDEVICE9 device = 0;
+    LPDIRECT3DVERTEXBUFFER9 vb = 0; /* vertex buffer */
+    LPDIRECT3DINDEXBUFFER9 ib = 0; /* index buffer*/
+    size_t vb_size, ib_size;
+    D3DMATRIX proj;
+    D3DVIEWPORT9 viewport;
+} _nmd_d3d9;
 
 typedef struct
 {
-    nmd_vec3 pos;
-    nmd_vec2 uv;
+    float pos[3];
     D3DCOLOR color;
+    float uv[2];
 } _nmd_d3d9_custom_vertex;
 
-#define _NMD_D3D9_CUSTOM_VERTEX_FVF (D3DFVF_XYZ | D3DFVF_TEX1 | D3DFVF_DIFFUSE)
+#define _NMD_D3D9_CUSTOM_VERTEX_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)
 
-#define _NMD_RGBA_TO_ARGB(color) (((color&0xff)<<24)|(color>>8))
+void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pD3D9Device)
+{
+    _nmd_d3d9.device = pD3D9Device;
 
-void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pD3D9Device) { _nmd_d3d9_device = pD3D9Device; }
+    _nmd_d3d9.viewport.X;
+    _nmd_d3d9.viewport.Y = 0;
+    _nmd_d3d9.viewport.MinZ = 0.0f;
+    _nmd_d3d9.viewport.MaxZ = 1.0f;
+
+    int width = 16, height = 16;
+    unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
+    memset(pixels, 0xff, width * height * 4);
+
+    _nmd_context.drawList.font = nmd_d3d9_create_texture(pixels, width, height);
+}
+
+nmd_tex_id nmd_d3d9_create_texture(void* pixels, int width, int height)
+{
+    IDirect3DTexture9* texture;
+    if (_nmd_d3d9.device->CreateTexture(width, height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, NULL) != D3D_OK)
+        return 0;
+
+    D3DLOCKED_RECT tex_locked_rect;
+    if (texture->LockRect(0, &tex_locked_rect, NULL, 0) != D3D_OK)
+        return 0;
+
+    for (int y = 0; y < height; y++)
+        memcpy((unsigned char*)tex_locked_rect.pBits + tex_locked_rect.Pitch * y, (unsigned char*)pixels + (width * 4) * y, (width * 4));
+   
+    texture->UnlockRect(0);
+    
+    return (nmd_tex_id)texture;
+}
 
 void nmd_d3d9_resize(int width, int height)
 {
-    const float L = 0.5f;
-    const float R = (float)width + 0.5f;
-    const float T = 0.5f;
-    const float B = (float)height + 0.5f;
+    const float L = 0.0f;
+    const float R = (float)width + 0.0f;
+    const float T = 0.0f;
+    const float B = (float)height + 0.0f;
     float matrix[4][4] = {
         {    2.0f / (R - L),              0.0f, 0.0f, 0.0f },
         {              0.0f,    2.0f / (T - B), 0.0f, 0.0f },
         {              0.0f,              0.0f, 0.0f, 0.0f },
         { (R + L) / (L - R), (T + B) / (B - T), 0.0f, 1.0f },
     };
-    memcpy(&_nmd_d3d9_proj, matrix, sizeof(matrix));
+    memcpy(&_nmd_d3d9.proj, matrix, sizeof(matrix));
+
+    _nmd_d3d9.viewport.Width = width;
+    _nmd_d3d9.viewport.Height = height;
 }
 
-bool _nmd_d3d9_create_font_texture()
+void _nmd_d3d9_set_render_state()
 {
-    /*
-    if (g_pFontTexture)
-        g_pFontTexture->Release();
-
-    
-    if (_nmd_d3d9_device->CreateTexture(width, height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &g_pFontTexture, NULL) < 0)
-        return false;
-    
-    D3DLOCKED_RECT lockedRect;
-    if (g_pFontTexture->LockRect(0, &lockedRect, NULL, 0) != D3D_OK)
-        return false;
-    
-    for (int y = 0; y < height; y++)
-        memcpy((uint8_t*)lockedRect.pBits + lockedRect.Pitch * y, pixels + (width * bpp) * y, (width * bpp));
-    
-    g_pFontTexture->UnlockRect(0);
-    */
-    return true;
+    _nmd_d3d9.device->SetStreamSource(0, _nmd_d3d9.vb, 0, sizeof(_nmd_d3d9_custom_vertex));
+    _nmd_d3d9.device->SetIndices(_nmd_d3d9.ib);
+    _nmd_d3d9.device->SetFVF(_NMD_D3D9_CUSTOM_VERTEX_FVF);
+    _nmd_d3d9.device->SetTransform(D3DTS_PROJECTION, &_nmd_d3d9.proj);
+    _nmd_d3d9.device->SetViewport(&_nmd_d3d9.viewport);
+    _nmd_d3d9.device->SetPixelShader(NULL);
+    _nmd_d3d9.device->SetVertexShader(NULL);
+    _nmd_d3d9.device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+    _nmd_d3d9.device->SetRenderState(D3DRS_LIGHTING, false);
+    _nmd_d3d9.device->SetRenderState(D3DRS_ZENABLE, false);
+    _nmd_d3d9.device->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
+    _nmd_d3d9.device->SetRenderState(D3DRS_ALPHATESTENABLE, false);
+    _nmd_d3d9.device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+    _nmd_d3d9.device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    _nmd_d3d9.device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    _nmd_d3d9.device->SetRenderState(D3DRS_SCISSORTESTENABLE, true);
+    _nmd_d3d9.device->SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
+    _nmd_d3d9.device->SetRenderState(D3DRS_FOGENABLE, false);
+    _nmd_d3d9.device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    _nmd_d3d9.device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    _nmd_d3d9.device->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+    _nmd_d3d9.device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    _nmd_d3d9.device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    _nmd_d3d9.device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+    _nmd_d3d9.device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    _nmd_d3d9.device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
 }
 
 void nmd_d3d9_render()
 {
-    /* Create/recreate vertex buffer if it doesn't exist or more space is needed. */
-    if (!_nmd_d3d9_vb || _nmd_d3d9_vb_size < _nmd_context.drawList.numVertices)
+    /* Create/recreate vertex buffer if it doesn't exist or more space is needed */
+    if (!_nmd_d3d9.vb || _nmd_d3d9.vb_size < _nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex))
     {
-        if (_nmd_d3d9_vb)
+        if (_nmd_d3d9.vb)
         {
-            _nmd_d3d9_vb->Release();
-            _nmd_d3d9_vb = 0;
+            _nmd_d3d9.vb->Release();
+            _nmd_d3d9.vb = 0;
         }
 
-        _nmd_d3d9_vb_size = _nmd_context.drawList.numVertices + 5000;
-        if (_nmd_d3d9_device->CreateVertexBuffer((UINT)(_nmd_d3d9_vb_size * sizeof(_nmd_d3d9_custom_vertex)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, _NMD_D3D9_CUSTOM_VERTEX_FVF, D3DPOOL_DEFAULT, &_nmd_d3d9_vb, NULL) != D3D_OK)
+        _nmd_d3d9.vb_size = _nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex) + 5000;
+        if (_nmd_d3d9.device->CreateVertexBuffer(_nmd_d3d9.vb_size, D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, _NMD_D3D9_CUSTOM_VERTEX_FVF, D3DPOOL_DEFAULT, &_nmd_d3d9.vb, NULL) != D3D_OK)
             return;
+
+#ifdef NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE
+        _nmd_d3d9_set_render_state();
+#endif /* NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE */
     }
 
-    /* Create/recreate index buffer if it doesn't exist or more space is needed. */
-    if (!_nmd_d3d9_ib || _nmd_d3d9_ib_size < _nmd_context.drawList.numIndices)
+    /* Create/recreate index buffer if it doesn't exist or more space is needed */
+    if (!_nmd_d3d9.ib || _nmd_d3d9.ib_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
     {
-        if (_nmd_d3d9_ib)
+        if (_nmd_d3d9.ib)
         {
-            _nmd_d3d9_ib->Release();
-            _nmd_d3d9_ib = 0;
+            _nmd_d3d9.ib->Release();
+            _nmd_d3d9.ib = 0;
         }
 
-        _nmd_d3d9_ib_size = _nmd_context.drawList.numIndices + 10000;
-        if (_nmd_d3d9_device->CreateIndexBuffer((UINT)(_nmd_d3d9_ib_size * sizeof(nmd_index)), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9_ib, NULL) < 0)
+        _nmd_d3d9.ib_size = _nmd_context.drawList.numIndices * sizeof(nmd_index) + 10000;
+        if (_nmd_d3d9.device->CreateIndexBuffer(_nmd_d3d9.ib_size , D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9.ib, NULL) < 0)
             return;
+
+#ifdef NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE
+        _nmd_d3d9_set_render_state();
+#endif /* NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE */
     }
-    
 
     /* Copy vertices to the gpu */
     _nmd_d3d9_custom_vertex* pVertices = 0;
-    if (_nmd_d3d9_vb->Lock(0, (UINT)(_nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex)), (void**)&pVertices, D3DLOCK_DISCARD) != D3D_OK)
+    if (_nmd_d3d9.vb->Lock(0, (UINT)(_nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex)), (void**)&pVertices, D3DLOCK_DISCARD) != D3D_OK)
         return;
     size_t i = 0;
     for (; i < _nmd_context.drawList.numVertices; i++)
     {
-        pVertices[i].pos.x = _nmd_context.drawList.vertices[i].pos.x;
-        pVertices[i].pos.y = _nmd_context.drawList.vertices[i].pos.y;
-        pVertices[i].pos.z = 0.0f;
+        pVertices[i].pos[0] = _nmd_context.drawList.vertices[i].pos.x;
+        pVertices[i].pos[1] = _nmd_context.drawList.vertices[i].pos.y;
+        pVertices[i].pos[2] = 0.0f;
 
-        pVertices[i].uv = _nmd_context.drawList.vertices[i].uv;
-        pVertices[i].color = _NMD_RGBA_TO_ARGB(_nmd_context.drawList.vertices[i].color);
+        pVertices[i].uv[0] = _nmd_context.drawList.vertices[i].uv.x;
+        pVertices[i].uv[1] = _nmd_context.drawList.vertices[i].uv.y;
+
+        const nmd_color color = _nmd_context.drawList.vertices[i].color;
+        pVertices[i].color = D3DCOLOR_RGBA(color.r, color.g, color.b, color.a);
     }
-    _nmd_d3d9_vb->Unlock();
+    _nmd_d3d9.vb->Unlock();
 
-    /* Copy indices to the gpu. */
+    /* Copy indices to the gpu */
     nmd_index* pIndices = 0;
-    if (_nmd_d3d9_ib->Lock(0, (UINT)(_nmd_context.drawList.numIndices * sizeof(nmd_index)), (void**)&pIndices, D3DLOCK_DISCARD) != D3D_OK)
+    if (_nmd_d3d9.ib->Lock(0, (UINT)(_nmd_context.drawList.numIndices * sizeof(nmd_index)), (void**)&pIndices, D3DLOCK_DISCARD) != D3D_OK)
         return;
     memcpy(pIndices, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
-    _nmd_d3d9_ib->Unlock();
+    _nmd_d3d9.ib->Unlock();
     
-    /* Backup current render state. */
-    IDirect3DStateBlock9* stateBlock;
-    D3DMATRIX lastProjectionMatrix;
-    if (_nmd_d3d9_device->CreateStateBlock(D3DSBT_ALL, &stateBlock) != D3D_OK ||
-        _nmd_d3d9_device->GetTransform(D3DTS_PROJECTION, &lastProjectionMatrix) != D3D_OK)
+#ifndef NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE
+    /* Backup the current render state */
+    IDirect3DStateBlock9* d3d9_state_block = NULL;
+    if (_nmd_d3d9.device->CreateStateBlock(D3DSBT_ALL, &d3d9_state_block) < 0)
         return;
+    D3DMATRIX last_world, last_view, last_projection;
+    _nmd_d3d9.device->GetTransform(D3DTS_WORLD, &last_world);
+    _nmd_d3d9.device->GetTransform(D3DTS_VIEW, &last_view);
+    _nmd_d3d9.device->GetTransform(D3DTS_PROJECTION, &last_projection);
+#endif /* NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE */
+
+#ifndef NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE
+    /* Set render state */
+    _nmd_d3d9_set_render_state();
+#endif /* NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE */
     
-    /* Set render state. */
-    _nmd_d3d9_device->SetStreamSource(0, _nmd_d3d9_vb, 0, sizeof(_nmd_d3d9_custom_vertex));
-    _nmd_d3d9_device->SetIndices(_nmd_d3d9_ib);
-    _nmd_d3d9_device->SetFVF(_NMD_D3D9_CUSTOM_VERTEX_FVF);
-    _nmd_d3d9_device->SetPixelShader(NULL);
-    _nmd_d3d9_device->SetVertexShader(NULL);
-    _nmd_d3d9_device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
-    _nmd_d3d9_device->SetRenderState(D3DRS_LIGHTING, false);
-    _nmd_d3d9_device->SetRenderState(D3DRS_ZENABLE, false);
-    _nmd_d3d9_device->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
-    _nmd_d3d9_device->SetRenderState(D3DRS_ALPHATESTENABLE, false);
-    _nmd_d3d9_device->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
-    _nmd_d3d9_device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-    _nmd_d3d9_device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-    _nmd_d3d9_device->SetRenderState(D3DRS_SCISSORTESTENABLE, true);
-    _nmd_d3d9_device->SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
-    _nmd_d3d9_device->SetRenderState(D3DRS_FOGENABLE, false);
-    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-    _nmd_d3d9_device->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-    _nmd_d3d9_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-    _nmd_d3d9_device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-    _nmd_d3d9_device->SetTransform(D3DTS_PROJECTION, &_nmd_d3d9_proj);
-    
-    /* Issue draw calls. */
-    size_t vertexBufferOffset = 0, indexBufferOffset = 0;
+    /* Render draw commands */
+    size_t indexOffset = 0;
     for (i = 0; i < _nmd_context.drawList.numDrawCommands; i++)
     {
-        _nmd_d3d9_device->SetTexture(0, (LPDIRECT3DTEXTURE9)_nmd_context.drawList.drawCommands[i].userTextureId);
-        _nmd_d3d9_device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, (UINT)_nmd_context.drawList.drawCommands[i].numVertices, (UINT)indexBufferOffset, (UINT)(_nmd_context.drawList.drawCommands[i].numIndices / 3));
-        vertexBufferOffset += _nmd_context.drawList.drawCommands[i].numVertices;
-        indexBufferOffset += _nmd_context.drawList.drawCommands[i].numIndices;
+        /* Apply scissor rectangle */
+        RECT r;
+        if (_nmd_context.drawList.drawCommands[i].rect.p1.x == -1.0f)
+            r = { (LONG)_nmd_d3d9.viewport.X, (LONG)_nmd_d3d9.viewport.Y, (LONG)_nmd_d3d9.viewport.Width, (LONG)_nmd_d3d9.viewport.Height };
+        else
+            r = { (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.y, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.y };
+        _nmd_d3d9.device->SetScissorRect(&r);
+        
+        /* Set texture */
+        const LPDIRECT3DTEXTURE9 texture = (LPDIRECT3DTEXTURE9)_nmd_context.drawList.drawCommands[i].userTextureId;
+        _nmd_d3d9.device->SetTexture(0, texture);
+
+        /* Issue draw calls */
+        _nmd_d3d9.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, (UINT)_nmd_context.drawList.drawCommands[i].numVertices, indexOffset, _nmd_context.drawList.drawCommands[i].numIndices / 3);
+        
+        /* Update offsets */
+        indexOffset += _nmd_context.drawList.drawCommands[i].numIndices;
     }
 
-    /* Restore render state. */
-    _nmd_d3d9_device->SetTransform(D3DTS_PROJECTION, &lastProjectionMatrix);
-    stateBlock->Apply();
-    stateBlock->Release();
+#ifndef NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE
+    /* Restore previous render state */
+    _nmd_d3d9.device->SetTransform(D3DTS_WORLD, &last_world);
+    _nmd_d3d9.device->SetTransform(D3DTS_VIEW, &last_view);
+    _nmd_d3d9.device->SetTransform(D3DTS_PROJECTION, &last_projection);
+    d3d9_state_block->Apply();
+    d3d9_state_block->Release();
+#endif /* NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE */
 }
 #endif /* NMD_GRAPHICS_D3D9 */
 
 
 #ifdef NMD_GRAPHICS_D3D11
 
-#include <d3d11.h>
 #pragma comment(lib, "d3d11")
-
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler")
 
@@ -1829,7 +1916,6 @@ struct
     D3D11_VIEWPORT viewport;
     ID3D11Buffer* const_buffer;
     ID3D11SamplerState* font_sampler = NULL;
-    ID3D11ShaderResourceView* font_texture_view;
     ID3D11RasterizerState* rasterizer_state;
     ID3D11BlendState* blend_state;
     ID3D11DepthStencilState* depth_stencil_state;
@@ -1841,10 +1927,10 @@ void nmd_d3d11_set_device_context(ID3D11DeviceContext* device_context)
     _nmd_d3d11.device_context->GetDevice(&_nmd_d3d11.device);
 }
 
-bool nmd_d3d11_create_texture(void* pixels, int width, int height, ID3D11ShaderResourceView** textureViewOut)
+nmd_tex_id nmd_d3d11_create_texture(void* pixels, int width, int height)
 {
     if (!_nmd_d3d11.device)
-        return false;
+        return 0;
 
     D3D11_TEXTURE2D_DESC texDesc;
     memset(&texDesc, 0, sizeof(texDesc));
@@ -1864,34 +1950,24 @@ bool nmd_d3d11_create_texture(void* pixels, int width, int height, ID3D11ShaderR
     subResource.SysMemPitch = texDesc.Width * 4;
     subResource.SysMemSlicePitch = 0;
     if(FAILED(_nmd_d3d11.device->CreateTexture2D(&texDesc, &subResource, &pTexture)))
-        return false;
+        return 0;
 
-    // Create texture view
+    /* Create texture view */
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
     ZeroMemory(&srvDesc, sizeof(srvDesc));
     srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
     srvDesc.Texture2D.MostDetailedMip = 0;
-    if (FAILED(_nmd_d3d11.device->CreateShaderResourceView(pTexture, &srvDesc, textureViewOut)))
-    {
-        pTexture->Release();
-        return false;
-    }
-
+    ID3D11ShaderResourceView* shaderResourceView;
+    const bool failed = FAILED(_nmd_d3d11.device->CreateShaderResourceView(pTexture, &srvDesc, &shaderResourceView));
     pTexture->Release();
 
-    return true;
+    return failed ? 0 : (nmd_tex_id)shaderResourceView;
 }
 
 bool _nmd_d3d11_create_objects()
 {
-    if (!_nmd_d3d11.device)
-        return false;
-
-    if (_nmd_d3d11.font_sampler)
-        return true;
-
     _nmd_d3d11.viewport.MinDepth = 0.0f;
     _nmd_d3d11.viewport.MaxDepth = 1.0f;
     _nmd_d3d11.viewport.TopLeftX = 0.0f;
@@ -1928,13 +2004,14 @@ bool _nmd_d3d11_create_objects()
     ID3DBlob* vertexShaderBlob;
     if (FAILED(D3DCompile(vertexShader, strlen(vertexShader), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vertexShaderBlob, NULL)))
         return false;
-    if (_nmd_d3d11.device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), NULL, &_nmd_d3d11.vertex_shader) != S_OK)
+
+    if (FAILED(_nmd_d3d11.device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), NULL, &_nmd_d3d11.vertex_shader)))
     {
         vertexShaderBlob->Release();
         return false;
     }
 
-    // Create the input layout
+    /* Create the input layout */
     D3D11_INPUT_ELEMENT_DESC local_layout[] =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,   0, (UINT)_NMD_OFFSETOF(nmd_vertex, pos), D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -1942,7 +2019,7 @@ bool _nmd_d3d11_create_objects()
         { "COLOR",    0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, (UINT)_NMD_OFFSETOF(nmd_vertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
-    if (_nmd_d3d11.device->CreateInputLayout(local_layout, 3, vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &_nmd_d3d11.input_layout) != S_OK)
+    if (FAILED(_nmd_d3d11.device->CreateInputLayout(local_layout, 3, vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &_nmd_d3d11.input_layout)))
     {
         vertexShaderBlob->Release();
         return false;
@@ -1950,7 +2027,7 @@ bool _nmd_d3d11_create_objects()
 
     vertexShaderBlob->Release();
 
-    // Create the constant buffer
+    /* Create the constant buffer */
     D3D11_BUFFER_DESC bufferDesc;
     bufferDesc.ByteWidth = sizeof(float) * 4 * 4;
     bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
@@ -1959,7 +2036,7 @@ bool _nmd_d3d11_create_objects()
     bufferDesc.MiscFlags = 0;
     _nmd_d3d11.device->CreateBuffer(&bufferDesc, NULL, &_nmd_d3d11.const_buffer);
 
-    // Create the pixel shader
+    /* Create the pixel shader */
     static const char* pixelShader =
         "struct PS_INPUT\
         {\
@@ -1986,7 +2063,7 @@ bool _nmd_d3d11_create_objects()
     }
     pixelShaderBlob->Release();
 
-    // Create the blending setup
+    /* Create the blending setup */
     D3D11_BLEND_DESC blendDesc;
     memset(&blendDesc, 0, sizeof(blendDesc));
     blendDesc.AlphaToCoverageEnable = false;
@@ -2000,7 +2077,7 @@ bool _nmd_d3d11_create_objects()
     blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
     _nmd_d3d11.device->CreateBlendState(&blendDesc, &_nmd_d3d11.blend_state);
 
-    // Create the rasterizer state
+    /* Create the rasterizer state */
     D3D11_RASTERIZER_DESC rasterizerDesc;
     memset(&rasterizerDesc, 0, sizeof(rasterizerDesc));
     rasterizerDesc.FillMode = D3D11_FILL_SOLID;
@@ -2009,7 +2086,7 @@ bool _nmd_d3d11_create_objects()
     rasterizerDesc.DepthClipEnable = true;
     _nmd_d3d11.device->CreateRasterizerState(&rasterizerDesc, &_nmd_d3d11.rasterizer_state);
 
-    // Create depth-stencil State
+    /* Create depth-stencil State */
     D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
     memset(&depthStencilDesc, 0, sizeof(depthStencilDesc));
     depthStencilDesc.DepthEnable = false;
@@ -2025,13 +2102,11 @@ bool _nmd_d3d11_create_objects()
     unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
     memset(pixels, 0xff, width * height * 4);
 
-    // Upload texture to graphics system
-    if (!nmd_d3d11_create_texture(pixels, width, height, &_nmd_d3d11.font_texture_view))
+    /* Upload texture to graphics system */
+    if (!(_nmd_context.drawList.font = nmd_d3d11_create_texture(pixels, width, height)))
         return false;
 
-    _nmd_context.drawList.font = (nmd_tex_id)_nmd_d3d11.font_texture_view;
-
-    // Create texture sampler
+    /* Create texture sampler */
     D3D11_SAMPLER_DESC samplerDesc;
     memset(&samplerDesc, 0, sizeof(samplerDesc));
     samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -2070,67 +2145,18 @@ bool nmd_d3d11_resize(int width, int height)
     memcpy(mapped_resource.pData, mvp, sizeof(mvp));
     _nmd_d3d11.device_context->Unmap(_nmd_d3d11.const_buffer, 0);
 
-    // Setup viewport
+    /* Setup viewport */
     _nmd_d3d11.viewport.Width = width;
     _nmd_d3d11.viewport.Height = height;
 
     return true;
 }
 
-void nmd_d3d11_render()
+void _nmd_d3d11_set_render_state()
 {
-    if (!_nmd_d3d11.font_sampler)
-        _nmd_d3d11_create_objects();
-
-    // Create/Recreate vertex/index buffers if needed
-    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices * sizeof(nmd_vertex))
-    {
-        if (_nmd_d3d11.vertex_buffer)
-            _nmd_d3d11.vertex_buffer->Release();
-
-        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices + 5000;
-
-        D3D11_BUFFER_DESC desc;
-        memset(&desc, 0, sizeof(desc));
-        desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size * sizeof(nmd_vertex);
-        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        desc.MiscFlags = 0;
-        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.vertex_buffer)))
-            return;
-    }
-
-    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
-    {
-        if (_nmd_d3d11.index_buffer)
-            _nmd_d3d11.index_buffer->Release();
-
-        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices + 10000;
-
-        D3D11_BUFFER_DESC desc;
-        memset(&desc, 0, sizeof(desc));
-        desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.ByteWidth = _nmd_d3d11.index_buffer_size * sizeof(nmd_index);
-        desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.index_buffer)))
-            return;
-    }
-
-    // Copy vertices and indices and to the GPU 
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+    if (!_nmd_d3d11.font_sampler && !_nmd_d3d11_create_objects())
         return;
-    memcpy(mappedResource.pData, _nmd_context.drawList.vertices, _nmd_context.drawList.numVertices * sizeof(nmd_vertex));
-    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.vertex_buffer, 0);
 
-    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
-        return;
-    memcpy(mappedResource.pData, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
-    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.index_buffer, 0);
-
-    // Set render state
     unsigned int stride = sizeof(nmd_vertex);
     unsigned int offset = 0;
     _nmd_d3d11.device_context->IASetInputLayout(_nmd_d3d11.input_layout);
@@ -2150,12 +2176,124 @@ void nmd_d3d11_render()
     _nmd_d3d11.device_context->OMSetBlendState(_nmd_d3d11.blend_state, blend_factor, 0xffffffff);
     _nmd_d3d11.device_context->OMSetDepthStencilState(_nmd_d3d11.depth_stencil_state, 0);
     _nmd_d3d11.device_context->RSSetState(_nmd_d3d11.rasterizer_state);
+}
 
-    // Render draw commands
-    int indexOffset = 0;
+void nmd_d3d11_render()
+{
+    if (!_nmd_d3d11.font_sampler && !_nmd_d3d11_create_objects())
+        return;
+
+    /* Create/Recreate vertex/index buffers if needed */
+    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices * sizeof(nmd_vertex))
+    {
+        if (_nmd_d3d11.vertex_buffer)
+            _nmd_d3d11.vertex_buffer->Release();
+
+        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices * sizeof(nmd_vertex) + 5000;
+
+        D3D11_BUFFER_DESC desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size;
+        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        desc.MiscFlags = 0;
+        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.vertex_buffer)))
+            return;
+
+#ifdef NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE
+        _nmd_d3d11_set_render_state();
+#endif /* NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE */
+    }
+
+    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
+    {
+        if (_nmd_d3d11.index_buffer)
+            _nmd_d3d11.index_buffer->Release();
+
+        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices * sizeof(nmd_index) + 10000;
+
+        D3D11_BUFFER_DESC desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.ByteWidth = _nmd_d3d11.index_buffer_size;
+        desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.index_buffer)))
+            return;
+
+#ifdef NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE
+        _nmd_d3d11_set_render_state();
+#endif /* NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE */
+    }
+
+    /* Copy vertices and indices and to the GPU */
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+        return;
+    memcpy(mappedResource.pData, _nmd_context.drawList.vertices, _nmd_context.drawList.numVertices * sizeof(nmd_vertex));
+    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.vertex_buffer, 0);
+
+    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+        return;
+    memcpy(mappedResource.pData, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
+    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.index_buffer, 0);
+
+#ifndef NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE
+    /* Backup the current render state */
+    struct
+    {
+        UINT ScissorRectsCount, ViewportsCount;
+        D3D11_RECT ScissorRects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+        D3D11_VIEWPORT Viewports[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+        ID3D11RasterizerState* RS;
+        ID3D11BlendState* BlendState;
+        FLOAT BlendFactor[4];
+        UINT SampleMask;
+        UINT StencilRef;
+        ID3D11DepthStencilState* DepthStencilState;
+        ID3D11ShaderResourceView* PSShaderResource;
+        ID3D11SamplerState* PSSampler;
+        ID3D11PixelShader* PS;
+        ID3D11VertexShader* VS;
+        ID3D11GeometryShader* GS;
+        UINT PSInstancesCount, VSInstancesCount, GSInstancesCount;
+        ID3D11ClassInstance* PSInstances[256], *VSInstances[256], *GSInstances[256];
+        D3D11_PRIMITIVE_TOPOLOGY PrimitiveTopology;
+        ID3D11Buffer* IndexBuffer, *VertexBuffer, *VSConstantBuffer;
+        UINT IndexBufferOffset, VertexBufferStride, VertexBufferOffset;
+        DXGI_FORMAT IndexBufferFormat;
+        ID3D11InputLayout* InputLayout;
+    } old;
+    old.ScissorRectsCount = old.ViewportsCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+    _nmd_d3d11.device_context->RSGetScissorRects(&old.ScissorRectsCount, old.ScissorRects);
+    _nmd_d3d11.device_context->RSGetViewports(&old.ViewportsCount, old.Viewports);
+    _nmd_d3d11.device_context->RSGetState(&old.RS);
+    _nmd_d3d11.device_context->OMGetBlendState(&old.BlendState, old.BlendFactor, &old.SampleMask);
+    _nmd_d3d11.device_context->OMGetDepthStencilState(&old.DepthStencilState, &old.StencilRef);
+    _nmd_d3d11.device_context->PSGetShaderResources(0, 1, &old.PSShaderResource);
+    _nmd_d3d11.device_context->PSGetSamplers(0, 1, &old.PSSampler);
+    old.PSInstancesCount = old.VSInstancesCount = old.GSInstancesCount = 256;
+    _nmd_d3d11.device_context->PSGetShader(&old.PS, old.PSInstances, &old.PSInstancesCount);
+    _nmd_d3d11.device_context->VSGetShader(&old.VS, old.VSInstances, &old.VSInstancesCount);
+    _nmd_d3d11.device_context->VSGetConstantBuffers(0, 1, &old.VSConstantBuffer);
+    _nmd_d3d11.device_context->GSGetShader(&old.GS, old.GSInstances, &old.GSInstancesCount);
+    _nmd_d3d11.device_context->IAGetPrimitiveTopology(&old.PrimitiveTopology);
+    _nmd_d3d11.device_context->IAGetIndexBuffer(&old.IndexBuffer, &old.IndexBufferFormat, &old.IndexBufferOffset);
+    _nmd_d3d11.device_context->IAGetVertexBuffers(0, 1, &old.VertexBuffer, &old.VertexBufferStride, &old.VertexBufferOffset);
+    _nmd_d3d11.device_context->IAGetInputLayout(&old.InputLayout);
+#endif /* NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE */
+
+#ifndef NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE
+    /* Set render state */
+    _nmd_d3d11_set_render_state();
+#endif /* NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE */
+
+    /* Render draw commands */
+    size_t indexOffset = 0;
     for (int i = 0; i < _nmd_context.drawList.numDrawCommands; i++)
     {
-        // Apply scissor rectangle
+        /* Apply scissor rectangle */
         D3D11_RECT r;
         if (_nmd_context.drawList.drawCommands[i].rect.p1.x == -1.0f)
             r = { (LONG)_nmd_d3d11.viewport.TopLeftX, (LONG)_nmd_d3d11.viewport.TopLeftY, (LONG)_nmd_d3d11.viewport.Width, (LONG)_nmd_d3d11.viewport.Height };
@@ -2163,71 +2301,177 @@ void nmd_d3d11_render()
             r = { (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.y, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.y };
         _nmd_d3d11.device_context->RSSetScissorRects(1, &r);
 
+        /* Set texture */
         ID3D11ShaderResourceView* texture_srv = (ID3D11ShaderResourceView*)_nmd_context.drawList.drawCommands[i].userTextureId;
         _nmd_d3d11.device_context->PSSetShaderResources(0, 1, &texture_srv);
 
+        /* Issue draw call */
         _nmd_d3d11.device_context->DrawIndexed(_nmd_context.drawList.drawCommands[i].numIndices, indexOffset, 0);
 
+        /* Update offset */
         indexOffset += _nmd_context.drawList.drawCommands[i].numIndices;
     }
+
+#ifndef NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE
+    /* Restore previous render state */
+    _nmd_d3d11.device_context->RSSetScissorRects(old.ScissorRectsCount, old.ScissorRects);
+    _nmd_d3d11.device_context->RSSetViewports(old.ViewportsCount, old.Viewports);
+    _nmd_d3d11.device_context->RSSetState(old.RS); if (old.RS) old.RS->Release();
+    _nmd_d3d11.device_context->OMSetBlendState(old.BlendState, old.BlendFactor, old.SampleMask); if (old.BlendState) old.BlendState->Release();
+    _nmd_d3d11.device_context->OMSetDepthStencilState(old.DepthStencilState, old.StencilRef); if (old.DepthStencilState) old.DepthStencilState->Release();
+    _nmd_d3d11.device_context->PSSetShaderResources(0, 1, &old.PSShaderResource); if (old.PSShaderResource) old.PSShaderResource->Release();
+    _nmd_d3d11.device_context->PSSetSamplers(0, 1, &old.PSSampler); if (old.PSSampler) old.PSSampler->Release();
+    _nmd_d3d11.device_context->PSSetShader(old.PS, old.PSInstances, old.PSInstancesCount); if (old.PS) old.PS->Release();
+    for (UINT i = 0; i < old.PSInstancesCount; i++) if (old.PSInstances[i]) old.PSInstances[i]->Release();
+    _nmd_d3d11.device_context->VSSetShader(old.VS, old.VSInstances, old.VSInstancesCount); if (old.VS) old.VS->Release();
+    _nmd_d3d11.device_context->VSSetConstantBuffers(0, 1, &old.VSConstantBuffer); if (old.VSConstantBuffer) old.VSConstantBuffer->Release();
+    _nmd_d3d11.device_context->GSSetShader(old.GS, old.GSInstances, old.GSInstancesCount); if (old.GS) old.GS->Release();
+    for (UINT i = 0; i < old.VSInstancesCount; i++) if (old.VSInstances[i]) old.VSInstances[i]->Release();
+    _nmd_d3d11.device_context->IASetPrimitiveTopology(old.PrimitiveTopology);
+    _nmd_d3d11.device_context->IASetIndexBuffer(old.IndexBuffer, old.IndexBufferFormat, old.IndexBufferOffset); if (old.IndexBuffer) old.IndexBuffer->Release();
+    _nmd_d3d11.device_context->IASetVertexBuffers(0, 1, &old.VertexBuffer, &old.VertexBufferStride, &old.VertexBufferOffset); if (old.VertexBuffer) old.VertexBuffer->Release();
+    _nmd_d3d11.device_context->IASetInputLayout(old.InputLayout); if (old.InputLayout) old.InputLayout->Release();
+#endif /* NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE */
 }
 
 #endif /* NMD_GRAPHICS_D3D11 */
 
 
+#include <glad/glad.h>
 #ifdef NMD_GRAPHICS_OPENGL
-static GLuint _nmd_vbo = 0, _nmd_vao, _nmd_ebo;
-static GLuint _nmd_vs, _nmd_fs, _nmd_program;
-static GLuint _nmd_uniform_tex, _nmd_uniform_proj, _nmd_attrib_pos, _nmd_attrib_uv, _nmd_attrib_color;
+struct
+{
+    GLuint vbo, vao, ebo;
+    GLuint vs, fs, program;
+    GLuint uniform_tex, uniform_proj, attrib_pos, attrib_uv, attrib_color;
+    GLsizei width, height;
+    GLfloat ortho[4][4];
+} _nmd_opengl;
+bool _nmd_opengl_initialized = false;
+
+nmd_tex_id nmd_opengl_create_texture(void* pixels, int width, int height)
+{
+    GLint last_texture;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
+    GLuint texture;
+
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+#ifdef GL_UNPACK_ROW_LENGTH
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+#endif
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    glBindTexture(GL_TEXTURE_2D, last_texture);
+
+    return texture;
+}
+
+#ifdef __APPLE__
+    #define _NMD_OPENGL_SHADER_VERSION "#version 150\n"
+#else
+    #define _NMD_OPENGL_SHADER_VERSION "#version 300 es\n"
+#endif
 
 bool _nmd_opengl_create_objects()
 {
-    if (_nmd_vbo)
+    if (_nmd_opengl_initialized)
         return true;
 
-    const char* vertexShaderSource = "#version 330 core\n"
-        "uniform mat4 projection;\n"
-        "layout (location = 0) in vec2 pos;\n"
-        "layout (location = 1) in vec2 uv;\n"
-        "layout (location = 2) in vec4 color;\n"
-        "out vec4 fragColor;\n"
-        "void main() { fragColor = color; gl_Position = projection * vec4(pos.xy, 0.0, 1.0); }";
+    _nmd_opengl_initialized = true;
 
-    const char* fragmentShaderSource = "#version 330 core\n"
-        "in vec4 fragColor;\n"
-        "out vec4 outColor;\n"
-        "void main() { outColor = fragColor; }";
+    GLfloat ortho[4][4] = {
+    {2.0f, 0.0f, 0.0f, 0.0f},
+    {0.0f,-2.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f,-1.0f, 0.0f},
+    {-1.0f,1.0f, 0.0f, 1.0f},
+    };
+    memcpy(_nmd_opengl.ortho, ortho, sizeof(GLfloat) * 4 * 4);
 
-    int success = 0;
+    // Backup GL state
+    GLint last_texture, last_array_buffer;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &last_array_buffer);
+#ifndef IMGUI_IMPL_OPENGL_ES2
+    GLint last_vertex_array;
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &last_vertex_array);
+#endif
 
-    _nmd_vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(_nmd_vs, 1, &vertexShaderSource, NULL);
-    glCompileShader(_nmd_vs);
-    glGetShaderiv(_nmd_vs, GL_COMPILE_STATUS, &success);
-    if (!success)
+    const GLchar* vertex_shader =
+        "#version 300 es\n"
+        "precision mediump float;\n"
+        "layout (location = 0) in vec2 Position;\n"
+        "layout (location = 1) in vec2 UV;\n"
+        "layout (location = 2) in vec4 Color;\n"
+        "uniform mat4 ProjMtx;\n"
+        "out vec2 Frag_UV;\n"
+        "out vec4 Frag_Color;\n"
+        "void main()\n"
+        "{\n"
+        "    Frag_UV = UV;\n"
+        "    Frag_Color = Color;\n"
+        "    gl_Position = ProjMtx * vec4(Position.xy,0,1);\n"
+        "}\n";
+    const GLchar* fragment_shader =
+        "#version 300 es\n"
+        "precision mediump float;\n"
+        "uniform sampler2D Texture;\n"
+        "in vec2 Frag_UV;\n"
+        "in vec4 Frag_Color;\n"
+        "layout (location = 0) out vec4 Out_Color;\n"
+        "void main()\n"
+        "{\n"
+        "    Out_Color = Frag_Color * texture(Texture, Frag_UV.st);\n"
+        "}\n";
+    GLint status;
+
+    _nmd_opengl.vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(_nmd_opengl.vs, 1, &vertex_shader, 0);
+    glCompileShader(_nmd_opengl.vs);
+    glGetShaderiv(_nmd_opengl.vs, GL_COMPILE_STATUS, &status);
+    if(status != GL_TRUE)
         return false;
 
-    _nmd_fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(_nmd_fs, 1, &fragmentShaderSource, NULL);
-    glCompileShader(_nmd_fs);
-    glGetShaderiv(_nmd_fs, GL_COMPILE_STATUS, &success);
-    if (!success)
+    _nmd_opengl.fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(_nmd_opengl.fs, 1, &fragment_shader, 0);
+    glCompileShader(_nmd_opengl.fs);
+    glGetShaderiv(_nmd_opengl.fs, GL_COMPILE_STATUS, &status);
+    if (status != GL_TRUE)
         return false;
 
-    _nmd_program = glCreateProgram();
-    glAttachShader(_nmd_program, _nmd_vs);
-    glAttachShader(_nmd_program, _nmd_fs);
-    glLinkProgram(_nmd_program);
-    glGetProgramiv(_nmd_program, GL_LINK_STATUS, &success);
-    if(!success)
+    _nmd_opengl.program = glCreateProgram();
+    glAttachShader(_nmd_opengl.program, _nmd_opengl.vs);
+    glAttachShader(_nmd_opengl.program, _nmd_opengl.fs);
+    glLinkProgram(_nmd_opengl.program);
+    glGetProgramiv(_nmd_opengl.program, GL_LINK_STATUS, &status);
+    if (status != GL_TRUE)
         return false;
 
-    glDeleteShader(_nmd_vs);
-    glDeleteShader(_nmd_fs);
+    _nmd_opengl.uniform_tex = glGetUniformLocation(_nmd_opengl.program, "Texture");
+    _nmd_opengl.uniform_proj = glGetUniformLocation(_nmd_opengl.program, "ProjMtx");
+    _nmd_opengl.attrib_pos = (GLuint)glGetAttribLocation(_nmd_opengl.program, "Position");
+    _nmd_opengl.attrib_uv = (GLuint)glGetAttribLocation(_nmd_opengl.program, "UV");
+    _nmd_opengl.attrib_color = (GLuint)glGetAttribLocation(_nmd_opengl.program, "Color");
 
-    glGenVertexArrays(1, &_nmd_vao);
-    glGenBuffers(1, &_nmd_vbo);
-    glGenBuffers(1, &_nmd_ebo);
+    /* Create buffers */
+    glGenBuffers(1, &_nmd_opengl.vbo);
+    glGenBuffers(1, &_nmd_opengl.ebo);
+
+    int width = 16, height = 16;
+    char* pixels = malloc(width * height * 4);
+    memset(pixels, 255, width * height * 4);
+    _nmd_context.drawList.font = nmd_opengl_create_texture(pixels, width, height);
+
+    /* Restore modified GL state */
+    glBindTexture(GL_TEXTURE_2D, last_texture);
+    glBindBuffer(GL_ARRAY_BUFFER, last_array_buffer);
+#ifndef IMGUI_IMPL_OPENGL_ES2
+    glBindVertexArray(last_vertex_array);
+#endif
 
     return true;
 }
@@ -2238,53 +2482,147 @@ bool nmd_opengl_resize(int width, int height)
         return false;
 
     glViewport(0, 0, (GLsizei)width, (GLsizei)height);
-    GLfloat ortho[4][4] = {
-    {2.0f, 0.0f, 0.0f, 0.0f},
-    {0.0f,-2.0f, 0.0f, 0.0f},
-    {0.0f, 0.0f,-1.0f, 0.0f},
-    {-1.0f,1.0f, 0.0f, 1.0f},
-    };
-    ortho[0][0] /= (GLfloat)width;
-    ortho[1][1] /= (GLfloat)height;
-    glUseProgram(_nmd_program);
-    glUniformMatrix4fv(glGetUniformLocation(_nmd_program, "projection"), 1, GL_FALSE, &ortho[0][0]);
+    _nmd_opengl.ortho[0][0] /= (GLfloat)width;
+    _nmd_opengl.ortho[1][1] /= (GLfloat)height;
+
+    _nmd_opengl.width = width;
+    _nmd_opengl.height = height;
 
     return true;
 }
 
-bool nmd_opengl_render()
+void _nmd_opengl_set_render_state()
+{
+    // Setup render state: alpha-blending enabled, no face culling, no depth testing, scissor enabled, polygon fill
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_SCISSOR_TEST);
+#ifdef GL_POLYGON_MODE
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+#endif
+
+    // Support for GL 4.5 rarely used glClipControl(GL_UPPER_LEFT)
+    bool clip_origin_lower_left = true;
+#if defined(GL_CLIP_ORIGIN) && !defined(__APPLE__)
+    GLenum current_clip_origin = 0; glGetIntegerv(GL_CLIP_ORIGIN, (GLint*)&current_clip_origin);
+    if (current_clip_origin == GL_UPPER_LEFT)
+        clip_origin_lower_left = false;
+#endif
+
+    glViewport(0, 0, (GLsizei)_nmd_opengl.width, (GLsizei)_nmd_opengl.height);
+    glUseProgram(_nmd_opengl.program);
+    glUniform1i(_nmd_opengl.uniform_tex, 0);
+    glUniformMatrix4fv(_nmd_opengl.uniform_proj, 1, GL_FALSE, &_nmd_opengl.ortho[0][0]);
+#ifdef GL_SAMPLER_BINDING
+    glBindSampler(0, 0); // We use combined texture/sampler state. Applications using GL 3.3 may set that otherwise.
+#endif
+
+//    (void)vertex_array_object;
+//#ifndef IMGUI_IMPL_OPENGL_ES2
+//    glBindVertexArray(vertex_array_object);
+//#endif
+
+    // Bind vertex/index buffers and setup attributes for ImDrawVert
+    glBindBuffer(GL_ARRAY_BUFFER, _nmd_opengl.vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _nmd_opengl.ebo);
+    glEnableVertexAttribArray(_nmd_opengl.attrib_pos);
+    glEnableVertexAttribArray(_nmd_opengl.attrib_uv);
+    glEnableVertexAttribArray(_nmd_opengl.attrib_color);
+    glVertexAttribPointer(_nmd_opengl.attrib_pos, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (GLvoid*)_NMD_OFFSETOF(nmd_vertex, pos));
+    glVertexAttribPointer(_nmd_opengl.attrib_uv, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (GLvoid*)_NMD_OFFSETOF(nmd_vertex, uv));
+    glVertexAttribPointer(_nmd_opengl.attrib_color, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(nmd_vertex), (GLvoid*)_NMD_OFFSETOF(nmd_vertex, color));
+}
+
+void nmd_opengl_render()
 {
     if (!_nmd_opengl_create_objects())
         return false;
 
-    glUseProgram(_nmd_program);
+#ifndef NMD_GRAPHICS_OPENGL_DONT_BACKUP_RENDER_STATE
+    /* Backup the current render state */
+    GLenum last_active_texture; glGetIntegerv(GL_ACTIVE_TEXTURE, (GLint*)&last_active_texture);
+    glActiveTexture(GL_TEXTURE0);
+    GLuint last_program; glGetIntegerv(GL_CURRENT_PROGRAM, (GLint*)&last_program);
+    GLuint last_texture; glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint*)&last_texture);
+#ifdef GL_SAMPLER_BINDING
+    GLuint last_sampler; glGetIntegerv(GL_SAMPLER_BINDING, (GLint*)&last_sampler);
+#endif
+    GLuint last_array_buffer; glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint*)&last_array_buffer);
+#ifndef IMGUI_IMPL_OPENGL_ES2
+    GLuint last_vertex_array_object; glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&last_vertex_array_object);
+#endif
+#ifdef GL_POLYGON_MODE
+    GLint last_polygon_mode[2]; glGetIntegerv(GL_POLYGON_MODE, last_polygon_mode);
+#endif
+    GLint last_viewport[4]; glGetIntegerv(GL_VIEWPORT, last_viewport);
+    GLint last_scissor_box[4]; glGetIntegerv(GL_SCISSOR_BOX, last_scissor_box);
+    GLenum last_blend_src_rgb; glGetIntegerv(GL_BLEND_SRC_RGB, (GLint*)&last_blend_src_rgb);
+    GLenum last_blend_dst_rgb; glGetIntegerv(GL_BLEND_DST_RGB, (GLint*)&last_blend_dst_rgb);
+    GLenum last_blend_src_alpha; glGetIntegerv(GL_BLEND_SRC_ALPHA, (GLint*)&last_blend_src_alpha);
+    GLenum last_blend_dst_alpha; glGetIntegerv(GL_BLEND_DST_ALPHA, (GLint*)&last_blend_dst_alpha);
+    GLenum last_blend_equation_rgb; glGetIntegerv(GL_BLEND_EQUATION_RGB, (GLint*)&last_blend_equation_rgb);
+    GLenum last_blend_equation_alpha; glGetIntegerv(GL_BLEND_EQUATION_ALPHA, (GLint*)&last_blend_equation_alpha);
+    GLboolean last_enable_blend = glIsEnabled(GL_BLEND);
+    GLboolean last_enable_cull_face = glIsEnabled(GL_CULL_FACE);
+    GLboolean last_enable_depth_test = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean last_enable_scissor_test = glIsEnabled(GL_SCISSOR_TEST);
+#endif /* NMD_GRAPHICS_OPENGL_DONT_BACKUP_RENDER_STATE */
 
-    glBindVertexArray(_nmd_vao);
+    /* Set render state */
+    _nmd_opengl_set_render_state();
 
-    glBindBuffer(GL_ARRAY_BUFFER, _nmd_vbo);
-    glBufferData(GL_ARRAY_BUFFER, _nmd_context.drawList.numVertices * sizeof(nmd_vertex), _nmd_context.drawList.vertices, GL_STATIC_DRAW);
+    /* Copy vertices and indices and to the GPU */
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)_nmd_context.drawList.numVertices * (int)sizeof(nmd_vertex), (const GLvoid*)_nmd_context.drawList.vertices, GL_STREAM_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)_nmd_context.drawList.numIndices * (int)sizeof(nmd_index), (const GLvoid*)_nmd_context.drawList.indices, GL_STREAM_DRAW);
 
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(nmd_vertex), (void*)8);
-    glEnableVertexAttribArray(1);
-
-    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(nmd_vertex), (void*)16);
-    glEnableVertexAttribArray(2);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _nmd_ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, _nmd_context.drawList.numIndices * sizeof(nmd_index), _nmd_context.drawList.indices, GL_STATIC_DRAW);
-
-    size_t offset = 0;
+    /* Render command buffers */
     size_t i = 0;
+    size_t indexOffset = 0;
     for (; i < _nmd_context.drawList.numDrawCommands; i++)
     {
-        glDrawElements(GL_TRIANGLES, _nmd_context.drawList.drawCommands[i].numIndices, sizeof(nmd_index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)offset);
-        offset += _nmd_context.drawList.drawCommands[i].numIndices;
+        /* Apply scissor rectangle */
+        if (_nmd_context.drawList.drawCommands[i].rect.p1.x == -1.0f)
+            glScissor(0, 0, (GLsizei)_nmd_opengl.width, (GLsizei)_nmd_opengl.height);
+        else
+            glScissor((GLint)_nmd_context.drawList.drawCommands[i].rect.p0.x, (GLint)_nmd_context.drawList.drawCommands[i].rect.p0.y, (GLsizei)_nmd_context.drawList.drawCommands[i].rect.p1.x, (GLsizei)_nmd_context.drawList.drawCommands[i].rect.p1.y);
+        
+        /* Set texture */
+        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)_nmd_context.drawList.drawCommands[i].userTextureId);
+
+        /* Issue draw call */
+        glDrawElements(GL_TRIANGLES, (GLsizei)_nmd_context.drawList.drawCommands[i].numIndices, sizeof(nmd_index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(indexOffset * sizeof(nmd_index)));
+        
+        /* Update offset */
+        indexOffset += _nmd_context.drawList.drawCommands[i].numIndices;
     }
 
-    return true;
+#ifndef NMD_GRAPHICS_OPENGL_DONT_BACKUP_RENDER_STATE
+    /* Restore previous render state */
+    glUseProgram(last_program);
+    glBindTexture(GL_TEXTURE_2D, last_texture);
+#ifdef GL_SAMPLER_BINDING
+    glBindSampler(0, last_sampler);
+#endif
+    glActiveTexture(last_active_texture);
+#ifndef IMGUI_IMPL_OPENGL_ES2
+    glBindVertexArray(last_vertex_array_object);
+#endif
+    glBindBuffer(GL_ARRAY_BUFFER, last_array_buffer);
+    glBlendEquationSeparate(last_blend_equation_rgb, last_blend_equation_alpha);
+    glBlendFuncSeparate(last_blend_src_rgb, last_blend_dst_rgb, last_blend_src_alpha, last_blend_dst_alpha);
+    if (last_enable_blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    if (last_enable_cull_face) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+    if (last_enable_depth_test) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+    if (last_enable_scissor_test) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
+#ifdef GL_POLYGON_MODE
+    glPolygonMode(GL_FRONT_AND_BACK, (GLenum)last_polygon_mode[0]);
+#endif
+    glViewport(last_viewport[0], last_viewport[1], (GLsizei)last_viewport[2], (GLsizei)last_viewport[3]);
+    glScissor(last_scissor_box[0], last_scissor_box[1], (GLsizei)last_scissor_box[2], (GLsizei)last_scissor_box[3]);
+#endif /* NMD_GRAPHICS_OPENGL_DONT_BACKUP_RENDER_STATE */
 }
 
 #endif /* NMD_GRAPHICS_OPENGL */

@@ -2,9 +2,7 @@
 
 #ifdef NMD_GRAPHICS_D3D11
 
-#include <d3d11.h>
 #pragma comment(lib, "d3d11")
-
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler")
 
@@ -21,7 +19,6 @@ struct
     D3D11_VIEWPORT viewport;
     ID3D11Buffer* const_buffer;
     ID3D11SamplerState* font_sampler = NULL;
-    ID3D11ShaderResourceView* font_texture_view;
     ID3D11RasterizerState* rasterizer_state;
     ID3D11BlendState* blend_state;
     ID3D11DepthStencilState* depth_stencil_state;
@@ -33,10 +30,10 @@ void nmd_d3d11_set_device_context(ID3D11DeviceContext* device_context)
     _nmd_d3d11.device_context->GetDevice(&_nmd_d3d11.device);
 }
 
-bool nmd_d3d11_create_texture(void* pixels, int width, int height, ID3D11ShaderResourceView** textureViewOut)
+nmd_tex_id nmd_d3d11_create_texture(void* pixels, int width, int height)
 {
     if (!_nmd_d3d11.device)
-        return false;
+        return 0;
 
     D3D11_TEXTURE2D_DESC texDesc;
     memset(&texDesc, 0, sizeof(texDesc));
@@ -56,34 +53,24 @@ bool nmd_d3d11_create_texture(void* pixels, int width, int height, ID3D11ShaderR
     subResource.SysMemPitch = texDesc.Width * 4;
     subResource.SysMemSlicePitch = 0;
     if(FAILED(_nmd_d3d11.device->CreateTexture2D(&texDesc, &subResource, &pTexture)))
-        return false;
+        return 0;
 
-    // Create texture view
+    /* Create texture view */
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
     ZeroMemory(&srvDesc, sizeof(srvDesc));
     srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
     srvDesc.Texture2D.MostDetailedMip = 0;
-    if (FAILED(_nmd_d3d11.device->CreateShaderResourceView(pTexture, &srvDesc, textureViewOut)))
-    {
-        pTexture->Release();
-        return false;
-    }
-
+    ID3D11ShaderResourceView* shaderResourceView;
+    const bool failed = FAILED(_nmd_d3d11.device->CreateShaderResourceView(pTexture, &srvDesc, &shaderResourceView));
     pTexture->Release();
 
-    return true;
+    return failed ? 0 : (nmd_tex_id)shaderResourceView;
 }
 
 bool _nmd_d3d11_create_objects()
 {
-    if (!_nmd_d3d11.device)
-        return false;
-
-    if (_nmd_d3d11.font_sampler)
-        return true;
-
     _nmd_d3d11.viewport.MinDepth = 0.0f;
     _nmd_d3d11.viewport.MaxDepth = 1.0f;
     _nmd_d3d11.viewport.TopLeftX = 0.0f;
@@ -120,13 +107,14 @@ bool _nmd_d3d11_create_objects()
     ID3DBlob* vertexShaderBlob;
     if (FAILED(D3DCompile(vertexShader, strlen(vertexShader), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vertexShaderBlob, NULL)))
         return false;
-    if (_nmd_d3d11.device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), NULL, &_nmd_d3d11.vertex_shader) != S_OK)
+
+    if (FAILED(_nmd_d3d11.device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), NULL, &_nmd_d3d11.vertex_shader)))
     {
         vertexShaderBlob->Release();
         return false;
     }
 
-    // Create the input layout
+    /* Create the input layout */
     D3D11_INPUT_ELEMENT_DESC local_layout[] =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,   0, (UINT)_NMD_OFFSETOF(nmd_vertex, pos), D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -134,7 +122,7 @@ bool _nmd_d3d11_create_objects()
         { "COLOR",    0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, (UINT)_NMD_OFFSETOF(nmd_vertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
-    if (_nmd_d3d11.device->CreateInputLayout(local_layout, 3, vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &_nmd_d3d11.input_layout) != S_OK)
+    if (FAILED(_nmd_d3d11.device->CreateInputLayout(local_layout, 3, vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &_nmd_d3d11.input_layout)))
     {
         vertexShaderBlob->Release();
         return false;
@@ -142,7 +130,7 @@ bool _nmd_d3d11_create_objects()
 
     vertexShaderBlob->Release();
 
-    // Create the constant buffer
+    /* Create the constant buffer */
     D3D11_BUFFER_DESC bufferDesc;
     bufferDesc.ByteWidth = sizeof(float) * 4 * 4;
     bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
@@ -151,7 +139,7 @@ bool _nmd_d3d11_create_objects()
     bufferDesc.MiscFlags = 0;
     _nmd_d3d11.device->CreateBuffer(&bufferDesc, NULL, &_nmd_d3d11.const_buffer);
 
-    // Create the pixel shader
+    /* Create the pixel shader */
     static const char* pixelShader =
         "struct PS_INPUT\
         {\
@@ -178,7 +166,7 @@ bool _nmd_d3d11_create_objects()
     }
     pixelShaderBlob->Release();
 
-    // Create the blending setup
+    /* Create the blending setup */
     D3D11_BLEND_DESC blendDesc;
     memset(&blendDesc, 0, sizeof(blendDesc));
     blendDesc.AlphaToCoverageEnable = false;
@@ -192,7 +180,7 @@ bool _nmd_d3d11_create_objects()
     blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
     _nmd_d3d11.device->CreateBlendState(&blendDesc, &_nmd_d3d11.blend_state);
 
-    // Create the rasterizer state
+    /* Create the rasterizer state */
     D3D11_RASTERIZER_DESC rasterizerDesc;
     memset(&rasterizerDesc, 0, sizeof(rasterizerDesc));
     rasterizerDesc.FillMode = D3D11_FILL_SOLID;
@@ -201,7 +189,7 @@ bool _nmd_d3d11_create_objects()
     rasterizerDesc.DepthClipEnable = true;
     _nmd_d3d11.device->CreateRasterizerState(&rasterizerDesc, &_nmd_d3d11.rasterizer_state);
 
-    // Create depth-stencil State
+    /* Create depth-stencil State */
     D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
     memset(&depthStencilDesc, 0, sizeof(depthStencilDesc));
     depthStencilDesc.DepthEnable = false;
@@ -217,13 +205,11 @@ bool _nmd_d3d11_create_objects()
     unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
     memset(pixels, 0xff, width * height * 4);
 
-    // Upload texture to graphics system
-    if (!nmd_d3d11_create_texture(pixels, width, height, &_nmd_d3d11.font_texture_view))
+    /* Upload texture to graphics system */
+    if (!(_nmd_context.drawList.font = nmd_d3d11_create_texture(pixels, width, height)))
         return false;
 
-    _nmd_context.drawList.font = (nmd_tex_id)_nmd_d3d11.font_texture_view;
-
-    // Create texture sampler
+    /* Create texture sampler */
     D3D11_SAMPLER_DESC samplerDesc;
     memset(&samplerDesc, 0, sizeof(samplerDesc));
     samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -262,67 +248,18 @@ bool nmd_d3d11_resize(int width, int height)
     memcpy(mapped_resource.pData, mvp, sizeof(mvp));
     _nmd_d3d11.device_context->Unmap(_nmd_d3d11.const_buffer, 0);
 
-    // Setup viewport
+    /* Setup viewport */
     _nmd_d3d11.viewport.Width = width;
     _nmd_d3d11.viewport.Height = height;
 
     return true;
 }
 
-void nmd_d3d11_render()
+void _nmd_d3d11_set_render_state()
 {
-    if (!_nmd_d3d11.font_sampler)
-        _nmd_d3d11_create_objects();
-
-    // Create/Recreate vertex/index buffers if needed
-    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices * sizeof(nmd_vertex))
-    {
-        if (_nmd_d3d11.vertex_buffer)
-            _nmd_d3d11.vertex_buffer->Release();
-
-        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices + 5000;
-
-        D3D11_BUFFER_DESC desc;
-        memset(&desc, 0, sizeof(desc));
-        desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size * sizeof(nmd_vertex);
-        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        desc.MiscFlags = 0;
-        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.vertex_buffer)))
-            return;
-    }
-
-    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
-    {
-        if (_nmd_d3d11.index_buffer)
-            _nmd_d3d11.index_buffer->Release();
-
-        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices + 10000;
-
-        D3D11_BUFFER_DESC desc;
-        memset(&desc, 0, sizeof(desc));
-        desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.ByteWidth = _nmd_d3d11.index_buffer_size * sizeof(nmd_index);
-        desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.index_buffer)))
-            return;
-    }
-
-    // Copy vertices and indices and to the GPU 
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+    if (!_nmd_d3d11.font_sampler && !_nmd_d3d11_create_objects())
         return;
-    memcpy(mappedResource.pData, _nmd_context.drawList.vertices, _nmd_context.drawList.numVertices * sizeof(nmd_vertex));
-    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.vertex_buffer, 0);
 
-    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
-        return;
-    memcpy(mappedResource.pData, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
-    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.index_buffer, 0);
-
-    // Set render state
     unsigned int stride = sizeof(nmd_vertex);
     unsigned int offset = 0;
     _nmd_d3d11.device_context->IASetInputLayout(_nmd_d3d11.input_layout);
@@ -342,12 +279,124 @@ void nmd_d3d11_render()
     _nmd_d3d11.device_context->OMSetBlendState(_nmd_d3d11.blend_state, blend_factor, 0xffffffff);
     _nmd_d3d11.device_context->OMSetDepthStencilState(_nmd_d3d11.depth_stencil_state, 0);
     _nmd_d3d11.device_context->RSSetState(_nmd_d3d11.rasterizer_state);
+}
 
-    // Render draw commands
-    int indexOffset = 0;
+void nmd_d3d11_render()
+{
+    if (!_nmd_d3d11.font_sampler && !_nmd_d3d11_create_objects())
+        return;
+
+    /* Create/Recreate vertex/index buffers if needed */
+    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices * sizeof(nmd_vertex))
+    {
+        if (_nmd_d3d11.vertex_buffer)
+            _nmd_d3d11.vertex_buffer->Release();
+
+        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices * sizeof(nmd_vertex) + 5000;
+
+        D3D11_BUFFER_DESC desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size;
+        desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        desc.MiscFlags = 0;
+        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.vertex_buffer)))
+            return;
+
+#ifdef NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE
+        _nmd_d3d11_set_render_state();
+#endif /* NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE */
+    }
+
+    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
+    {
+        if (_nmd_d3d11.index_buffer)
+            _nmd_d3d11.index_buffer->Release();
+
+        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices * sizeof(nmd_index) + 10000;
+
+        D3D11_BUFFER_DESC desc;
+        memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.ByteWidth = _nmd_d3d11.index_buffer_size;
+        desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.index_buffer)))
+            return;
+
+#ifdef NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE
+        _nmd_d3d11_set_render_state();
+#endif /* NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE */
+    }
+
+    /* Copy vertices and indices and to the GPU */
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+        return;
+    memcpy(mappedResource.pData, _nmd_context.drawList.vertices, _nmd_context.drawList.numVertices * sizeof(nmd_vertex));
+    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.vertex_buffer, 0);
+
+    if (_nmd_d3d11.device_context->Map(_nmd_d3d11.index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource) != S_OK)
+        return;
+    memcpy(mappedResource.pData, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
+    _nmd_d3d11.device_context->Unmap(_nmd_d3d11.index_buffer, 0);
+
+#ifndef NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE
+    /* Backup the current render state */
+    struct
+    {
+        UINT ScissorRectsCount, ViewportsCount;
+        D3D11_RECT ScissorRects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+        D3D11_VIEWPORT Viewports[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+        ID3D11RasterizerState* RS;
+        ID3D11BlendState* BlendState;
+        FLOAT BlendFactor[4];
+        UINT SampleMask;
+        UINT StencilRef;
+        ID3D11DepthStencilState* DepthStencilState;
+        ID3D11ShaderResourceView* PSShaderResource;
+        ID3D11SamplerState* PSSampler;
+        ID3D11PixelShader* PS;
+        ID3D11VertexShader* VS;
+        ID3D11GeometryShader* GS;
+        UINT PSInstancesCount, VSInstancesCount, GSInstancesCount;
+        ID3D11ClassInstance* PSInstances[256], *VSInstances[256], *GSInstances[256];
+        D3D11_PRIMITIVE_TOPOLOGY PrimitiveTopology;
+        ID3D11Buffer* IndexBuffer, *VertexBuffer, *VSConstantBuffer;
+        UINT IndexBufferOffset, VertexBufferStride, VertexBufferOffset;
+        DXGI_FORMAT IndexBufferFormat;
+        ID3D11InputLayout* InputLayout;
+    } old;
+    old.ScissorRectsCount = old.ViewportsCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+    _nmd_d3d11.device_context->RSGetScissorRects(&old.ScissorRectsCount, old.ScissorRects);
+    _nmd_d3d11.device_context->RSGetViewports(&old.ViewportsCount, old.Viewports);
+    _nmd_d3d11.device_context->RSGetState(&old.RS);
+    _nmd_d3d11.device_context->OMGetBlendState(&old.BlendState, old.BlendFactor, &old.SampleMask);
+    _nmd_d3d11.device_context->OMGetDepthStencilState(&old.DepthStencilState, &old.StencilRef);
+    _nmd_d3d11.device_context->PSGetShaderResources(0, 1, &old.PSShaderResource);
+    _nmd_d3d11.device_context->PSGetSamplers(0, 1, &old.PSSampler);
+    old.PSInstancesCount = old.VSInstancesCount = old.GSInstancesCount = 256;
+    _nmd_d3d11.device_context->PSGetShader(&old.PS, old.PSInstances, &old.PSInstancesCount);
+    _nmd_d3d11.device_context->VSGetShader(&old.VS, old.VSInstances, &old.VSInstancesCount);
+    _nmd_d3d11.device_context->VSGetConstantBuffers(0, 1, &old.VSConstantBuffer);
+    _nmd_d3d11.device_context->GSGetShader(&old.GS, old.GSInstances, &old.GSInstancesCount);
+    _nmd_d3d11.device_context->IAGetPrimitiveTopology(&old.PrimitiveTopology);
+    _nmd_d3d11.device_context->IAGetIndexBuffer(&old.IndexBuffer, &old.IndexBufferFormat, &old.IndexBufferOffset);
+    _nmd_d3d11.device_context->IAGetVertexBuffers(0, 1, &old.VertexBuffer, &old.VertexBufferStride, &old.VertexBufferOffset);
+    _nmd_d3d11.device_context->IAGetInputLayout(&old.InputLayout);
+#endif /* NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE */
+
+#ifndef NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE
+    /* Set render state */
+    _nmd_d3d11_set_render_state();
+#endif /* NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE */
+
+    /* Render draw commands */
+    size_t indexOffset = 0;
     for (int i = 0; i < _nmd_context.drawList.numDrawCommands; i++)
     {
-        // Apply scissor rectangle
+        /* Apply scissor rectangle */
         D3D11_RECT r;
         if (_nmd_context.drawList.drawCommands[i].rect.p1.x == -1.0f)
             r = { (LONG)_nmd_d3d11.viewport.TopLeftX, (LONG)_nmd_d3d11.viewport.TopLeftY, (LONG)_nmd_d3d11.viewport.Width, (LONG)_nmd_d3d11.viewport.Height };
@@ -355,13 +404,37 @@ void nmd_d3d11_render()
             r = { (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.y, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.y };
         _nmd_d3d11.device_context->RSSetScissorRects(1, &r);
 
+        /* Set texture */
         ID3D11ShaderResourceView* texture_srv = (ID3D11ShaderResourceView*)_nmd_context.drawList.drawCommands[i].userTextureId;
         _nmd_d3d11.device_context->PSSetShaderResources(0, 1, &texture_srv);
 
+        /* Issue draw call */
         _nmd_d3d11.device_context->DrawIndexed(_nmd_context.drawList.drawCommands[i].numIndices, indexOffset, 0);
 
+        /* Update offset */
         indexOffset += _nmd_context.drawList.drawCommands[i].numIndices;
     }
+
+#ifndef NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE
+    /* Restore previous render state */
+    _nmd_d3d11.device_context->RSSetScissorRects(old.ScissorRectsCount, old.ScissorRects);
+    _nmd_d3d11.device_context->RSSetViewports(old.ViewportsCount, old.Viewports);
+    _nmd_d3d11.device_context->RSSetState(old.RS); if (old.RS) old.RS->Release();
+    _nmd_d3d11.device_context->OMSetBlendState(old.BlendState, old.BlendFactor, old.SampleMask); if (old.BlendState) old.BlendState->Release();
+    _nmd_d3d11.device_context->OMSetDepthStencilState(old.DepthStencilState, old.StencilRef); if (old.DepthStencilState) old.DepthStencilState->Release();
+    _nmd_d3d11.device_context->PSSetShaderResources(0, 1, &old.PSShaderResource); if (old.PSShaderResource) old.PSShaderResource->Release();
+    _nmd_d3d11.device_context->PSSetSamplers(0, 1, &old.PSSampler); if (old.PSSampler) old.PSSampler->Release();
+    _nmd_d3d11.device_context->PSSetShader(old.PS, old.PSInstances, old.PSInstancesCount); if (old.PS) old.PS->Release();
+    for (UINT i = 0; i < old.PSInstancesCount; i++) if (old.PSInstances[i]) old.PSInstances[i]->Release();
+    _nmd_d3d11.device_context->VSSetShader(old.VS, old.VSInstances, old.VSInstancesCount); if (old.VS) old.VS->Release();
+    _nmd_d3d11.device_context->VSSetConstantBuffers(0, 1, &old.VSConstantBuffer); if (old.VSConstantBuffer) old.VSConstantBuffer->Release();
+    _nmd_d3d11.device_context->GSSetShader(old.GS, old.GSInstances, old.GSInstancesCount); if (old.GS) old.GS->Release();
+    for (UINT i = 0; i < old.VSInstancesCount; i++) if (old.VSInstances[i]) old.VSInstances[i]->Release();
+    _nmd_d3d11.device_context->IASetPrimitiveTopology(old.PrimitiveTopology);
+    _nmd_d3d11.device_context->IASetIndexBuffer(old.IndexBuffer, old.IndexBufferFormat, old.IndexBufferOffset); if (old.IndexBuffer) old.IndexBuffer->Release();
+    _nmd_d3d11.device_context->IASetVertexBuffers(0, 1, &old.VertexBuffer, &old.VertexBufferStride, &old.VertexBufferOffset); if (old.VertexBuffer) old.VertexBuffer->Release();
+    _nmd_d3d11.device_context->IASetInputLayout(old.InputLayout); if (old.InputLayout) old.InputLayout->Release();
+#endif /* NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE */
 }
 
 #endif /* NMD_GRAPHICS_D3D11 */

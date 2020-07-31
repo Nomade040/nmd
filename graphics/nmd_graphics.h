@@ -1,9 +1,47 @@
-/* This is a C89 platform independent immediate mode 2D graphics library.
+/* This is a C89 platform independent 2D immediate mode graphics library.
 
 Setup:
 Define the 'NMD_GRAPHICS_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
 #define NMD_GRAPHICS_IMPLEMENTATION
 #include "nmd_graphics.h"
+
+The general workflow for using the library is the following:
+ 1 - Call nmd_new_frame() to clear all vertex, index and command buffers.
+ 2 - Call whatever primitive function you need(e.g. nmd_add_line(), nmd_add_rect_filled()).
+ 3 - Call nmd_end_frame() to create the necessary draw command(s) that describe the data(vertices and indices) for redering.
+ 4 - Now you can do anything with the data. You probably want to call nmd_opengl_render(), nmd_d3d9_render() or nmd_d3d11_render() here.
+
+OpenGL Usage:
+ You MUST define the 'NMD_GRAPHICS_OPENGL' macro once project-wise(compiler dependent) or for every include statement that you'll use any of the following functions.
+ You MUST call nmd_opengl_resize() once for initialization and every time the window resizes.
+ You MUST call nmd_opengl_render() to issue draw calls that render the data in the drawlist.
+ You may call nmd_opengl_create_texture() if a helper function for texture creation is desired.
+ You may define the 'NMD_GRAPHICS_OPENGL_DONT_BACKUP_RENDER_STATE' macro if you don't mind the library overriding the render state.
+ You may define the 'NMD_GRAPHICS_OPENGL_OPTIMIZE_RENDER_STATE' macro so the render state only changes when necessary. Note that this option may only be used if this library is the only component that uses OpenGL.
+
+D3D9 Usage:
+ You MUST define the 'NMD_GRAPHICS_D3D9' macro once project-wise(compiler dependent) or for every include statement that you'll use any of the following functions.
+ You MUST call nmd_d3d9_set_device() once for initialization and every time the device changes.
+ You MUST call nmd_d3d9_resize() once for initialization and every time the window resizes.
+ You MUST call nmd_d3d9_render() to issue draw calls that render the data in the drawlist.
+ You may call nmd_d3d9_create_texture() if a helper function for texture creation is desired.
+ You may define the 'NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE' macro if you don't mind the library overriding the render state.
+ You may define the 'NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE' macro so the render state only changes when necessary. Note that this option may only be used if this library is the only component that uses Direct3D 9.
+
+D3D11 Usage:
+ You MUST define the 'NMD_GRAPHICS_D3D11' macro once project-wise(compiler dependent) or for every include statement that you'll use any of the following functions.
+ You MUST call nmd_d3d11_set_device_context() once for initialization and every time the device context changes.
+ You MUST call nmd_d3d11_resize() once for initialization and every time the window resizes.
+ You MUST call nmd_d3d11_render() to issue draw calls that render the data in the drawlist.
+ You may call nmd_d3d11_create_texture() if a helper function for texture creation is desired.
+ You may define the 'NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE' macro if you don't mind the library overriding the render state.
+ You may define the 'NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE' macro so the render state only changes when necessary. Note that this option may only be used if this library is the only component that uses Direct3D 11.
+
+Internals:
+The 'nmd_context'(acessible by nmd_get_context()) global variable holds the state of the entire library, it
+contains a 'nmd_drawlist' variable which holds the vertex, index and command buffers. Each command buffer
+translate to a call to a rendering's API draw function. Shapes can be rendered in the drawlist by calling
+functions like nmd_add_line() and nmd_add_filled_rect().
 
 Defining types manually:
 Define the 'NMD_GRAPHICS_DEFINE_TYPES' macro to tell the library to define(typedef) the required types.
@@ -12,36 +50,10 @@ Be aware: This feature uses platform dependent macros.
 Disabling default functions:
 Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR' macro to tell the library not to include default allocators.
 
-Overview:
-The 'nmd_context'(acessible by nmd_get_context()) global variable holds the state of the entire library, it
-contains a nmd_drawlist variable which holds the vertex, index and commands buffers. Each command buffer 
-translate to a call to a rendering's API draw function. Shapes can be rendered in the drawlist by calling
-functions like nmd_add_line(), nmd_add_filled_rect(), ...
-
-OpenGL Usage:
- Define 'NMD_GRAPHICS_OPENGL'.
- Call nmd_opengl_resize() for initialization.
- Call nmd_opengl_render() to render data in the drawlist.
-
-D3D9 Usage:
- Define 'NMD_GRAPHICS_D3D9'.
- Call nmd_d3d9_set_device() and nmd_d3d9_resize() for initialization.
- Call nmd_d3d9_render() to render data in the drawlist.
-
-D3D11 Usage:
- Define 'NMD_GRAPHICS_D3D11'.
- Call nmd_d3d11_set_device_context() and nmd_d3d11_resize() for initialization.
- Call nmd_d3d11_render() to render data in the drawlist.
-
 Default fonts:
 The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the font at compile time.
 
 NOTE: A big part of this library's code has been derived from Imgui's and Nuklear's code. Huge credit to both projects.
-
-TODO:
- - Add support for textures in Direct3D 11.
- - Add AddText() method to DrawList.
- - Add support for the remaining rendering APIs: Direct3D 12, OpenGL and Vulkan.
 
 Credits:
  - imgui: https://github.com/ocornut/imgui
@@ -161,9 +173,13 @@ typedef unsigned long long uint64_t;
 #include <Windows.h>
 #endif /* _WIN32 */
 
+typedef uint16_t nmd_index;
+typedef void* nmd_tex_id;
+
 #ifdef NMD_GRAPHICS_OPENGL
 bool nmd_opengl_resize(int width, int height);
-bool nmd_opengl_render();
+void nmd_opengl_render();
+nmd_tex_id nmd_opengl_create_texture(void* pixels, int width, int height);
 #endif /* NMD_GRAPHICS_OPENGL */
 
 #ifdef NMD_GRAPHICS_D3D9
@@ -171,6 +187,7 @@ bool nmd_opengl_render();
 void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pDevice);
 void nmd_d3d9_resize(int width, int height);
 void nmd_d3d9_render();
+nmd_tex_id nmd_d3d9_create_texture(void* pixels, int width, int height);
 #endif /* NMD_GRAPHICS_D3D9 */
 
 #ifdef NMD_GRAPHICS_D3D11
@@ -178,7 +195,7 @@ void nmd_d3d9_render();
 void nmd_d3d11_set_device_context(ID3D11DeviceContext* pDeviceContext);
 bool nmd_d3d11_resize(int width, int height);
 void nmd_d3d11_render();
-bool nmd_d3d11_create_texture(void* pixels, int width, int height, ID3D11ShaderResourceView** textureViewOut);
+nmd_tex_id nmd_d3d11_create_texture(void* pixels, int width, int height);
 #endif /* NMD_GRAPHICS_D3D11 */
 
 enum NMD_CORNER
@@ -197,9 +214,6 @@ enum NMD_CORNER
 
     NMD_CORNER_ALL          = (1 << 5) - 1
 };
-
-typedef uint16_t nmd_index;
-typedef void* nmd_tex_id;
 
 typedef struct
 {
@@ -338,17 +352,19 @@ nmd_color nmd_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
 nmd_context* nmd_get_context();
 
-/* Starts a new empty scene. Internally this function clears all vertices, indices and command buffers. */
-void nmd_begin();
+/* Starts a new empty scene/frame. Internally this function clears all vertices, indices and command buffers. */
+void nmd_new_frame();
 
-/* Ends a scene, so it can be rendered. Internally this functions creates draw commands. */
-void nmd_end();
+/* "Ends" a frame. Wrapper around nmd_push_draw_command(). */
+void nmd_end_frame();
 
 /*
+Creates one or more draw commands for the unaccounted vertices and indices.
 Parameters:
- clipRect [opt/in] A pointer to a rect that specifies the drawable area. If this parameter is null, the entire screen will be set as drawable.
+ clipRect [opt/in] A pointer to a rect that specifies the clip area. This parameter can be null.
 */
 void nmd_push_draw_command(const nmd_rect* clipRect);
+
 void nmd_push_texture_draw_command(nmd_tex_id userTextureId, const nmd_rect* clipRect);
 
 #define NMD_COLOR_BLACK         nmd_rgb(0,   0,   0  )
