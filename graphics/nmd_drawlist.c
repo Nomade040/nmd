@@ -713,7 +713,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
 
         const int idx_count = (numPoints - 2) * 3 + numPoints * 6;
         const int vtx_count = (numPoints * 2);
-        if (!_nmd_reserve(idx_count, vtx_count))
+        if (!_nmd_reserve(vtx_count, idx_count))
             return;
 
         // Add indexes for fill

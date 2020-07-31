@@ -275,7 +275,7 @@ void nmd_d3d11_render()
         _nmd_d3d11_create_objects();
 
     // Create/Recreate vertex/index buffers if needed
-    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices)
+    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices * sizeof(nmd_vertex))
     {
         if (_nmd_d3d11.vertex_buffer)
             _nmd_d3d11.vertex_buffer->Release();
@@ -293,7 +293,7 @@ void nmd_d3d11_render()
             return;
     }
 
-    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices)
+    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
     {
         if (_nmd_d3d11.index_buffer)
             _nmd_d3d11.index_buffer->Release();
