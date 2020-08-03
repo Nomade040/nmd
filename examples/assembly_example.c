@@ -6,7 +6,7 @@ int main()
 	const uint8_t buffer[] = { 0x33, 0xC0, 0x40, 0xC3, 0x8B, 0x65, 0xE8 };
 	const uint8_t* const bufferEnd = buffer + sizeof(buffer);
 
-	NMD_X86Instruction instruction;
+	nmd_x86_instruction instruction;
 	char formattedInstruction[128];
 
 	size_t i = 0;
