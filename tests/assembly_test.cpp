@@ -7,7 +7,7 @@
 struct TestInstruction
 {
 	const char* s; // string
-	NMD_X86Instruction i; // instruction
+	nmd_x86_instruction i; // instruction
 };
 
 #define CPUFLAG(x) {!!((x)&(1<<0)),!!((x)&(1<<1)),!!((x)&(1<<2)),!!((x)&(1<<3)),!!((x)&(1<<4)),!!((x)&(1<<5)),!!((x)&(1<<6)),!!((x)&(1<<7)),!!((x)&(1<<8)),!!((x)&(1<<9)),!!((x)&(1<<10)),!!((x)&(1<<11)),!!((x)&(1<<13)),!!((x)&(1<<14)),!!((x)&(1<<15)),!!((x)&(1<<16)),!!((x)&(1<<17)),!!((x)&(1<<18)),!!((x)&(1<<19)),!!((x)&(1<<20)),!!((x)&(1<<21)),!!((x)&(1<<22)),!!((x)&(1<<23)),!!((x)&(1<<24)),!!((x)&(1<<25)),!!((x)&(1<<26)),!!((x)&(1<<27)),!!((x)&(1<<28)),!!((x)&(1<<29)),!!((x)&(1<<30)),!!((x)&(1<<31))}
@@ -101,12 +101,12 @@ static const TestInstruction instructions[] = {
 
 TEST(FirstTest, TestAllInstructions)
 {	
-	NMD_X86Instruction instruction;
+	nmd_x86_instruction instruction;
 	char formattedInstruction[128];
 	uint8_t buffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];
 
 	// Test all instructions in the array above.
-	for (size_t i = 0; i < NMD_NUM_ELEMENTS(instructions); i++)
+	for (size_t i = 0; i < _NMD_NUM_ELEMENTS(instructions); i++)
 	{
 		SCOPED_TRACE("INDEX:" + std::to_string(i) + '(' + instructions[i].s + ')');
 
@@ -115,7 +115,7 @@ TEST(FirstTest, TestAllInstructions)
 		if (instructions[i].i.valid)
 		{
 			// Test decoder
-			EXPECT_EQ(memcmp(&instructions[i].i, &instruction, sizeof(NMD_X86Instruction)), 0); 
+			EXPECT_EQ(memcmp(&instructions[i].i, &instruction, sizeof(nmd_x86_instruction)), 0); 
 			
 			// Test length disassembler
 			EXPECT_EQ(nmd_x86_ldisasm(instructions[i].i.buffer, instructions[i].i.length, (NMD_X86_MODE)instructions[i].i.mode), instructions[i].i.length);

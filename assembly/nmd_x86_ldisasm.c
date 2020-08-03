@@ -1,11 +1,11 @@
 #include "nmd_common.h"
 
-bool ldisasm_parseModrm(const uint8_t** b, bool addressPrefix, NMD_X86_MODE mode, NMD_Modrm* const pModrm, size_t remainingSize)
+bool _nmd_ldisasm_parse_modrm(const uint8_t** b, bool addressPrefix, NMD_X86_MODE mode, nmd_x86_modrm* const pModrm, size_t remainingSize)
 {
 	if (remainingSize == 0)
 		return false;
 
-	const NMD_Modrm modrm = *(NMD_Modrm*)(++*b);
+	const nmd_x86_modrm modrm = *(nmd_x86_modrm*)(++*b);
 	*pModrm = modrm;
 	bool hasSIB = false;
 	size_t dispSize = 0;
@@ -81,7 +81,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 	uint8_t opcodeSize = 0;
 
 	bool hasModrm = false;
-	NMD_Modrm modrm = { 0,0,0 };
+	nmd_x86_modrm modrm = { 0,0,0 };
 
 	size_t offset = 0;
 
@@ -142,10 +142,10 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 
 			const bool isOpcodeMap38 = *b == 0x38;
 			op = *++b;
-			modrm = *(NMD_Modrm*)(b + 1);
+			modrm = *(nmd_x86_modrm*)(b + 1);
 			opcodeSize = 3;
 			hasModrm = true;
-			if (!ldisasm_parseModrm(&b, addressPrefix, mode, &modrm, remainingSize - 3))
+			if (!_nmd_ldisasm_parse_modrm(&b, addressPrefix, mode, &modrm, remainingSize - 3))
 				return 0;
 
 			if (isOpcodeMap38)
@@ -235,7 +235,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 					return false;
 
 				/*
-				if (!parseModrm(&b, instruction, remainingSize - 2))
+				if (!_nmd_parseModrm(&b, instruction, remainingSize - 2))
 					return false;
 				
 				instruction->encoding = NMD_X86_ENCODING_3DNOW;
@@ -245,7 +245,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 				*/
 
 #ifndef NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK
-				/*if (!nmd_findByte(valid3DNowOpcodes, sizeof(valid3DNowOpcodes), (uint8_t)instruction->immediate))
+				/*if (!_nmd_findByte(_nmd_valid3DNowOpcodes, sizeof(_nmd_valid3DNowOpcodes), (uint8_t)instruction->immediate))
 					return false;*/
 #endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK */
 #else /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW */
@@ -262,14 +262,14 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 				hasModrm = true, modrm.modrm = *++b;
 			else if (op < 4 || (NMD_R(op) != 3 && NMD_R(op) > 0 && NMD_R(op) < 7) || (op >= 0xD0 && op != 0xFF) || (NMD_R(op) == 7 && NMD_C(op) != 7) || NMD_R(op) == 9 || NMD_R(op) == 0xB || (NMD_R(op) == 0xC && NMD_C(op) < 8) || (NMD_R(op) == 0xA && (op % 8) >= 3) || op == 0x0ff || op == 0x00 || op == 0x0d)
 			{
-				if (!ldisasm_parseModrm(&b, addressPrefix, mode, &modrm, remainingSize - 2))
+				if (!_nmd_ldisasm_parse_modrm(&b, addressPrefix, mode, &modrm, remainingSize - 2))
 					return 0;
 				hasModrm = true;
 			}
 
 #ifndef NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK
 			/* Check if the instruction is invalid. */
-			if (nmd_findByte(invalid2op, sizeof(invalid2op), op))
+			if (_nmd_findByte(_nmd_invalid2op, sizeof(_nmd_invalid2op), op))
 				return 0;
 			else if (op == 0xc7)
 			{
@@ -413,9 +413,9 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 		opcodeSize = 1;
 
 		/* Check for ModR/M, SIB and displacement. */
-		if (NMD_R(op) == 8 || nmd_findByte(op1modrm, sizeof(op1modrm), op) || (NMD_R(op) < 4 && (NMD_C(op) < 4 || (NMD_C(op) >= 8 && NMD_C(op) < 0xC))) || (NMD_R(op) == 0xD && NMD_C(op) >= 8) || ((op == 0xc4 || op == 0xc5) && remainingSize > 1 && ((NMD_Modrm*)(b + 1))->fields.mod != 0b11))
+		if (NMD_R(op) == 8 || _nmd_findByte(_nmd_op1modrm, sizeof(_nmd_op1modrm), op) || (NMD_R(op) < 4 && (NMD_C(op) < 4 || (NMD_C(op) >= 8 && NMD_C(op) < 0xC))) || (NMD_R(op) == 0xD && NMD_C(op) >= 8) || ((op == 0xc4 || op == 0xc5) && remainingSize > 1 && ((nmd_x86_modrm*)(b + 1))->fields.mod != 0b11))
 		{
-			if (!ldisasm_parseModrm(&b, addressPrefix, mode, &modrm, remainingSize - 1))
+			if (!_nmd_ldisasm_parse_modrm(&b, addressPrefix, mode, &modrm, remainingSize - 1))
 				return 0;
 			hasModrm = true;
 		}
@@ -525,7 +525,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 				op = *b;
 			}
 
-			if (!ldisasm_parseModrm(&b, addressPrefix, mode, &modrm, remainingSize - (byte0 == 0xc4 ? 4 : 3)))
+			if (!_nmd_ldisasm_parse_modrm(&b, addressPrefix, mode, &modrm, remainingSize - (byte0 == 0xc4 ? 4 : 3)))
 				return false;
 			hasModrm = true;
 		}
@@ -534,7 +534,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 
 		{
 			/* Check for immediate */
-			if (nmd_findByte(op1imm32, sizeof(op1imm32), op) || (NMD_R(op) < 4 && (NMD_C(op) == 5 || NMD_C(op) == 0xD)) || (NMD_R(op) == 0xB && NMD_C(op) >= 8) || (op == 0xF7 && modrm.fields.reg == 0b000)) /* imm32,16 */
+			if (_nmd_findByte(_nmd_op1imm32, sizeof(_nmd_op1imm32), op) || (NMD_R(op) < 4 && (NMD_C(op) == 5 || NMD_C(op) == 0xD)) || (NMD_R(op) == 0xB && NMD_C(op) >= 8) || (op == 0xF7 && modrm.fields.reg == 0b000)) /* imm32,16 */
 			{
 				if (NMD_R(op) == 0xB && NMD_C(op) >= 8)
 					offset += rexW ? 8 : (operandPrefix || (mode == NMD_X86_MODE_16 && !operandPrefix) ? 2 : 4);
@@ -546,7 +546,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 						offset += NMD_X86_IMM16;
 				}
 			}
-			else if (NMD_R(op) == 7 || (NMD_R(op) == 0xE && NMD_C(op) < 8) || (NMD_R(op) == 0xB && NMD_C(op) < 8) || (NMD_R(op) < 4 && (NMD_C(op) == 4 || NMD_C(op) == 0xC)) || (op == 0xF6 && modrm.fields.reg <= 0b001) || nmd_findByte(op1imm8, sizeof(op1imm8), op)) /* imm8 */
+			else if (NMD_R(op) == 7 || (NMD_R(op) == 0xE && NMD_C(op) < 8) || (NMD_R(op) == 0xB && NMD_C(op) < 8) || (NMD_R(op) < 4 && (NMD_C(op) == 4 || NMD_C(op) == 0xC)) || (op == 0xF6 && modrm.fields.reg <= 0b001) || _nmd_findByte(_nmd_op1imm8, sizeof(_nmd_op1imm8), op)) /* imm8 */
 				offset++;
 			else if (NMD_R(op) == 0xA && NMD_C(op) < 4)
 				offset += (mode == NMD_X86_MODE_64) ? (addressPrefix ? 4 : 8) : (addressPrefix ? 2 : 4);
@@ -567,7 +567,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 	{
 		if (!(hasModrm && modrm.fields.mod != 0b11 &&
 			((opcodeSize == 1 && (op == 0x86 || op == 0x87 || (NMD_R(op) < 4 && (op % 8) < 2 && op < 0x38) || ((op >= 0x80 && op <= 0x83) && modrm.fields.reg != 0b111) || (op >= 0xfe && modrm.fields.reg < 2) || ((op == 0xf6 || op == 0xf7) && (modrm.fields.reg == 0b010 || modrm.fields.reg == 0b011)))) ||
-				(opcodeSize == 2 && (nmd_findByte(twoOpcodes, sizeof(twoOpcodes), op) || op == 0xab || (op == 0xba && modrm.fields.reg != 0b100) || (op == 0xc7 && modrm.fields.reg == 0b001))))))
+				(opcodeSize == 2 && (_nmd_findByte(_nmd_twoOpcodes, sizeof(_nmd_twoOpcodes), op) || op == 0xab || (op == 0xba && modrm.fields.reg != 0b100) || (op == 0xc7 && modrm.fields.reg == 0b001))))))
 			return 0;
 	}
 
