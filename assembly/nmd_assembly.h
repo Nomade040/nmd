@@ -34,18 +34,18 @@ Interfaces(a.k.a the functions you call from your application):
       Parameters:
        - buffer      [in]  A pointer to a buffer containing a encoded instruction.
        - bufferSize  [in]  The buffer's size in bytes.
-       - instruction [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+       - instruction [out] A pointer to a variable of type 'nmd_x86_instruction' that receives information about the instruction.
        - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
        - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
-      bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
+      bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
 
     - Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
       Parameters:
-       - instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
+       - instruction    [in]  A pointer to a variable of type 'nmd_x86_instruction' describing the instruction to be formatted.
        - buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
        - runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
        - formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
-      void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
+      void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char buffer[], uint64_t runtimeAddress, uint32_t formatFlags);
 
  - The emulator is represented by the following function:
     Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
@@ -58,9 +58,9 @@ Interfaces(a.k.a the functions you call from your application):
      - 'cpu->rip': The virtual address where emulation starts.
      - 'cpu->rsp': The virtual address of the bottom of the stack.
     Parameters:
-     - cpu      [in] A pointer to a variable of type 'NMD_X86Cpu' that holds the state of the cpu.
+     - cpu      [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
      - maxCount [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
-    bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount);
+    bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount);
 
  - The length disassembler is represented by the following function:
     Returns the instruction's length if it's valid, zero otherwise.
@@ -272,7 +272,7 @@ enum NMD_X86_DISP
 	NMD_X86_DISP_ANY         = (NMD_X86_DISP8 | NMD_X86_DISP16 | NMD_X86_DISP32)
 };
 
-typedef union NMD_Modrm
+typedef union
 {
 	struct
 	{
@@ -281,9 +281,9 @@ typedef union NMD_Modrm
 		uint8_t mod : 2;
 	} fields;
 	uint8_t modrm;
-} NMD_Modrm;
+} nmd_x86_modrm;
 
-typedef union NMD_SIB
+typedef union
 {
 	struct
 	{
@@ -292,9 +292,9 @@ typedef union NMD_SIB
 		uint8_t scale : 2;
 	} fields;
 	uint8_t sib;
-} NMD_SIB;
+} nmd_x86_sib;
 
-typedef enum NMD_X86_MODE
+typedef enum
 {
 	NMD_X86_MODE_NONE = 0, /* Invalid mode. */
 	NMD_X86_MODE_16   = 2,
@@ -323,7 +323,7 @@ enum NMD_X86_ENCODING
 	/* NMD_X86_ENCODING_MVEX,     MVEX used by Intel's "Xeon Phi" ISA. */
 };
 
-typedef struct NMD_X86Vex
+typedef struct
 {
 	bool R : 1;
 	bool X : 1;
@@ -334,7 +334,7 @@ typedef struct NMD_X86Vex
 	uint8_t m_mmmm : 5;
 	uint8_t vvvv : 4;
 	uint8_t vex[3]; /* The full vex prefix. vex[0] is either C4h(3-byte VEX) or C5h(2-byte VEX).*/
-} NMD_X86Vex;
+} nmd_x86_vex;
 
 enum NMD_X86_REG
 {
@@ -2211,14 +2211,14 @@ enum NMD_X86_OPERAND_TYPE
 	NMD_X86_OPERAND_TYPE_IMMEDIATE,
 };
 
-typedef struct NMD_X86MemoryOperand
+typedef struct
 {
 	uint8_t segment;     /* The segment register. A member of 'NMD_X86_REG'. */
 	uint8_t base;        /* The base register. A member of 'NMD_X86_REG'. */
 	uint8_t index;       /* The index register. A member of 'NMD_X86_REG'. */
 	uint8_t scale;       /* Scale(1, 2, 4 or 8). */
 	int64_t disp;        /* Displacement. */
-} NMD_X86MemoryOperand;
+} nmd_x86_memory_operand;
 
 enum NMD_X86_OPERAND_ACTION
 {
@@ -2235,7 +2235,7 @@ enum NMD_X86_OPERAND_ACTION
 	NMD_X86_OPERAND_ACTION_ANY_WRITE  = (NMD_X86_OPERAND_ACTION_WRITE | NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE)
 };
 
-typedef struct NMD_X86Operand
+typedef struct
 {
 	uint8_t type;                  /* The operand's type. A member of 'NMD_X86_OPERAND_TYPE'. */
 	uint8_t size;                  /* The operand's size in bytes. */
@@ -2244,11 +2244,11 @@ typedef struct NMD_X86Operand
 	union {                        /* The operand's "raw" data. */
 		uint8_t reg;               /* Register operand. A variable of type 'NMD_X86_REG' */
 		int64_t imm;               /* Immediate operand. */
-		NMD_X86MemoryOperand mem;  /* Memory operand. */
+		nmd_x86_memory_operand mem;  /* Memory operand. */
 	} fields;
-} NMD_X86Operand;
+} nmd_x86_operand;
 
-typedef union NMD_X86CpuFlags
+typedef union
 {
 	struct
 	{
@@ -2304,7 +2304,7 @@ typedef union NMD_X86CpuFlags
 	uint8_t l8;
 	uint32_t eflags;
 	uint16_t fpuFlags;
-} NMD_X86CpuFlags;
+} nmd_x86_cpu_flags;
 
 enum NMD_X86_EFLAGS
 {
@@ -2335,7 +2335,7 @@ enum NMD_X86_FPU_FLAGS
 	NMD_X86_FPU_FLAGS_C3 = (1 << 14)
 };
 
-typedef struct NMD_X86Instruction
+typedef struct
 {
 	bool valid : 1;                                        /* If true, the instruction is valid. */
 	bool hasModrm : 1;                                     /* If true, the instruction has a modrm byte. */
@@ -2353,27 +2353,27 @@ typedef struct NMD_X86Instruction
 	uint8_t numOperands;                                   /* The number of operands. */
 	uint8_t group;                                         /* The instruction's group(e.g. jmp, prvileged...). A member of 'NMD_X86_GROUP'. */
 	uint8_t buffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];    /* A buffer containing the full instruction. */
-	NMD_X86Operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS]; /* Operands. */
-	NMD_Modrm modrm;                                       /* The Mod/RM byte. Check 'flags.fields.hasModrm'. */
-	NMD_SIB sib;                                           /* The SIB byte. Check 'flags.fields.hasSIB'. */
+	nmd_x86_operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS]; /* Operands. */
+	nmd_x86_modrm modrm;                                       /* The Mod/RM byte. Check 'flags.fields.hasModrm'. */
+	nmd_x86_sib sib;                                           /* The SIB byte. Check 'flags.fields.hasSIB'. */
 	uint8_t immMask;                                       /* A mask of one or more members of 'NMD_X86_IMM'. */
 	uint8_t dispMask;                                      /* A mask of one or more members of 'NMD_X86_DISP'. */
 	uint64_t immediate;                                    /* Immediate. Check 'immMask'. */
 	uint32_t displacement;                                 /* Displacement. Check 'dispMask'. */
 	uint8_t opcodeMap;                                     /* The instruction's opcode map. A member of 'NMD_X86_OPCODE_MAP'. */
 	uint8_t encoding;                                      /* The instruction's encoding. A member of 'NMD_X86_INSTRUCTION_ENCODING'. */
-	NMD_X86Vex vex;                                        /* VEX prefix. */
-	NMD_X86CpuFlags modifiedFlags;                         /* Cpu flags modified by the instruction. */
-	NMD_X86CpuFlags testedFlags;                           /* Cpu flags tested by the instruction. */
-	NMD_X86CpuFlags setFlags;                              /* Cpu flags set by the instruction. */
-	NMD_X86CpuFlags clearedFlags;                          /* Cpu flags cleared by the instruction. */
-	NMD_X86CpuFlags undefinedFlags;                        /* Cpu flags whose state is undefined. */
+	nmd_x86_vex vex;                                        /* VEX prefix. */
+	nmd_x86_cpu_flags modifiedFlags;                         /* Cpu flags modified by the instruction. */
+	nmd_x86_cpu_flags testedFlags;                           /* Cpu flags tested by the instruction. */
+	nmd_x86_cpu_flags setFlags;                              /* Cpu flags set by the instruction. */
+	nmd_x86_cpu_flags clearedFlags;                          /* Cpu flags cleared by the instruction. */
+	nmd_x86_cpu_flags undefinedFlags;                        /* Cpu flags whose state is undefined. */
 	uint8_t rex;                                           /* REX prefix. */
 	uint8_t segmentOverride;                               /* The segment override prefix closest to the opcode. A member of 'NMD_X86_PREFIXES'. */
 	uint16_t simdPrefix;                                   /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
-} NMD_X86Instruction;
+} nmd_x86_instruction;
 
-typedef enum NMD_X86_EMULATOR_EXCEPTION
+typedef enum
 {
 	NMD_X86_EMULATOR_EXCEPTION_NONE = 0,
 	NMD_X86_EMULATOR_EXCEPTION_BREAKPOINT, /* #BP generated by int3 */
@@ -2385,23 +2385,23 @@ typedef enum NMD_X86_EMULATOR_EXCEPTION
 	NMD_X86_EMULATOR_EXCEPTION_STEP
 } NMD_X86_EMULATOR_EXCEPTION;
 
-typedef union NMD_X86Register
+typedef union
 {
 	int8_t  h8;
 	int8_t  l8;
 	int16_t l16;
 	int32_t l32;
 	int64_t l64;
-} NMD_X86Register;
+} nmd_x86_register;
 
-typedef union NMD_X86Register512
+typedef union
 {
 	uint64_t xmm0[2];
 	uint64_t ymm0[4];
 	uint64_t zmm0[8];
-} NMD_X86Register512;
+} nmd_x86_register_512;
 
-typedef struct NMD_X86Cpu
+typedef struct
 {
 	bool running; /* If true, the emulator is running, false otherwise. */
 
@@ -2412,83 +2412,83 @@ typedef struct NMD_X86Cpu
 
 	uint64_t virtualAddress; /* The starting address of the emulator's virtual address space. This address can be any value. */
 
-	void (*callback)(struct NMD_X86Cpu* cpu, const NMD_X86Instruction* instruction, NMD_X86_EMULATOR_EXCEPTION exception);
+	void (*callback)(struct nmd_x86_cpu* cpu, const nmd_x86_instruction* instruction, NMD_X86_EMULATOR_EXCEPTION exception);
 
 	void* userdata;
 
 	uint64_t rip; /* The address of the next instruction to be executed(emulated). */
 
-	NMD_X86CpuFlags flags;
+	nmd_x86_cpu_flags flags;
 
-	NMD_X86Register rax;
-	NMD_X86Register rcx;
-	NMD_X86Register rdx;
-	NMD_X86Register rbx;
-	NMD_X86Register rsp;
-	NMD_X86Register rbp;
-	NMD_X86Register rsi;
-	NMD_X86Register rdi;
+	nmd_x86_register rax;
+	nmd_x86_register rcx;
+	nmd_x86_register rdx;
+	nmd_x86_register rbx;
+	nmd_x86_register rsp;
+	nmd_x86_register rbp;
+	nmd_x86_register rsi;
+	nmd_x86_register rdi;
 
-	NMD_X86Register r8;
-	NMD_X86Register r9;
-	NMD_X86Register r10;
-	NMD_X86Register r11;
-	NMD_X86Register r12;
-	NMD_X86Register r13;
-	NMD_X86Register r14;
-	NMD_X86Register r15;
+	nmd_x86_register r8;
+	nmd_x86_register r9;
+	nmd_x86_register r10;
+	nmd_x86_register r11;
+	nmd_x86_register r12;
+	nmd_x86_register r13;
+	nmd_x86_register r14;
+	nmd_x86_register r15;
 
-	NMD_X86Register mm0;
-	NMD_X86Register mm1;
-	NMD_X86Register mm2;
-	NMD_X86Register mm3;
-	NMD_X86Register mm4;
-	NMD_X86Register mm5;
-	NMD_X86Register mm6;
-	NMD_X86Register mm7;
+	nmd_x86_register mm0;
+	nmd_x86_register mm1;
+	nmd_x86_register mm2;
+	nmd_x86_register mm3;
+	nmd_x86_register mm4;
+	nmd_x86_register mm5;
+	nmd_x86_register mm6;
+	nmd_x86_register mm7;
 
-	NMD_X86Register512 zmm0;
-	NMD_X86Register512 zmm1;
-	NMD_X86Register512 zmm2;
-	NMD_X86Register512 zmm3;
-	NMD_X86Register512 zmm4;
-	NMD_X86Register512 zmm5;
-	NMD_X86Register512 zmm6;
-	NMD_X86Register512 zmm7;
-	NMD_X86Register512 zmm8;
-	NMD_X86Register512 zmm9;
-	NMD_X86Register512 zmm10;
-	NMD_X86Register512 zmm11;
-	NMD_X86Register512 zmm12;
-	NMD_X86Register512 zmm13;
-	NMD_X86Register512 zmm14;
-	NMD_X86Register512 zmm15;
-	NMD_X86Register512 zmm16;
-	NMD_X86Register512 zmm17;
-	NMD_X86Register512 zmm18;
-	NMD_X86Register512 zmm19;
-	NMD_X86Register512 zmm20;
-	NMD_X86Register512 zmm21;
-	NMD_X86Register512 zmm22;
-	NMD_X86Register512 zmm23;
-	NMD_X86Register512 zmm24;
-	NMD_X86Register512 zmm25;
-	NMD_X86Register512 zmm26;
-	NMD_X86Register512 zmm27;
-	NMD_X86Register512 zmm28;
-	NMD_X86Register512 zmm29;
-	NMD_X86Register512 zmm30;
-	NMD_X86Register512 zmm31;
+	nmd_x86_register_512 zmm0;
+	nmd_x86_register_512 zmm1;
+	nmd_x86_register_512 zmm2;
+	nmd_x86_register_512 zmm3;
+	nmd_x86_register_512 zmm4;
+	nmd_x86_register_512 zmm5;
+	nmd_x86_register_512 zmm6;
+	nmd_x86_register_512 zmm7;
+	nmd_x86_register_512 zmm8;
+	nmd_x86_register_512 zmm9;
+	nmd_x86_register_512 zmm10;
+	nmd_x86_register_512 zmm11;
+	nmd_x86_register_512 zmm12;
+	nmd_x86_register_512 zmm13;
+	nmd_x86_register_512 zmm14;
+	nmd_x86_register_512 zmm15;
+	nmd_x86_register_512 zmm16;
+	nmd_x86_register_512 zmm17;
+	nmd_x86_register_512 zmm18;
+	nmd_x86_register_512 zmm19;
+	nmd_x86_register_512 zmm20;
+	nmd_x86_register_512 zmm21;
+	nmd_x86_register_512 zmm22;
+	nmd_x86_register_512 zmm23;
+	nmd_x86_register_512 zmm24;
+	nmd_x86_register_512 zmm25;
+	nmd_x86_register_512 zmm26;
+	nmd_x86_register_512 zmm27;
+	nmd_x86_register_512 zmm28;
+	nmd_x86_register_512 zmm29;
+	nmd_x86_register_512 zmm30;
+	nmd_x86_register_512 zmm31;
 
-	NMD_X86Register dr0;
-	NMD_X86Register dr1;
-	NMD_X86Register dr2;
-	NMD_X86Register dr3;
-	NMD_X86Register dr4;
-	NMD_X86Register dr5;
-	NMD_X86Register dr6;
-	NMD_X86Register dr7;
-} NMD_X86Cpu;
+	nmd_x86_register dr0;
+	nmd_x86_register dr1;
+	nmd_x86_register dr2;
+	nmd_x86_register dr3;
+	nmd_x86_register dr4;
+	nmd_x86_register dr5;
+	nmd_x86_register dr6;
+	nmd_x86_register dr7;
+} nmd_x86_cpu;
 
 /*
 Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
@@ -2507,21 +2507,21 @@ Decodes an instruction. Returns true if the instruction is valid, false otherwis
 Parameters:
  - buffer      [in]  A pointer to a buffer containing a encoded instruction.
  - bufferSize  [in]  The buffer's size in bytes.
- - instruction [out] A pointer to a variable of type 'NMD_X86Instruction' that receives information about the instruction.
+ - instruction [out] A pointer to a variable of type 'nmd_x86_instruction' that receives information about the instruction.
  - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
 */
-bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, NMD_X86Instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
+bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 Parameters:
- - instruction    [in]  A pointer to a variable of type 'NMD_X86Instruction' describing the instruction to be formatted.
+ - instruction    [in]  A pointer to a variable of type 'nmd_x86_instruction' describing the instruction to be formatted.
  - buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
  - runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
  - formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
-void nmd_x86_format_instruction(const NMD_X86Instruction* instruction, char* buffer, uint64_t runtimeAddress, uint32_t formatFlags);
+void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtimeAddress, uint32_t formatFlags);
 
 /*
 Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
@@ -2534,10 +2534,10 @@ You may optionally initialize 'cpu->rsp' if a stack is desirable. Below is a sho
  - 'cpu->rip': The virtual address where emulation starts.
  - 'cpu->rsp': The virtual address of the bottom of the stack.
 Parameters:
- - cpu      [in] A pointer to a variable of type 'NMD_X86Cpu' that holds the state of the cpu.
+ - cpu      [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
  - maxCount [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-bool nmd_x86_emulate(NMD_X86Cpu* cpu, size_t maxCount);
+bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount);
 
 /*
 Returns the instruction's length if it's valid, zero otherwise.
