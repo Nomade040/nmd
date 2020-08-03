@@ -799,187 +799,183 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
 
 #ifdef NMD_GRAPHICS_ENABLE_DUMMY_TEXT_API
 
-void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing, float thickness)
+void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing)
 {
     const float initial_x = x;
-    float width = 0;
+    const float width = height * 0.55f;
     for (; *text; text++, x += width + spacing)
     {
         switch (*text)
         {
-        case ' ':
-            width = height * 0.5f;
-            break;
+        case ' ': break;
         case '\n':
             x = initial_x;
             y += height;
             break;
         case '!':
-            width = height * 0.15f;
-            nmd_add_rect_filled(x, y, x + width, y + height * (2.0f / 3), color, 0, 0);
-            nmd_add_rect_filled(x, y + height * 0.75f, x + width, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.4f, y + height * 0.052f, x + width * 0.6f, y + height * 0.557f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.4f, y + height * 0.622f, x + width * 0.6f, y + height * 0.751f, color, 0, 0);
             break;
         case '"':
-            width = height * 0.35f;
-            nmd_add_rect_filled(x, y, x + width * 0.4f, y + height * 0.25f, color, 0, 0);
-            nmd_add_rect_filled(x + width * 0.6f, y, x + width, y + height * 0.25f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.230f, y + height * 0.05f, x + width * 0.425f, y + height * 0.28f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.575f, y + height * 0.05f, x + width * 0.769f, y + height * 0.28f, color, 0, 0);
             break;
         case '#':
-            width = height * 0.75f;
-            nmd_add_rect_filled(x, y + height * 0.2f, x + width, y + height * 0.35f, color, 0, 0);
-            nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.8f, color, 0, 0);
-            nmd_add_quad_filled(x + width * 0.3f, y, x + width * 0.5f, y, x + width * 0.3f, y + height, x + width * 0.1f, y + height, color);
-            nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
+            nmd_add_quad_filled(x + width * 0.313f, y + height * 0.104f, x + width * 0.442f, y + height * 0.104f, x + width * 0.326, y + height * 0.741f, x + width * 0.195f, y + height * 0.741f, color);
+            nmd_add_quad_filled(x + width * 0.670f, y + height * 0.104f, x + width * 0.802f, y + height * 0.104f, x + width * 0.684, y + height * 0.741f, x + width * 0.552f, y + height * 0.741f, color);
+            nmd_add_rect_filled(x + width * 0.083f, y + height * 0.270f, x + width * 0.962f, y + height * 0.328f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.038f, y + height * 0.498f, x + width * 0.915f, y + height * 0.562f, color, 0, 0);
             break;
         /*case 0x24: /* $ 
             width = height * 0.75f;
             nmd_add_quad_filled(x + width * 0.7f, y, x + width * 0.9f, y, x + width * 0.7f, y + height, x + width * 0.5f, y + height, color);
             break;*/
         case '%':
-            width = height * 0.5f;
             nmd_add_rect_filled(x, y, x + width * 0.5f, y + height * 0.3f, color, 0, 0);
             nmd_add_quad_filled(x + width * 0.7f, y, x + width, y, x + width * 0.3f, y + height, x, y + height, color);
             nmd_add_rect_filled(x + width * 0.5f, y + height * 0.7f, x + width, y + height, color, 0, 0);
             break;
         case '\'':
-            width = height * 0.14f;
-            nmd_add_rect_filled(x, y, x + width, y + height * 0.3f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.399f, y + height * 0.054f, x + width * 0.602f, y + height * 0.283f, color, 0, 0);
+            break;
+        case '*':
+            nmd_add_rect_filled(x + width * 0.437f, y + height * 0.054f, x + width * 0.565f, y + height * 0.465f, color, 0, 0);
+            nmd_add_quad_filled(x + width * 0.146f, y + height * 0.184f, x + width * 0.207f, y + height * 0.127f, x + width * 0.852f, y + height * 0.332f, x + width * 0.793f, y + height * 0.390f, color);
+            nmd_add_quad_filled(x + width * 0.793f, y + height * 0.127f, x + width * 0.853f, y + height * 0.184f, x + width * 0.201f, y + height * 0.390f, x + width * 0.146f, y + height * 0.331f, color);
             break;
         case '+':
-            width = height * 0.435f;
-            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.6f, color, 0, 0);
-            nmd_add_rect_filled(x + width * 0.4f, y + height * 0.3f, x + width * 0.6f, y + height * 0.7f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.075f, y + height * 0.440f, x + width * 0.925f, y + height * 0.512f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.397f, y + height * 0.244f, x + width * 0.576f, y + height * 0.713f, color, 0, 0);
             break;
         case '-':
-            width = height * 0.435f;
-            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.55f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.234f, y + height * 0.436f, x + width * 0.765f, y + height * 0.516f, color, 0, 0);
             break;
         case '.':
-            width = height * 0.2f;
-            nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.85f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.345f, y + height * 0.587f, x + width * 0.640f, y + height * 0.750f, color, 0, 0);
             break;
         case '/':
-            width = height * 0.57f;
-            nmd_add_quad_filled(x + width * 0.75f, y, x + width, y, x + width * 0.25f, y + height, x + width * 0.45f, y + height, color);
+            nmd_add_quad_filled(x + width * 0.711f, y + height * 0.052f, x + width * 0.859f, y + height * 0.052f, x + width * 0.249f, y + height * 0.845f, x + width * 0.103f, y + height * 0.845f, color);
             break;
         case '0':
-            width = height * 0.5f;
             nmd_add_rect(x + width * 0.05f, y + height * 0.05f, x + width * 0.95f, y + height * 0.95f, color, 0, 0, width * 0.2f);
             break;
         case '1':
-            width = height * 0.5f;
             nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
             nmd_add_rect_filled(x + width * 0.4f, y, x + width * 0.6f, y + height, color, 0, 0);
             nmd_add_rect_filled(x + width * 0.1f, y, x + width * 0.4f, y + height * 0.2f, color, 0, 0);
             break;
         case '4':
-            width = height * 0.5f;
             nmd_add_line(x + width * 0.80f, y, x + width * 0.80f, y + height, color, height * 0.15f);
             nmd_add_line(x, y + height * 0.7f, x + width * 0.80f, y, color, height * 0.15f);
             nmd_add_line(x, y + height * 0.7f, x + width * 0.95f, y + height * 0.7f, color, height * 0.15f);
             break;
         case '7':
-            width = height * 0.5f;
             nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
             nmd_add_line(x + width, y, x, y + height, color, height * 0.15f);
             break;
         case '8':
-            width = height * 0.5f;
             nmd_add_circle(x + width * 0.5f, y + height * 0.25f, height * 0.3f, color, 12, height * 0.15f);
             nmd_add_circle(x + width * 0.5f, y + height * 0.75f, height * 0.3f, color, 12, height * 0.15f);
             break;
         case '9':
-            width = height * 0.5f;
             nmd_add_circle(x + width * 0.5f, y + height * 0.25f, height * 0.3f, color, 12, height * 0.15f);
             nmd_add_line(x + width * 0.95f, y, x + width * 0.95f, y + height, color, height * 0.15f);
             break;
         case ':':
-            width = height * 0.2f;
             nmd_add_rect_filled(x, y + height * 0.1f, x + width, y + height * 0.3f, color, 0, 0);
             nmd_add_rect_filled(x, y + height * 0.7f, x + width, y + height * 0.9f, color, 0, 0);
             break;
         case '=':
-            width = height * 0.65f;
             nmd_add_rect_filled(x, y + height * 0.2f, x + width, y + height * 0.35f, color, 0, 0);
             nmd_add_rect_filled(x, y + height * 0.65f, x + width, y + height * 0.8f, color, 0, 0);
             break;
         case 'A':
-            width = height * 0.6f;
             nmd_add_line(x, y + height, x + width * 0.5f, y, color, height * 0.15f);
             nmd_add_line(x + width * 0.1f, y + height * 0.7f, x + width * 0.9f, y + height * 0.7f, color, height * 0.15f);
             nmd_add_line(x + width * 0.5f, y, x + width, y + height, color, height * 0.15f);
             break;
         case 'E':
-            width = height * 0.6f;
-            nmd_add_rect_filled(x, y, x + width * 0.15f, y + height, color, 0, 0);
-            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
-            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.55f, color, 0, 0);
-            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.178f, y + height * 0.102f, x + width * 0.336f, y + height * 0.742f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.336f, y + height * 0.105f, x + width * 0.837f, y + height * 0.175f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.336f, y + height * 0.373f, x + width * 0.837f, y + height * 0.446f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.336f, y + height * 0.670f, x + width * 0.837f, y + height * 0.742f, color, 0, 0);
             break;
         case 'F':
-            width = height * 0.6f;
-            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
-            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
-            nmd_add_rect_filled(x, y + height * 0.5f, x + width, y + height * 0.65f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.178f, y + height * 0.102f, x + width * 0.336f, y + height * 0.742f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.336f, y + height * 0.105f, x + width * 0.837f, y + height * 0.175f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.336f, y + height * 0.373f, x + width * 0.837f, y + height * 0.446f, color, 0, 0);
             break;
         case 'H':
-            width = height * 0.6f;
-            nmd_add_rect_filled(x, y, x + width * 0.22f, y + height, color, 0, 0);
-            nmd_add_rect_filled(x, y + height * 0.45f, x + width, y + height * 0.6f, color, 0, 0);
-            nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.098f, y + height * 0.102f, x + width * 0.256f, y + height * 0.742f, color, 0, 0);
+            //nmd_add_rect_filled(x + width * 0.207f, y + height * 0.102f, x + width * 0.368f, y + height * 0.669f, color, 0, 0);
+            //nmd_add_rect_filled(x + width * 0.207f, y + height * 0.102f, x + width * 0.368f, y + height * 0.669f, color, 0, 0);
             break;
         case 'I':
-            width = height * 0.15f;
             nmd_add_rect_filled(x, y, x + width, y + height, color, 0, 0);
             break;
         case 'L':
-            width = height * 0.6f;
-            nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
-            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.207f, y + height * 0.102f, x + width * 0.368f, y + height * 0.669f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.207f, y + height * 0.670f, x + width * 0.875f, y + height * 0.740f, color, 0, 0);
             break;
         case 'M':
-            width = height * 0.7f;
             nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
             nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
             nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
             nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
             break;
         case 'N':
-            width = height * 0.6f;
             nmd_add_rect_filled(x, y, x + width * 0.2f, y + height, color, 0, 0);
             nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.8f, y + height, x + width, y + height, color);
             nmd_add_rect_filled(x + width * 0.8f, y, x + width, y + height, color, 0, 0);
             break;
         case 'T':
-            width = height * 0.6f;
-            nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
-            nmd_add_rect_filled(x + width * 0.45f, y, x + width * 0.65f, y + height, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.075f, y + height * 0.102f, x + width * 0.930f, y + height * 0.175f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.425f, y + height * 0.175f, x + width * 0.575f, y + height * 0.740f, color, 0, 0);
             break;
         case 'V':
-            width = height * 0.7f;
             nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
             nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height, x + width * 0.6f, y + height, color);
             break;
         case 'X':
-            width = height * 0.7f;
             nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.8f, y + height, x + width, y + height, color);
             nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x, y + height, x + width * 0.2f, y + height, color);
             break;
         case 'Y':
-            width = height * 0.7f;
             nmd_add_quad_filled(x, y, x + width * 0.2f, y, x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height * 0.5f, color);
             nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height * 0.5f, color);
             nmd_add_rect_filled(x + width * 0.4f, y + height * 0.5f, x + width * 0.6f, y + height, color, 0, 0);
             break;
         case 'Z':
-            width = height * 0.6f;
             nmd_add_rect_filled(x, y, x + width, y + height * 0.15f, color, 0, 0);
             nmd_add_quad_filled(x + width * 0.8f, y, x + width, y, x + width * 0.2f, y + height, x, y + height, color);
             nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
             break;
+
+        case '[':
+            nmd_add_rect_filled(x + width * 0.306f, y + height * 0.034f, x + width * 0.744f, y + height * 0.104f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.306f, y + height * 0.104f, x + width * 0.454f, y + height * 0.872f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.306f, y + height * 0.872f, x + width * 0.744f, y + height * 0.945f, color, 0, 0);
+            break;
+        case '\\':
+            nmd_add_quad_filled(x + width * 0.142f, y + height * 0.052f, x + width * 0.289f, y + height * 0.052f, x + width * 0.899f, y + height * 0.846f, x + width * 0.750f, y + height * 0.846f, color);
+            break;
+        case ']':
+            nmd_add_rect_filled(x + width * 0.256f, y + height * 0.034f, x + width * 0.694f, y + height * 0.105f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.533f, y + height * 0.105f, x + width * 0.694f, y + height * 0.872f, color, 0, 0);
+            nmd_add_rect_filled(x + width * 0.256f, y + height * 0.872f, x + width * 0.694f, y + height * 0.945f, color, 0, 0);
+            break;
+        case '^':
+            nmd_add_quad_filled(x + width * 0.432f, y + height * 0.102f, x + width * 0.559f, y + height * 0.102f, x + width * 0.248f, y + height * 0.414f, x + width * 0.107f, y + height * 0.414f, color);
+            nmd_add_quad_filled(x + width * 0.432f, y + height * 0.102f, x + width * 0.559f, y + height * 0.102f, x + width * 0.900f, y + height * 0.414f, x + width * 0.746f, y + height * 0.414f, color);
+            break;
         case '_':
-            width = height * 0.7f;
-            nmd_add_rect_filled(x, y + height * 0.85f, x + width, y + height, color, 0, 0);
+            nmd_add_rect_filled(x, y + height * 0.870f, x + width, y + height * 0.940f, color, 0, 0);
+            break;
+        case '`':
+            nmd_add_quad_filled(x + width * 0.154f, y + height * 0.052f, x + width * 0.377f, y + height * 0.052f, x + width * 0.592f, y + height * 0.167f, x + width * 0.439f, y + height * 0.167f, color);
+            break;
+
+        case 'a':
             break;
         }
     }
@@ -996,49 +992,41 @@ void DrawList::AddBezierCurve(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_
     PathBezierCurveTo(p2, p3, p4, numSegments);
     PathStroke(color, false, thickness);
 }
-
-void DrawList::AddText(const nmd_vec2& pos, Color color, const char* text, size_t textLength)
+void nmd_add_text(float x, float y, const char* text, nmd_color color)
 {
-    AddText(NULL, 0.0f, pos, color, text, textLength);
+    nmd_add_text(_nmd_context.drawList.defaultFont, x, y, text, color);
 }
+*/
 
-void DrawList::AddText(const void* font, float fontSize, const nmd_vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth)
+void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, nmd_color color)
 {
+    nmd_push_draw_command(0);
+
     if (!color.a)
         return;
     
-    const char* const textEnd = text + textLength;
-    
-    float x = pos.x;
-    float y = pos.y;
-
-    while (text < textEnd)
+    stbtt_aligned_quad q;
+    for(; *text; text++)
     {
-        const Glyph* glyph = font->FindGlyph(*text);
-    
-        stbtt_aligned_quad q;
-        stbtt_GetBakedQuad(bdata, 512, 512, *text - 32, &x, &y, &q, 0);
-        
-        const size_t nextIndex = vertices.size();
-        vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y0), color, nmd_vec2(glyph->u0, glyph->v0));
-        vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y0), color, nmd_vec2(glyph->u1, glyph->v0));
-        vertices.emplace_back(nmd_vec2(glyph->x1, glyph->y1), color, nmd_vec2(glyph->u1, glyph->v1));
-        vertices.emplace_back(nmd_vec2(glyph->x0, glyph->y1), color, nmd_vec2(glyph->u0, glyph->v1));
-    
-        const nmd_index nextIndex = static_cast<nmd_index>(vertices.size());
+        stbtt_GetBakedQuad((stbtt_bakedchar*)font->bakedChars, 512, 512, *text - 32, &x, &y, &q, 1);
 
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 1);
-        indices.push_back(nextIndex + 2);
-    
-        indices.push_back(nextIndex + 0);
-        indices.push_back(nextIndex + 2);
-        indices.push_back(nextIndex + 3);
-    
-        text++;
+        const size_t offset = _nmd_context.drawList.numVertices;
+
+        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
+        indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
+        _nmd_context.drawList.numIndices += 6;
+        
+        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+        vertices[0].pos.x = q.x0; vertices[0].pos.y = q.y0; vertices[0].uv.x = q.s0; vertices[0].uv.y = q.t0; vertices[0].color = color;
+        vertices[1].pos.x = q.x1; vertices[1].pos.y = q.y0; vertices[1].uv.x = q.s1; vertices[1].uv.y = q.t0; vertices[1].color = color;
+        vertices[2].pos.x = q.x1; vertices[2].pos.y = q.y1; vertices[2].uv.x = q.s1; vertices[2].uv.y = q.t1; vertices[2].color = color;
+        vertices[3].pos.x = q.x0; vertices[3].pos.y = q.y1; vertices[3].uv.x = q.s0; vertices[3].uv.y = q.t1; vertices[3].color = color;
+        _nmd_context.drawList.numVertices += 4;
     }
+
+    nmd_push_texture_draw_command(font->font, 0);
 }
-*/
 
 void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color)
 {

@@ -2,6 +2,7 @@
 #define NMD_COMMON_H
 
 #include "nmd_graphics.h"
+#include "stb_truetype.h"
 
 #define NMD_PI  3.141592653f
 #define NMD_2PI 6.283185306f
