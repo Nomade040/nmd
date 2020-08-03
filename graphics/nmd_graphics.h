@@ -1,5 +1,8 @@
 /* This is a C89 platform independent 2D immediate mode graphics library.
 
+This library just generates triangles(represented by vertices and indices) from functions like nmd_add_rect_filled().
+There's no GUI or IO.
+
 Setup:
 Define the 'NMD_GRAPHICS_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
 #define NMD_GRAPHICS_IMPLEMENTATION
@@ -116,11 +119,12 @@ typedef unsigned long long uint64_t;
 
 #ifndef NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR
 #include <stdlib.h>
+#include <stdio.h>
 #include <malloc.h>
 
-#ifndef NMD_MALLOC
-#define NMD_MALLOC malloc
-#endif /* NMD_MALLOC */
+#ifndef NMD_ALLOC
+#define NMD_ALLOC malloc
+#endif /* NMD_ALLOC */
 
 #ifndef NMD_REALLOC
 #define NMD_REALLOC realloc
@@ -255,6 +259,18 @@ typedef struct
     nmd_color color;
 } nmd_vertex;
 
+/* Describes a texture atlas */
+typedef struct
+{
+    void* fontData;
+    int width;
+    int height;
+    uint8_t* pixels8;
+    nmd_color* pixels32;
+    void* bakedChars; /* internal */
+    nmd_tex_id font;
+} nmd_atlas;
+
 typedef struct
 {
     bool lineAntiAliasing; /* If true, all lines will have AA applied to them. */
@@ -283,9 +299,6 @@ typedef struct
     nmd_tex_id font;
 
     /*
-    void AddText(const Vec2& pos, Color color, const char* text, size_t textLength);
-    void AddText(const void* font, float fontSize, const Vec2& pos, Color color, const char* text, size_t textLength, float wrapWidth = 0.0f);
-        
     void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);*/
 } nmd_drawlist;
 
@@ -319,7 +332,7 @@ void nmd_add_quad_filled(float x0, float y0, float x1, float y1, float x2, float
 void nmd_add_triangle(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color, float thickness);
 void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color);
 
-void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing, float thickness);
+void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing);
 
 /*
 Set numSegments to zero if you want the function to automatically determine the number of segmnts.
@@ -334,6 +347,9 @@ void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size
 void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color, bool closed, float thickness);
 void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color);
 /*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);*/
+
+/*void nmd_add_text(float x, float y, const char* text, nmd_color color);*/
+void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, nmd_color color);
 
 void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color);
 void nmd_add_image_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
@@ -366,6 +382,8 @@ Parameters:
 void nmd_push_draw_command(const nmd_rect* clipRect);
 
 void nmd_push_texture_draw_command(nmd_tex_id userTextureId, const nmd_rect* clipRect);
+
+bool nmd_bake_font(const char* fontPath, nmd_atlas* atlas, float size);
 
 #define NMD_COLOR_BLACK         nmd_rgb(0,   0,   0  )
 #define NMD_COLOR_WHITE         nmd_rgb(255, 255, 255)

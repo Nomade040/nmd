@@ -1,5 +1,4 @@
 #include "nmd_common.h"
-#include <glad/glad.h>
 #ifdef NMD_GRAPHICS_OPENGL
 struct
 {
