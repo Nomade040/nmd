@@ -2416,6 +2416,8 @@ typedef struct nmd_x86_cpu
 
 	void* userdata;
 
+	size_t count; /* Internal counter used by the emulator.*/
+
 	uint64_t rip; /* The address of the next instruction to be executed(emulated). */
 
 	nmd_x86_cpu_flags flags;
@@ -2437,6 +2439,13 @@ typedef struct nmd_x86_cpu
 	nmd_x86_register r13;
 	nmd_x86_register r14;
 	nmd_x86_register r15;
+
+	uint16_t es;
+	uint16_t ss;
+	uint16_t cs;
+	uint16_t ds;
+	uint16_t fs;
+	uint16_t gs;
 
 	nmd_x86_register mm0;
 	nmd_x86_register mm1;
