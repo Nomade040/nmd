@@ -99,7 +99,7 @@ static const TestInstruction instructions[] = {
 	//{"prefetch [eax]", {{true, false, false, false, false, false},   NMD_X86_MODE_32, 3,      0x0d,   1,          NMD_X86_INSTRUCTION_PREFETCH,   NMD_X86_PREFIXES_NONE,                  0,           1,           NMD_GROUP_NONE, {0x0f, 0x0d, 0x00}, {{NMD_X86_OPERAND_TYPE_MEMORY, 1, false, NMD_X86_OPERAND_ACTION_READ,{NMD_X86_REG_DS,NMD_X86_REG_EAX,0,0,0}},0,0,0}, {0},   {0},   NMD_X86_IMM_NONE, NMD_X86_DISP_NONE, 0,         0,            NMD_X86_OPCODE_MAP_DEFAULT, NMD_X86_INSTRUCTION_ENCODING_LEGACY, {0}, CPUFLAG(0),                                                                                                  CPUFLAG(0),                                     CPUFLAG(0), CPUFLAG(0),                                     CPUFLAG(0),                                                                             0,   0,               NMD_X86_PREFIXES_NONE                  } }
 };
 
-TEST(FirstTest, TestAllInstructions)
+TEST(AssemblerAndDisassemblerTest, TestAllInstructions)
 {	
 	nmd_x86_instruction instruction;
 	char formattedInstruction[128];
@@ -133,6 +133,63 @@ TEST(FirstTest, TestAllInstructions)
 
 	//const uint8_t oneByteInstructions[] = {,,,0xce,0xcf,0x98,0x99,0xd6,0xf8,0xf9,0xfa,0xfb,0xfc,0xfd};
 	//const uint8_t twoByteInstructions[] = { 0x05,0x06,0x07,0x08,0x09,0x0b,0x0e,0x30,0x31,0x32,0x33,0x34,0x35,0x37,0x77,0xa0,0xa1,0xa2,0xa8,0xa9,0xaa };
+}
+
+#define EMULATOR_BLOCK_SIZE (1024 * 1024) /* 1MB */
+
+TEST(EmulatorTest, TestAllInstructions)
+{
+	nmd_x86_cpu cpu;
+	memset(&cpu, 0, sizeof(cpu));
+	cpu.mode = NMD_X86_MODE_32;
+	cpu.physicalMemory = malloc(EMULATOR_BLOCK_SIZE);
+	cpu.physicalMemorySize = EMULATOR_BLOCK_SIZE;
+	cpu.virtualAddress = 0x3b000; /* Some random number(address) */
+	cpu.rip = cpu.virtualAddress + 0x1000; /* Execution starts 0x1000 bytes after the start of the block */
+	cpu.rsp.l64 = cpu.virtualAddress + 0x48000; /* The bottom of the stack is 0x48000 bytes after the start of the block */
+
+	void* mem = NMD_EMULATOR_RESOLVE_VA(cpu.virtualAddress + 0x200);
+	*(uint64_t*)mem = 0;
+
+	/* 00 - add Eb, Gb */
+	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x00\x18", 2);
+	cpu.rax.l64 = cpu.virtualAddress + 0x200;
+	*(uint8_t*)mem = 10;
+	cpu.rbx.l8 = 27;
+	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(*(uint8_t*)mem, 37);
+
+	/* 01 - add Gb, Eb */
+	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x01\x18", 2);
+	cpu.rbx.l64 = 1234;
+	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(*(uint32_t*)mem, 1271);
+
+	/* 02 - add Gv, Ev */
+	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x02\x18", 2);
+	cpu.rbx.l8 = 11;
+	*(uint64_t*)mem = 100;
+	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(cpu.rbx.l8, 111);
+
+	/* 03 - add Ev, Gv */
+	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x03\x18", 2);
+	cpu.rbx.l32 = 472;
+	*(uint64_t*)mem = 1000;
+	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(cpu.rbx.l64, 1472);
+
+	/* 04 - add al, lb */
+	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x04\x20", 2);
+	cpu.rax.l8 = 3;
+	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(cpu.rax.l8, 35);
+
+	/* 05 - add rAX, lv */
+	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x05\x21\x43\x00\x00", 5);
+	cpu.rax.l32 = 0x50000;
+	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(cpu.rax.l32, 0x54321);
 }
 
 int main(int argc, char** argv)
