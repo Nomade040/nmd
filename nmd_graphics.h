@@ -126,9 +126,9 @@ typedef unsigned long long uint64_t;
 #define NMD_ALLOC malloc
 #endif /* NMD_ALLOC */
 
-#ifndef NMD_REALLOC
-#define NMD_REALLOC realloc
-#endif /* NMD_REALLOC */
+#ifndef NMD_FREE
+#define NMD_FREE free
+#endif /* NMD_FREE */
 
 #ifndef NMD_ALLOCA
 #define NMD_ALLOCA alloca
@@ -157,21 +157,25 @@ typedef unsigned long long uint64_t;
 
 #endif /* NMD_GRAPHICS_DISABLE_DEFAULT_MATH_FUNCTIONS */
 
-#ifndef NMD_INITIAL_PATH_BUFFER_SIZE
-#define NMD_INITIAL_PATH_BUFFER_SIZE 256 /* 256B */
-#endif /* NMD_INITIAL_PATH_BUFFER_SIZE */
+/* The number of points the buffer intially supports */
+#ifndef NMD_PATH_BUFFER_INITIAL_SIZE
+#define NMD_PATH_BUFFER_INITIAL_SIZE 32
+#endif /* NMD_PATH_BUFFER_INITIAL_SIZE */
 
-#ifndef NMD_INITIAL_VERTICES_BUFFER_SIZE
-#define NMD_INITIAL_VERTICES_BUFFER_SIZE 4096 /* 4KB */
-#endif /* NMD_INITIAL_VERTICES_BUFFER_SIZE */
+/* The number of vertices the buffer intially supports */
+#ifndef NMD_VERTEX_BUFFER_INITIAL_SIZE
+#define NMD_VERTEX_BUFFER_INITIAL_SIZE 2500
+#endif /* NMD_VERTEX_BUFFER_INITIAL_SIZE */
 
-#ifndef NMD_INITIAL_INDICES_BUFFER_SIZE
-#define NMD_INITIAL_INDICES_BUFFER_SIZE 2048 /* 2KB */
-#endif /* NMD_INITIAL_INDICES_BUFFER_SIZE */
+/* The number of indices the buffer intially supports */
+#ifndef NMD_INDEX_BUFFER_INITIAL_SIZE
+#define NMD_INDEX_BUFFER_INITIAL_SIZE 5000
+#endif /* NMD_INDEX_BUFFER_INITIAL_SIZE */
 
-#ifndef NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE
-#define NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE 128 /* 128B */
-#endif /* NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE */
+/* The number of draw commands the buffer intially supports */
+#ifndef NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE
+#define NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE 8
+#endif /* NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE */
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -349,7 +353,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
 /*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);*/
 
 /*void nmd_add_text(float x, float y, const char* text, nmd_color color);*/
-void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, nmd_color color);
+void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* textEnd, nmd_color color);
 
 void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color);
 void nmd_add_image_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
@@ -5572,17 +5576,17 @@ void nmd_new_frame()
         _nmd_calculate_circle_segments(1.6f);
 
         /* Allocate buffers */
-        _nmd_context.drawList.path = (nmd_vec2*)NMD_ALLOC(NMD_INITIAL_PATH_BUFFER_SIZE);
-        _nmd_context.drawList.pathCapacity = NMD_INITIAL_PATH_BUFFER_SIZE;
+        _nmd_context.drawList.path = (nmd_vec2*)NMD_ALLOC(NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2));
+        _nmd_context.drawList.pathCapacity = NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2);
 
-        _nmd_context.drawList.vertices = (nmd_vertex*)NMD_ALLOC(NMD_INITIAL_VERTICES_BUFFER_SIZE);
-        _nmd_context.drawList.verticesCapacity = NMD_INITIAL_VERTICES_BUFFER_SIZE;
+        _nmd_context.drawList.vertices = (nmd_vertex*)NMD_ALLOC(NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex));
+        _nmd_context.drawList.verticesCapacity = NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex);
 
-        _nmd_context.drawList.indices = (nmd_index*)NMD_ALLOC(NMD_INITIAL_INDICES_BUFFER_SIZE);
-        _nmd_context.drawList.indicesCapacity = NMD_INITIAL_INDICES_BUFFER_SIZE;
+        _nmd_context.drawList.indices = (nmd_index*)NMD_ALLOC(NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index));
+        _nmd_context.drawList.indicesCapacity = NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index);
 
-        _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_ALLOC(NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE);
-        _nmd_context.drawList.drawCommandsCapacity = NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE;
+        _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_ALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
+        _nmd_context.drawList.drawCommandsCapacity = NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command);
     }
 
     _nmd_context.drawList.numVertices = 0;
@@ -5713,11 +5717,13 @@ bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
     if (futureSize > _nmd_context.drawList.verticesCapacity)
     {
         const size_t newCapacity = NMD_MAX(_nmd_context.drawList.verticesCapacity * 2, futureSize);
-        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.vertices, newCapacity);
-        if (!memoryBlock)
+        void* mem = NMD_ALLOC(newCapacity);
+        if (!mem)
             return false;
+        memcpy(mem, _nmd_context.drawList.vertices, _nmd_context.drawList.verticesCapacity);
+        NMD_FREE(_nmd_context.drawList.vertices);
 
-        _nmd_context.drawList.vertices = (nmd_vertex*)memoryBlock;
+        _nmd_context.drawList.vertices = (nmd_vertex*)mem;
         _nmd_context.drawList.verticesCapacity = newCapacity;
     }
 
@@ -5726,11 +5732,13 @@ bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
     if (futureSize > _nmd_context.drawList.indicesCapacity)
     {
         const size_t newCapacity = NMD_MAX(_nmd_context.drawList.indicesCapacity * 2, futureSize);
-        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.indices, newCapacity);
-        if (!memoryBlock)
+        void* mem = NMD_ALLOC(newCapacity);
+        if (!mem)
             return false;
+        memcpy(mem, _nmd_context.drawList.indices, _nmd_context.drawList.indicesCapacity);
+        NMD_FREE(_nmd_context.drawList.indices);
 
-        _nmd_context.drawList.indices = (nmd_index*)memoryBlock;
+        mem, _nmd_context.drawList.indices = (nmd_index*)mem;
         _nmd_context.drawList.indicesCapacity = newCapacity;
     }
 
@@ -5743,11 +5751,13 @@ bool _nmd_reserve_points(size_t numNewPoints)
     if (futureSize > _nmd_context.drawList.pathCapacity)
     {
         const size_t newCapacity = NMD_MAX(_nmd_context.drawList.pathCapacity * 2, futureSize);
-        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.path, newCapacity);
-        if (!memoryBlock)
+        void* mem = NMD_ALLOC(newCapacity);
+        if (!mem)
             return false;
+        memcpy(mem, _nmd_context.drawList.path, _nmd_context.drawList.pathCapacity);
+        NMD_FREE(_nmd_context.drawList.path);
 
-        _nmd_context.drawList.path = (nmd_vec2*)memoryBlock;
+        _nmd_context.drawList.path = (nmd_vec2*)mem;
         _nmd_context.drawList.pathCapacity = newCapacity;
     }
 
@@ -6704,15 +6714,21 @@ void nmd_add_text(float x, float y, const char* text, nmd_color color)
 }
 */
 
-void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, nmd_color color)
+void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* textEnd, nmd_color color)
 {
-    nmd_push_draw_command(0);
-
     if (!color.a)
         return;
-    
+
+    if (!textEnd)
+        textEnd = text + strlen(text);
+
+    if (!_nmd_reserve((textEnd - text) * 4, (textEnd - text) * 6))
+        return;
+
+    nmd_push_draw_command(0);
+
     stbtt_aligned_quad q;
-    for(; *text; text++)
+    for(; text < textEnd; text++)
     {
         stbtt_GetBakedQuad((stbtt_bakedchar*)font->bakedChars, 512, 512, *text - 32, &x, &y, &q, 1);
 
@@ -6803,7 +6819,7 @@ struct
     LPDIRECT3DDEVICE9 device = 0;
     LPDIRECT3DVERTEXBUFFER9 vb = 0; /* vertex buffer */
     LPDIRECT3DINDEXBUFFER9 ib = 0; /* index buffer*/
-    size_t vb_size, ib_size;
+    int vb_size, ib_size; /* The number of vertices and indices respectively. */
     D3DMATRIX proj;
     D3DVIEWPORT9 viewport;
 } _nmd_d3d9;
@@ -6902,7 +6918,7 @@ void _nmd_d3d9_set_render_state()
 void nmd_d3d9_render()
 {
     /* Create/recreate vertex buffer if it doesn't exist or more space is needed */
-    if (!_nmd_d3d9.vb || _nmd_d3d9.vb_size < _nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex))
+    if (!_nmd_d3d9.vb || _nmd_d3d9.vb_size < _nmd_context.drawList.numVertices)
     {
         if (_nmd_d3d9.vb)
         {
@@ -6910,8 +6926,8 @@ void nmd_d3d9_render()
             _nmd_d3d9.vb = 0;
         }
 
-        _nmd_d3d9.vb_size = _nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex) + 5000;
-        if (_nmd_d3d9.device->CreateVertexBuffer(_nmd_d3d9.vb_size, D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, _NMD_D3D9_CUSTOM_VERTEX_FVF, D3DPOOL_DEFAULT, &_nmd_d3d9.vb, NULL) != D3D_OK)
+        _nmd_d3d9.vb_size = _nmd_context.drawList.numVertices + NMD_VERTEX_BUFFER_INITIAL_SIZE;
+        if (_nmd_d3d9.device->CreateVertexBuffer(_nmd_d3d9.vb_size * sizeof(_nmd_d3d9_custom_vertex), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, _NMD_D3D9_CUSTOM_VERTEX_FVF, D3DPOOL_DEFAULT, &_nmd_d3d9.vb, NULL) != D3D_OK)
             return;
 
 #ifdef NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE
@@ -6920,7 +6936,7 @@ void nmd_d3d9_render()
     }
 
     /* Create/recreate index buffer if it doesn't exist or more space is needed */
-    if (!_nmd_d3d9.ib || _nmd_d3d9.ib_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
+    if (!_nmd_d3d9.ib || _nmd_d3d9.ib_size < _nmd_context.drawList.numIndices)
     {
         if (_nmd_d3d9.ib)
         {
@@ -6928,8 +6944,8 @@ void nmd_d3d9_render()
             _nmd_d3d9.ib = 0;
         }
 
-        _nmd_d3d9.ib_size = _nmd_context.drawList.numIndices * sizeof(nmd_index) + 10000;
-        if (_nmd_d3d9.device->CreateIndexBuffer(_nmd_d3d9.ib_size , D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9.ib, NULL) < 0)
+        _nmd_d3d9.ib_size = _nmd_context.drawList.numIndices + NMD_INDEX_BUFFER_INITIAL_SIZE;
+        if (_nmd_d3d9.device->CreateIndexBuffer(_nmd_d3d9.ib_size * sizeof(nmd_index), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9.ib, NULL) < 0)
             return;
 
 #ifdef NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE
@@ -7026,7 +7042,7 @@ struct
     ID3D11DeviceContext* device_context;
     ID3D11Buffer* vertex_buffer;
     ID3D11Buffer* index_buffer;
-    int vertex_buffer_size = 5000, index_buffer_size = 10000;
+    int vertex_buffer_size = 5000, index_buffer_size = 10000; /*The number of vertices and indices respectively. */
     ID3D11VertexShader* vertex_shader;
     ID3D11PixelShader* pixel_shader;
     ID3D11InputLayout* input_layout;
@@ -7301,17 +7317,17 @@ void nmd_d3d11_render()
         return;
 
     /* Create/Recreate vertex/index buffers if needed */
-    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices * sizeof(nmd_vertex))
+    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices)
     {
         if (_nmd_d3d11.vertex_buffer)
             _nmd_d3d11.vertex_buffer->Release();
 
-        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices * sizeof(nmd_vertex) + 5000;
+        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices + NMD_VERTEX_BUFFER_INITIAL_SIZE;
 
         D3D11_BUFFER_DESC desc;
         memset(&desc, 0, sizeof(desc));
         desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size;
+        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size * sizeof(nmd_vertex);
         desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
         desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
         desc.MiscFlags = 0;
@@ -7323,17 +7339,17 @@ void nmd_d3d11_render()
 #endif /* NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE */
     }
 
-    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
+    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices)
     {
         if (_nmd_d3d11.index_buffer)
             _nmd_d3d11.index_buffer->Release();
 
-        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices * sizeof(nmd_index) + 10000;
+        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices + NMD_INDEX_BUFFER_INITIAL_SIZE;
 
         D3D11_BUFFER_DESC desc;
         memset(&desc, 0, sizeof(desc));
         desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.ByteWidth = _nmd_d3d11.index_buffer_size;
+        desc.ByteWidth = _nmd_d3d11.index_buffer_size * sizeof(nmd_index);
         desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
         desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
         if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.index_buffer)))

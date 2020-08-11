@@ -12,7 +12,7 @@ struct
     ID3D11DeviceContext* device_context;
     ID3D11Buffer* vertex_buffer;
     ID3D11Buffer* index_buffer;
-    int vertex_buffer_size = 5000, index_buffer_size = 10000;
+    int vertex_buffer_size = 5000, index_buffer_size = 10000; /*The number of vertices and indices respectively. */
     ID3D11VertexShader* vertex_shader;
     ID3D11PixelShader* pixel_shader;
     ID3D11InputLayout* input_layout;
@@ -287,17 +287,17 @@ void nmd_d3d11_render()
         return;
 
     /* Create/Recreate vertex/index buffers if needed */
-    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices * sizeof(nmd_vertex))
+    if (!_nmd_d3d11.vertex_buffer || _nmd_d3d11.vertex_buffer_size < _nmd_context.drawList.numVertices)
     {
         if (_nmd_d3d11.vertex_buffer)
             _nmd_d3d11.vertex_buffer->Release();
 
-        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices * sizeof(nmd_vertex) + 5000;
+        _nmd_d3d11.vertex_buffer_size = _nmd_context.drawList.numVertices + NMD_VERTEX_BUFFER_INITIAL_SIZE;
 
         D3D11_BUFFER_DESC desc;
         memset(&desc, 0, sizeof(desc));
         desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size;
+        desc.ByteWidth = _nmd_d3d11.vertex_buffer_size * sizeof(nmd_vertex);
         desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
         desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
         desc.MiscFlags = 0;
@@ -309,17 +309,17 @@ void nmd_d3d11_render()
 #endif /* NMD_GRAPHICS_D3D11_OPTIMIZE_RENDER_STATE */
     }
 
-    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
+    if (!_nmd_d3d11.index_buffer || _nmd_d3d11.index_buffer_size < _nmd_context.drawList.numIndices)
     {
         if (_nmd_d3d11.index_buffer)
             _nmd_d3d11.index_buffer->Release();
 
-        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices * sizeof(nmd_index) + 10000;
+        _nmd_d3d11.index_buffer_size = _nmd_context.drawList.numIndices + NMD_INDEX_BUFFER_INITIAL_SIZE;
 
         D3D11_BUFFER_DESC desc;
         memset(&desc, 0, sizeof(desc));
         desc.Usage = D3D11_USAGE_DYNAMIC;
-        desc.ByteWidth = _nmd_d3d11.index_buffer_size;
+        desc.ByteWidth = _nmd_d3d11.index_buffer_size * sizeof(nmd_index);
         desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
         desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
         if (FAILED(_nmd_d3d11.device->CreateBuffer(&desc, NULL, &_nmd_d3d11.index_buffer)))

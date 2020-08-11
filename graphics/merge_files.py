@@ -24,7 +24,7 @@ with open('../nmd_graphics.h', 'w') as out:
             # Remove these include statements
             content = content.replace('#include "nmd_common.h"', '')
 
-            # Remove any '\n'(new line) character at the start of the file
+            # Remove all empty lines at the start of the file
             while content[0] == '\n':
                 content = content[1:]
 

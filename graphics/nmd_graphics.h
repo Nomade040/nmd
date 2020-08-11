@@ -126,9 +126,9 @@ typedef unsigned long long uint64_t;
 #define NMD_ALLOC malloc
 #endif /* NMD_ALLOC */
 
-#ifndef NMD_REALLOC
-#define NMD_REALLOC realloc
-#endif /* NMD_REALLOC */
+#ifndef NMD_FREE
+#define NMD_FREE free
+#endif /* NMD_FREE */
 
 #ifndef NMD_ALLOCA
 #define NMD_ALLOCA alloca
@@ -157,21 +157,25 @@ typedef unsigned long long uint64_t;
 
 #endif /* NMD_GRAPHICS_DISABLE_DEFAULT_MATH_FUNCTIONS */
 
-#ifndef NMD_INITIAL_PATH_BUFFER_SIZE
-#define NMD_INITIAL_PATH_BUFFER_SIZE 256 /* 256B */
-#endif /* NMD_INITIAL_PATH_BUFFER_SIZE */
+/* The number of points the buffer intially supports */
+#ifndef NMD_PATH_BUFFER_INITIAL_SIZE
+#define NMD_PATH_BUFFER_INITIAL_SIZE 32
+#endif /* NMD_PATH_BUFFER_INITIAL_SIZE */
 
-#ifndef NMD_INITIAL_VERTICES_BUFFER_SIZE
-#define NMD_INITIAL_VERTICES_BUFFER_SIZE 4096 /* 4KB */
-#endif /* NMD_INITIAL_VERTICES_BUFFER_SIZE */
+/* The number of vertices the buffer intially supports */
+#ifndef NMD_VERTEX_BUFFER_INITIAL_SIZE
+#define NMD_VERTEX_BUFFER_INITIAL_SIZE 2500
+#endif /* NMD_VERTEX_BUFFER_INITIAL_SIZE */
 
-#ifndef NMD_INITIAL_INDICES_BUFFER_SIZE
-#define NMD_INITIAL_INDICES_BUFFER_SIZE 2048 /* 2KB */
-#endif /* NMD_INITIAL_INDICES_BUFFER_SIZE */
+/* The number of indices the buffer intially supports */
+#ifndef NMD_INDEX_BUFFER_INITIAL_SIZE
+#define NMD_INDEX_BUFFER_INITIAL_SIZE 5000
+#endif /* NMD_INDEX_BUFFER_INITIAL_SIZE */
 
-#ifndef NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE
-#define NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE 128 /* 128B */
-#endif /* NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE */
+/* The number of draw commands the buffer intially supports */
+#ifndef NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE
+#define NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE 8
+#endif /* NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE */
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -349,7 +353,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
 /*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);*/
 
 /*void nmd_add_text(float x, float y, const char* text, nmd_color color);*/
-void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, nmd_color color);
+void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* textEnd, nmd_color color);
 
 void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color);
 void nmd_add_image_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);

@@ -138,17 +138,17 @@ void nmd_new_frame()
         _nmd_calculate_circle_segments(1.6f);
 
         /* Allocate buffers */
-        _nmd_context.drawList.path = (nmd_vec2*)NMD_ALLOC(NMD_INITIAL_PATH_BUFFER_SIZE);
-        _nmd_context.drawList.pathCapacity = NMD_INITIAL_PATH_BUFFER_SIZE;
+        _nmd_context.drawList.path = (nmd_vec2*)NMD_ALLOC(NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2));
+        _nmd_context.drawList.pathCapacity = NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2);
 
-        _nmd_context.drawList.vertices = (nmd_vertex*)NMD_ALLOC(NMD_INITIAL_VERTICES_BUFFER_SIZE);
-        _nmd_context.drawList.verticesCapacity = NMD_INITIAL_VERTICES_BUFFER_SIZE;
+        _nmd_context.drawList.vertices = (nmd_vertex*)NMD_ALLOC(NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex));
+        _nmd_context.drawList.verticesCapacity = NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex);
 
-        _nmd_context.drawList.indices = (nmd_index*)NMD_ALLOC(NMD_INITIAL_INDICES_BUFFER_SIZE);
-        _nmd_context.drawList.indicesCapacity = NMD_INITIAL_INDICES_BUFFER_SIZE;
+        _nmd_context.drawList.indices = (nmd_index*)NMD_ALLOC(NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index));
+        _nmd_context.drawList.indicesCapacity = NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index);
 
-        _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_ALLOC(NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE);
-        _nmd_context.drawList.drawCommandsCapacity = NMD_INITIAL_DRAW_COMMANDS_BUFFER_SIZE;
+        _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_ALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
+        _nmd_context.drawList.drawCommandsCapacity = NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command);
     }
 
     _nmd_context.drawList.numVertices = 0;

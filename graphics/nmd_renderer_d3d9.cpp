@@ -7,7 +7,7 @@ struct
     LPDIRECT3DDEVICE9 device = 0;
     LPDIRECT3DVERTEXBUFFER9 vb = 0; /* vertex buffer */
     LPDIRECT3DINDEXBUFFER9 ib = 0; /* index buffer*/
-    size_t vb_size, ib_size;
+    int vb_size, ib_size; /* The number of vertices and indices respectively. */
     D3DMATRIX proj;
     D3DVIEWPORT9 viewport;
 } _nmd_d3d9;
@@ -106,7 +106,7 @@ void _nmd_d3d9_set_render_state()
 void nmd_d3d9_render()
 {
     /* Create/recreate vertex buffer if it doesn't exist or more space is needed */
-    if (!_nmd_d3d9.vb || _nmd_d3d9.vb_size < _nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex))
+    if (!_nmd_d3d9.vb || _nmd_d3d9.vb_size < _nmd_context.drawList.numVertices)
     {
         if (_nmd_d3d9.vb)
         {
@@ -114,8 +114,8 @@ void nmd_d3d9_render()
             _nmd_d3d9.vb = 0;
         }
 
-        _nmd_d3d9.vb_size = _nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex) + 5000;
-        if (_nmd_d3d9.device->CreateVertexBuffer(_nmd_d3d9.vb_size, D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, _NMD_D3D9_CUSTOM_VERTEX_FVF, D3DPOOL_DEFAULT, &_nmd_d3d9.vb, NULL) != D3D_OK)
+        _nmd_d3d9.vb_size = _nmd_context.drawList.numVertices + NMD_VERTEX_BUFFER_INITIAL_SIZE;
+        if (_nmd_d3d9.device->CreateVertexBuffer(_nmd_d3d9.vb_size * sizeof(_nmd_d3d9_custom_vertex), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, _NMD_D3D9_CUSTOM_VERTEX_FVF, D3DPOOL_DEFAULT, &_nmd_d3d9.vb, NULL) != D3D_OK)
             return;
 
 #ifdef NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE
@@ -124,7 +124,7 @@ void nmd_d3d9_render()
     }
 
     /* Create/recreate index buffer if it doesn't exist or more space is needed */
-    if (!_nmd_d3d9.ib || _nmd_d3d9.ib_size < _nmd_context.drawList.numIndices * sizeof(nmd_index))
+    if (!_nmd_d3d9.ib || _nmd_d3d9.ib_size < _nmd_context.drawList.numIndices)
     {
         if (_nmd_d3d9.ib)
         {
@@ -132,8 +132,8 @@ void nmd_d3d9_render()
             _nmd_d3d9.ib = 0;
         }
 
-        _nmd_d3d9.ib_size = _nmd_context.drawList.numIndices * sizeof(nmd_index) + 10000;
-        if (_nmd_d3d9.device->CreateIndexBuffer(_nmd_d3d9.ib_size , D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9.ib, NULL) < 0)
+        _nmd_d3d9.ib_size = _nmd_context.drawList.numIndices + NMD_INDEX_BUFFER_INITIAL_SIZE;
+        if (_nmd_d3d9.device->CreateIndexBuffer(_nmd_d3d9.ib_size * sizeof(nmd_index), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9.ib, NULL) < 0)
             return;
 
 #ifdef NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE
