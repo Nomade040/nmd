@@ -7,11 +7,13 @@ bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
     if (futureSize > _nmd_context.drawList.verticesCapacity)
     {
         const size_t newCapacity = NMD_MAX(_nmd_context.drawList.verticesCapacity * 2, futureSize);
-        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.vertices, newCapacity);
-        if (!memoryBlock)
+        void* mem = NMD_ALLOC(newCapacity);
+        if (!mem)
             return false;
+        memcpy(mem, _nmd_context.drawList.vertices, _nmd_context.drawList.verticesCapacity);
+        NMD_FREE(_nmd_context.drawList.vertices);
 
-        _nmd_context.drawList.vertices = (nmd_vertex*)memoryBlock;
+        _nmd_context.drawList.vertices = (nmd_vertex*)mem;
         _nmd_context.drawList.verticesCapacity = newCapacity;
     }
 
@@ -20,11 +22,13 @@ bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
     if (futureSize > _nmd_context.drawList.indicesCapacity)
     {
         const size_t newCapacity = NMD_MAX(_nmd_context.drawList.indicesCapacity * 2, futureSize);
-        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.indices, newCapacity);
-        if (!memoryBlock)
+        void* mem = NMD_ALLOC(newCapacity);
+        if (!mem)
             return false;
+        memcpy(mem, _nmd_context.drawList.indices, _nmd_context.drawList.indicesCapacity);
+        NMD_FREE(_nmd_context.drawList.indices);
 
-        _nmd_context.drawList.indices = (nmd_index*)memoryBlock;
+        mem, _nmd_context.drawList.indices = (nmd_index*)mem;
         _nmd_context.drawList.indicesCapacity = newCapacity;
     }
 
@@ -37,11 +41,13 @@ bool _nmd_reserve_points(size_t numNewPoints)
     if (futureSize > _nmd_context.drawList.pathCapacity)
     {
         const size_t newCapacity = NMD_MAX(_nmd_context.drawList.pathCapacity * 2, futureSize);
-        void* memoryBlock = NMD_REALLOC(_nmd_context.drawList.path, newCapacity);
-        if (!memoryBlock)
+        void* mem = NMD_ALLOC(newCapacity);
+        if (!mem)
             return false;
+        memcpy(mem, _nmd_context.drawList.path, _nmd_context.drawList.pathCapacity);
+        NMD_FREE(_nmd_context.drawList.path);
 
-        _nmd_context.drawList.path = (nmd_vec2*)memoryBlock;
+        _nmd_context.drawList.path = (nmd_vec2*)mem;
         _nmd_context.drawList.pathCapacity = newCapacity;
     }
 
@@ -998,15 +1004,21 @@ void nmd_add_text(float x, float y, const char* text, nmd_color color)
 }
 */
 
-void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, nmd_color color)
+void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* textEnd, nmd_color color)
 {
-    nmd_push_draw_command(0);
-
     if (!color.a)
         return;
-    
+
+    if (!textEnd)
+        textEnd = text + strlen(text);
+
+    if (!_nmd_reserve((textEnd - text) * 4, (textEnd - text) * 6))
+        return;
+
+    nmd_push_draw_command(0);
+
     stbtt_aligned_quad q;
-    for(; *text; text++)
+    for(; text < textEnd; text++)
     {
         stbtt_GetBakedQuad((stbtt_bakedchar*)font->bakedChars, 512, 512, *text - 32, &x, &y, &q, 1);
 
