@@ -1,5 +1,7 @@
 #include "nmd_common.h"
 
+#define NMD_EMULATOR_RESOLVE_VA(va) ((void*)((uint64_t)cpu.physicalMemory + (va - cpu.virtualAddress)))
+
 bool _nmd_check_jump_condition(nmd_x86_cpu* const cpu, uint8_t opcodeCondition)
 {
 	switch (opcodeCondition)
@@ -46,11 +48,58 @@ void _nmd_copy_by_mode(void* dst, void* src, NMD_X86_MODE mode)
 		*(int16_t*)(dst) = *(int16_t*)(src);
 }
 
+void _nmd_copy_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) = *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) = *(int32_t*)(src);
+}
+
+void _nmd_add_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) += *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) += *(int32_t*)(src);
+}
+
 #define _NMD_GET_GREG(index) (&cpu->rax + (index)) /* general register */
 #define _NMD_GET_RREG(index) (&cpu->r8 + (index)) /* r8,r9...r15 */
 #define _NMD_GET_PHYSICAL_ADDRESS(address) (uint8_t*)((uint64_t)(cpu->physicalMemory)+((address)-cpu->virtualAddress))
 #define _NMD_IN_BOUNDARIES(address) (address >= cpu->physicalMemory && address < endPhysicalMemory)
 /* #define NMD_TEST(value, bit) ((value&(1<<bit))==(1<<bit)) */
+
+void* _nmd_resolve_memory_operand(nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+{
+	if (instruction->modrm.fields.mod == 0b11)
+		return &_NMD_GET_GREG(instruction->modrm.fields.rm)->l64;
+	else
+	{
+		int64_t va_expr; /* virtual address expression */
+
+		if (instruction->hasSIB)
+			va_expr = _NMD_GET_GREG(instruction->sib.fields.base)->l64 + _NMD_GET_GREG(instruction->sib.fields.index)->l64;
+		else
+			va_expr = _NMD_GET_GREG(instruction->modrm.fields.rm)->l64;
+
+		va_expr += ((instruction->dispMask == NMD_X86_DISP8) ? (int8_t)instruction->displacement : (int32_t)instruction->displacement);
+
+		return _NMD_GET_PHYSICAL_ADDRESS(va_expr);
+	}
+}
+
+int64_t _nmd_resolve_memory_operand_va(nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+{
+	int64_t va_expr; /* virtual address expression */
+
+	if (instruction->hasSIB)
+		va_expr = _NMD_GET_GREG(instruction->sib.fields.base)->l64 + _NMD_GET_GREG(instruction->sib.fields.index)->l64;
+	else
+		va_expr = _NMD_GET_GREG(instruction->modrm.fields.rm)->l64;
+
+	return va_expr + ((instruction->dispMask == NMD_X86_DISP8) ? (int8_t)instruction->displacement : (int32_t)instruction->displacement);
+}
 
 /*
 Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
@@ -70,8 +119,8 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 {
 	const uint64_t endVirtualAddress = cpu->virtualAddress + cpu->physicalMemorySize;
 	const void* endPhysicalMemory = (uint8_t*)cpu->physicalMemory + cpu->physicalMemorySize;
-	size_t count = 0;
 
+	cpu->count = 0;
 	cpu->running = true;
 
 	while (cpu->running)
@@ -83,6 +132,7 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 		{
 			if (cpu->callback)
 				cpu->callback(cpu, &instruction, validBuffer ? NMD_X86_EMULATOR_EXCEPTION_BAD_INSTRUCTION : NMD_X86_EMULATOR_EXCEPTION_BAD_MEMORY);
+			cpu->running = false;
 			return false;
 		}
 
@@ -102,6 +152,7 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 					{
 						if (cpu->callback)
 							cpu->callback(cpu, &instruction, NMD_X86_EMULATOR_EXCEPTION_BAD_MEMORY);
+						cpu->running = false;
 						return false;
 					}
 				}
@@ -161,21 +212,25 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 				cpu->rsp.l64 += (int8_t)(cpu->mode + instruction.immediate);
 			}
 			else if (instruction.opcode == 0x8d) /* lea */
-			{
-				nmd_x86_register* r0 = _NMD_GET_GREG(instruction.modrm.fields.reg);
-				r0->l64 = 0;
-				/* compute... */
-			}
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l64 = _nmd_resolve_memory_operand_va(cpu, &instruction);
 			else if (instruction.opcode == 0xe9) /* jmp r32 */
 				cpu->rip += (int32_t)instruction.immediate;
 			else if (instruction.opcode == 0xeb) /* jmp r8 */
 				cpu->rip += (int8_t)instruction.immediate;
-			else if (instruction.opcode == 0x03) /* add reg, mem/reg */
-				_NMD_GET_GREG(instruction.modrm.fields.reg)->l32 += _NMD_GET_GREG(instruction.modrm.fields.rm)->l32;
+
+			else if (instruction.opcode == 0x00) /* add reg/mem, reg8 */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) += _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
+			else if (instruction.opcode == 0x01) /* add reg/mem, reg16/reg32 */
+				_nmd_add_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+			else if (instruction.opcode == 0x02) /* add reg8, reg/mem */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 += *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+			else if (instruction.opcode == 0x03) /* add reg16/reg32, reg/mem */
+				_nmd_add_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
 			else if (instruction.opcode == 0x04) /* add al, imm8 */
 				cpu->rax.l8 += (int8_t)instruction.immediate;
-			else if (instruction.opcode == 0x05) /* add ax/eax/rax, imm16/imm32/imm32*/
-				cpu->rax.l32 += (int32_t)instruction.immediate;
+			else if (instruction.opcode == 0x05) /* add ax/eax/rax, imm16/imm32 */
+				_nmd_add_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
+
 			else if (NMD_R(instruction.opcode) == 4) /* inc/dec [40,4f] */
 			{
 				nmd_x86_register* r0 = _NMD_GET_GREG(instruction.opcode % 8);
@@ -282,7 +337,10 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 					cpu->callback(cpu, &instruction, NMD_X86_EMULATOR_EXCEPTION_GENERAL_PROTECTION);
 			}
 			else if (instruction.opcode == 0xf4) /* hlt */
+			{
 				cpu->running = false;
+				return true;
+			}
 			else if (instruction.opcode == 0xf5) /* cmc */
 				cpu->flags.fields.CF = ~cpu->flags.fields.CF;
 			else if(instruction.opcode == 0xf8) /* clc */
@@ -297,11 +355,69 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 				cpu->flags.fields.DF = 0;
 			else if (instruction.opcode == 0xfd) /* std */
 				cpu->flags.fields.DF = 1;
+
+			/* Push/Pop segment registers */
+			else if (instruction.opcode == 0x06) /* push es*/
+			{
+				cpu->rsp.l64 -= cpu->mode;
+				*(uint16_t*)cpu->rsp.l64 = cpu->es;
+			}
+			else if (instruction.opcode == 0x07) /* pop es */
+			{
+				cpu->es = *(uint16_t*)cpu->rsp.l64;
+				cpu->rsp.l64 += cpu->mode;
+			}
+			else if (instruction.opcode == 0x16) /* push ss */
+			{
+				cpu->rsp.l64 -= cpu->mode;
+				*(uint16_t*)cpu->rsp.l64 = cpu->ss;
+			}
+			else if (instruction.opcode == 0x17) /* pop ss */
+			{
+				cpu->ss = *(uint16_t*)cpu->rsp.l64;
+				cpu->rsp.l64 += cpu->mode;
+			}
+			else if (instruction.opcode == 0x0e) /* push cs */
+			{
+				cpu->rsp.l64 -= cpu->mode;
+				*(uint16_t*)cpu->rsp.l64 = cpu->cs;
+			}
+			else if (instruction.opcode == 0x1e) /* push ds */
+			{
+				cpu->rsp.l64 -= cpu->mode;
+				*(uint16_t*)cpu->rsp.l64 = cpu->ds;
+			}
+			else if (instruction.opcode == 0x1f) /* pop ds */
+			{
+				cpu->ds = *(uint16_t*)cpu->rsp.l64;
+				cpu->rsp.l64 += cpu->mode;
+			}
 		}
 		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F)
 		{
 			if (NMD_R(instruction.opcode) == 8 && _nmd_check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r32 */
 				cpu->rip += (int32_t)(instruction.immediate);
+
+			else if (instruction.opcode == 0xa0) /* push fs */
+			{
+				cpu->rsp.l64 -= cpu->mode;
+				*(uint16_t*)cpu->rsp.l64 = cpu->fs;
+			}
+			else if (instruction.opcode == 0xa1) /* pop fs */
+			{
+				cpu->fs = *(uint16_t*)cpu->rsp.l64;
+				cpu->rsp.l64 += cpu->mode;
+			}
+			else if (instruction.opcode == 0xa8) /* push gs */
+			{
+				cpu->rsp.l64 -= cpu->mode;
+				*(uint16_t*)cpu->rsp.l64 = cpu->gs;
+			}
+			else if (instruction.opcode == 0xa9) /* pop gs */
+			{
+				cpu->gs = *(uint16_t*)cpu->rsp.l64;
+				cpu->rsp.l64 += cpu->mode;
+			}
 		}
 		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F38)
 		{
@@ -327,11 +443,9 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 
 		cpu->rip += instruction.length;
 
-		if (maxCount > 0 && ++count >= maxCount)
+		if (maxCount > 0 && ++cpu->count >= maxCount)
 			return true;
 	}
-
-	cpu->running = false;
 
 	return true;
 }
