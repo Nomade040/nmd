@@ -103,6 +103,12 @@ Use the following macros to disable features at compile-time:
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VEX': the length disassembler does not support VEX instructions.
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW': the length disassembler does not support 3DNow! instructions.
 
+Conventions:
+ - Every identifier uses snake case.
+ - Enums and macros are uppercase, every other identifier is lowercase.
+ - Non-internal identifiers start with the 'NMD_' prefix.
+ - Internal identifiers start with the '_NMD_' prefix.
+
 TODO:
  Short-Term
   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
