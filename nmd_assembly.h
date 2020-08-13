@@ -106,8 +106,8 @@ Use the following macros to disable features at compile-time:
 Conventions:
  - Every identifier uses snake case.
  - Enums and macros are uppercase, every other identifier is lowercase.
- - Non-internal identifiers have the 'NMD_' prefix.
- - Internal identifiers have the '_NMD_' prefix.
+ - Non-internal identifiers start with the 'NMD_' prefix.
+ - Internal identifiers start with the '_NMD_' prefix.
 
 TODO:
  Short-Term
@@ -9598,6 +9598,46 @@ void _nmd_or_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruct
 		*(int16_t*)(dst) |= *(int16_t*)(src);
 	else
 		*(int32_t*)(dst) |= *(int32_t*)(src);
+} 
+
+void _nmd_adc_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) += *(int16_t*)(src) + cpu->flags.fields.CF;
+	else
+		*(int32_t*)(dst) += *(int32_t*)(src) + cpu->flags.fields.CF;
+}
+
+void _nmd_sbb_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) -= *(int16_t*)(src) + cpu->flags.fields.CF;
+	else
+		*(int32_t*)(dst) -= *(int32_t*)(src) + cpu->flags.fields.CF;
+}
+
+void _nmd_and_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) &= *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) &= *(int32_t*)(src);
+}
+
+void _nmd_sub_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) -= *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) -= *(int32_t*)(src);
+}
+
+void _nmd_xor_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) &= *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) &= *(int32_t*)(src);
 }
 
 #define _NMD_GET_GREG(index) (&cpu->rax + (index)) /* general register */
@@ -9783,15 +9823,67 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 			else if (instruction.opcode == 0x10) /* adc Eb, Gb */
 				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) += _NMD_GET_GREG(instruction.modrm.fields.reg)->l8 + cpu->flags.fields.CF;
 			else if (instruction.opcode == 0x11) /* adc Ev, Gv */
-				_nmd_add_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+				_nmd_adc_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), cpu, &instruction);
 			else if (instruction.opcode == 0x12) /* adc Gb, Eb */
-				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 += *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 += *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) + cpu->flags.fields.CF;
 			else if (instruction.opcode == 0x13) /* adc Gv, Ev */
-				_nmd_add_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
+				_nmd_adc_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), cpu, &instruction);
 			else if (instruction.opcode == 0x14) /* adc al, bl */
-				cpu->rax.l8 += (int8_t)instruction.immediate;
+				cpu->rax.l8 += (int8_t)instruction.immediate + cpu->flags.fields.CF;
 			else if (instruction.opcode == 0x15) /* adc rAX, lz */
-				_nmd_add_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
+				_nmd_adc_by_operand_size(&cpu->rax, &instruction.immediate, cpu, &instruction);
+
+			else if (instruction.opcode == 0x18) /* sbb Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) -= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8 + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x19) /* sbb Ev, Gv */
+				_nmd_sbb_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), cpu, &instruction);
+			else if (instruction.opcode == 0x1a) /* sbb Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 -= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x1b) /* sbb Gv, Ev */
+				_nmd_sbb_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), cpu, &instruction);
+			else if (instruction.opcode == 0x1c) /* sbb al, bl */
+				cpu->rax.l8 -= (int8_t)instruction.immediate + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x1d) /* sbb rAX, lz */
+				_nmd_sbb_by_operand_size(&cpu->rax, &instruction.immediate, cpu, &instruction);
+
+			else if (instruction.opcode == 0x20) /* and Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) &= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
+			else if (instruction.opcode == 0x21) /* and Ev, Gv */
+				_nmd_and_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+			else if (instruction.opcode == 0x22) /* and Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 &= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+			else if (instruction.opcode == 0x23) /* and Gv, Ev */
+				_nmd_and_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
+			else if (instruction.opcode == 0x24) /* and al, bl */
+				cpu->rax.l8 &= (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x25) /* and rAX, lz */
+				_nmd_and_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
+
+			else if (instruction.opcode == 0x28) /* sub Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) -= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
+			else if (instruction.opcode == 0x29) /* sub Ev, Gv */
+				_nmd_sub_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+			else if (instruction.opcode == 0x2a) /* sub Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 -= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+			else if (instruction.opcode == 0x2b) /* sub Gv, Ev */
+				_nmd_sub_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
+			else if (instruction.opcode == 0x2c) /* sub al, bl */
+				cpu->rax.l8 -= (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x2d) /* sub rAX, lz */
+				_nmd_sub_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
+
+			else if (instruction.opcode == 0x08) /* xor Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) ^= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
+			else if (instruction.opcode == 0x09) /* xor Ev, Gv */
+				_nmd_xor_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+			else if (instruction.opcode == 0x0a) /* xor Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 ^= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+			else if (instruction.opcode == 0x0b) /* xor Gv, Ev */
+				_nmd_xor_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
+			else if (instruction.opcode == 0x0c) /* xor al, bl */
+				cpu->rax.l8 ^= (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x0d) /* xor rAX, lz */
+				_nmd_xor_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
 
 			else if (NMD_R(instruction.opcode) == 4) /* inc/dec [40,4f] */
 			{
