@@ -6,22 +6,22 @@ bool _nmd_check_jump_condition(nmd_x86_cpu* const cpu, uint8_t opcodeCondition)
 {
 	switch (opcodeCondition)
 	{
-	case 0x0: return cpu->flags.fields.OF == 1;                                                           /* Jump if overflow (OF=1) */
-	case 0x1: return cpu->flags.fields.OF == 0;                                                           /* Jump if not overflow (OF=0) */
-	case 0x2: return cpu->flags.fields.CF == 1;                                                           /* Jump if not above or equal (CF=1) */
-	case 0x3: return cpu->flags.fields.CF == 0;                                                           /* Jump if not below (CF=0) */
-	case 0x4: return cpu->flags.fields.ZF == 1;                                                           /* Jump if equal (ZF=1) */
-	case 0x5: return cpu->flags.fields.ZF == 0;                                                           /* Jump if not equal (ZF=0) */
-	case 0x6: return cpu->flags.fields.CF == 1 || cpu->flags.fields.ZF == 1;                              /* Jump if not above (CF=1 or ZF=1) */
-	case 0x7: return cpu->flags.fields.CF == 0 && cpu->flags.fields.ZF == 0;                              /* Jump if not below or equal (CF=0 and ZF=0) */
-	case 0x8: return cpu->flags.fields.SF == 1;                                                           /* Jump if sign (SF=1) */
-	case 0x9: return cpu->flags.fields.SF == 0;                                                           /* Jump if not sign (SF=0) */
-	case 0xa: return cpu->flags.fields.PF == 1;                                                           /* Jump if parity/parity even (PF=1) */
-	case 0xb: return cpu->flags.fields.PF == 0;                                                           /* Jump if parity odd (PF=0) */
-	case 0xc: return cpu->flags.fields.SF != cpu->flags.fields.OF;                                        /* Jump if not greater or equal (SF != OF) */
-	case 0xd: return cpu->flags.fields.SF == cpu->flags.fields.OF;                                        /* Jump if not less (SF=OF) */
-	case 0xe: return cpu->flags.fields.ZF == 1 || cpu->flags.fields.SF != cpu->flags.fields.OF;           /* Jump if not greater (ZF=1 or SF != OF) */
-	case 0xf: return cpu->flags.fields.ZF == 0 && cpu->flags.fields.SF == cpu->flags.fields.OF;           /* Jump if not less or equal (ZF=0 and SF=OF) */
+	case 0x0: return cpu->flags.fields.OF == 1;                                                 /* Jump if overflow (OF=1) */
+	case 0x1: return cpu->flags.fields.OF == 0;                                                 /* Jump if not overflow (OF=0) */
+	case 0x2: return cpu->flags.fields.CF == 1;                                                 /* Jump if not above or equal (CF=1) */
+	case 0x3: return cpu->flags.fields.CF == 0;                                                 /* Jump if not below (CF=0) */
+	case 0x4: return cpu->flags.fields.ZF == 1;                                                 /* Jump if equal (ZF=1) */
+	case 0x5: return cpu->flags.fields.ZF == 0;                                                 /* Jump if not equal (ZF=0) */
+	case 0x6: return cpu->flags.fields.CF == 1 || cpu->flags.fields.ZF == 1;                    /* Jump if not above (CF=1 or ZF=1) */
+	case 0x7: return cpu->flags.fields.CF == 0 && cpu->flags.fields.ZF == 0;                    /* Jump if not below or equal (CF=0 and ZF=0) */
+	case 0x8: return cpu->flags.fields.SF == 1;                                                 /* Jump if sign (SF=1) */
+	case 0x9: return cpu->flags.fields.SF == 0;                                                 /* Jump if not sign (SF=0) */
+	case 0xa: return cpu->flags.fields.PF == 1;                                                 /* Jump if parity/parity even (PF=1) */
+	case 0xb: return cpu->flags.fields.PF == 0;                                                 /* Jump if parity odd (PF=0) */
+	case 0xc: return cpu->flags.fields.SF != cpu->flags.fields.OF;                              /* Jump if not greater or equal (SF != OF) */
+	case 0xd: return cpu->flags.fields.SF == cpu->flags.fields.OF;                              /* Jump if not less (SF=OF) */
+	case 0xe: return cpu->flags.fields.ZF == 1 || cpu->flags.fields.SF != cpu->flags.fields.OF; /* Jump if not greater (ZF=1 or SF != OF) */
+	case 0xf: return cpu->flags.fields.ZF == 0 && cpu->flags.fields.SF == cpu->flags.fields.OF; /* Jump if not less or equal (ZF=0 and SF=OF) */
 	default: return false;
 	}
 }
@@ -62,6 +62,54 @@ void _nmd_add_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruc
 		*(int16_t*)(dst) += *(int16_t*)(src);
 	else
 		*(int32_t*)(dst) += *(int32_t*)(src);
+}
+
+void _nmd_or_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) |= *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) |= *(int32_t*)(src);
+} 
+
+void _nmd_adc_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) += *(int16_t*)(src) + cpu->flags.fields.CF;
+	else
+		*(int32_t*)(dst) += *(int32_t*)(src) + cpu->flags.fields.CF;
+}
+
+void _nmd_sbb_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) -= *(int16_t*)(src) + cpu->flags.fields.CF;
+	else
+		*(int32_t*)(dst) -= *(int32_t*)(src) + cpu->flags.fields.CF;
+}
+
+void _nmd_and_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) &= *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) &= *(int32_t*)(src);
+}
+
+void _nmd_sub_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) -= *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) -= *(int32_t*)(src);
+}
+
+void _nmd_xor_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+{
+	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+		*(int16_t*)(dst) &= *(int16_t*)(src);
+	else
+		*(int32_t*)(dst) &= *(int32_t*)(src);
 }
 
 #define _NMD_GET_GREG(index) (&cpu->rax + (index)) /* general register */
@@ -218,18 +266,96 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 			else if (instruction.opcode == 0xeb) /* jmp r8 */
 				cpu->rip += (int8_t)instruction.immediate;
 
-			else if (instruction.opcode == 0x00) /* add reg/mem, reg8 */
+			else if (instruction.opcode == 0x00) /* add Eb, Gb */
 				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) += _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
-			else if (instruction.opcode == 0x01) /* add reg/mem, reg16/reg32 */
+			else if (instruction.opcode == 0x01) /* add Ev, Gv */
 				_nmd_add_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
-			else if (instruction.opcode == 0x02) /* add reg8, reg/mem */
+			else if (instruction.opcode == 0x02) /* add Gb, Eb */
 				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 += *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
-			else if (instruction.opcode == 0x03) /* add reg16/reg32, reg/mem */
+			else if (instruction.opcode == 0x03) /* add Gv, Ev */
 				_nmd_add_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
-			else if (instruction.opcode == 0x04) /* add al, imm8 */
+			else if (instruction.opcode == 0x04) /* add al, bl */
 				cpu->rax.l8 += (int8_t)instruction.immediate;
-			else if (instruction.opcode == 0x05) /* add ax/eax/rax, imm16/imm32 */
+			else if (instruction.opcode == 0x05) /* add rAX, lz */
 				_nmd_add_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
+
+			else if (instruction.opcode == 0x08) /* or Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) |= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
+			else if (instruction.opcode == 0x09) /* or Ev, Gv */
+				_nmd_or_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+			else if (instruction.opcode == 0x0a) /* or Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 |= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+			else if (instruction.opcode == 0x0b) /* or Gv, Ev */
+				_nmd_or_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
+			else if (instruction.opcode == 0x0c) /* or al, bl */
+				cpu->rax.l8 |= (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x0d) /* or rAX, lz */
+				_nmd_or_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
+
+			else if (instruction.opcode == 0x10) /* adc Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) += _NMD_GET_GREG(instruction.modrm.fields.reg)->l8 + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x11) /* adc Ev, Gv */
+				_nmd_adc_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), cpu, &instruction);
+			else if (instruction.opcode == 0x12) /* adc Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 += *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x13) /* adc Gv, Ev */
+				_nmd_adc_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), cpu, &instruction);
+			else if (instruction.opcode == 0x14) /* adc al, bl */
+				cpu->rax.l8 += (int8_t)instruction.immediate + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x15) /* adc rAX, lz */
+				_nmd_adc_by_operand_size(&cpu->rax, &instruction.immediate, cpu, &instruction);
+
+			else if (instruction.opcode == 0x18) /* sbb Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) -= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8 + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x19) /* sbb Ev, Gv */
+				_nmd_sbb_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), cpu, &instruction);
+			else if (instruction.opcode == 0x1a) /* sbb Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 -= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x1b) /* sbb Gv, Ev */
+				_nmd_sbb_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), cpu, &instruction);
+			else if (instruction.opcode == 0x1c) /* sbb al, bl */
+				cpu->rax.l8 -= (int8_t)instruction.immediate + cpu->flags.fields.CF;
+			else if (instruction.opcode == 0x1d) /* sbb rAX, lz */
+				_nmd_sbb_by_operand_size(&cpu->rax, &instruction.immediate, cpu, &instruction);
+
+			else if (instruction.opcode == 0x20) /* and Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) &= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
+			else if (instruction.opcode == 0x21) /* and Ev, Gv */
+				_nmd_and_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+			else if (instruction.opcode == 0x22) /* and Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 &= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+			else if (instruction.opcode == 0x23) /* and Gv, Ev */
+				_nmd_and_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
+			else if (instruction.opcode == 0x24) /* and al, bl */
+				cpu->rax.l8 &= (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x25) /* and rAX, lz */
+				_nmd_and_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
+
+			else if (instruction.opcode == 0x28) /* sub Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) -= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
+			else if (instruction.opcode == 0x29) /* sub Ev, Gv */
+				_nmd_sub_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+			else if (instruction.opcode == 0x2a) /* sub Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 -= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+			else if (instruction.opcode == 0x2b) /* sub Gv, Ev */
+				_nmd_sub_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
+			else if (instruction.opcode == 0x2c) /* sub al, bl */
+				cpu->rax.l8 -= (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x2d) /* sub rAX, lz */
+				_nmd_sub_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
+
+			else if (instruction.opcode == 0x08) /* xor Eb, Gb */
+				*(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction) ^= _NMD_GET_GREG(instruction.modrm.fields.reg)->l8;
+			else if (instruction.opcode == 0x09) /* xor Ev, Gv */
+				_nmd_xor_by_operand_size(_nmd_resolve_memory_operand(cpu, &instruction), _NMD_GET_GREG(instruction.modrm.fields.reg), &instruction);
+			else if (instruction.opcode == 0x0a) /* xor Gb, Eb */
+				_NMD_GET_GREG(instruction.modrm.fields.reg)->l8 ^= *(int8_t*)_nmd_resolve_memory_operand(cpu, &instruction);
+			else if (instruction.opcode == 0x0b) /* xor Gv, Ev */
+				_nmd_xor_by_operand_size(_NMD_GET_GREG(instruction.modrm.fields.reg), _nmd_resolve_memory_operand(cpu, &instruction), &instruction);
+			else if (instruction.opcode == 0x0c) /* xor al, bl */
+				cpu->rax.l8 ^= (int8_t)instruction.immediate;
+			else if (instruction.opcode == 0x0d) /* xor rAX, lz */
+				_nmd_xor_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
 
 			else if (NMD_R(instruction.opcode) == 4) /* inc/dec [40,4f] */
 			{
