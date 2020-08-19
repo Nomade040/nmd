@@ -21,7 +21,7 @@ Interfaces(a.k.a the functions you call from your application):
  - The assembler is represented by the following function:
     Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
     Parameters:
-     - string         [in]         A pointer to a string that represents a instruction in assembly language.
+     - string         [in]         A pointer to a string that represents one or more instructions in assembly language.
      - buffer         [out]        A pointer to a buffer that receives the encoded instructions.
      - bufferSize     [in]         The size of the buffer in bytes.
      - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
@@ -114,7 +114,6 @@ TODO:
   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
   - Implement x86 assembler and emulator.
  Long-Term
-  - Implement decompiler.
   - Add support for other architectures(ARM, MIPS and PowerPC ?).
 
 References:
@@ -342,7 +341,7 @@ typedef struct nmd_x86_vex
 	uint8_t vex[3]; /* The full vex prefix. vex[0] is either C4h(3-byte VEX) or C5h(2-byte VEX).*/
 } nmd_x86_vex;
 
-enum NMD_X86_REG
+typedef enum NMD_X86_REG
 {
 	NMD_X86_REG_NONE = 0,
 
@@ -575,7 +574,7 @@ enum NMD_X86_REG
 	NMD_X86_REG_ZMM29,
 	NMD_X86_REG_ZMM30,
 	NMD_X86_REG_ZMM31,
-};
+} NMD_X86_REG;
 
 enum NMD_GROUP {
 	NMD_GROUP_NONE = 0, /* The instruction is not part of any group. */
@@ -2508,7 +2507,7 @@ typedef struct nmd_x86_cpu
 /*
 Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
 Parameters:
- - string         [in]         A pointer to a string that represents a instruction in assembly language.
+ - string         [in]         A pointer to a string that represents one or more instructions in assembly language.
  - buffer         [out]        A pointer to a buffer that receives the encoded instructions.
  - bufferSize     [in]         The size of the buffer in bytes.
  - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
@@ -2585,6 +2584,9 @@ const char* const _nmd_reg16[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di
 const char* const _nmd_reg32[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
 const char* const _nmd_reg64[] = { "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi" };
 const char* const _nmd_regrx[] = { "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15" };
+const char* const _nmd_regrxd[] = { "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d" };
+const char* const _nmd_regrxw[] = { "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w" };
+const char* const _nmd_regrxb[] = { "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b" };
 const char* const _nmd_segmentReg[] = { "es", "cs", "ss", "ds", "fs", "gs" };
 
 const char* const _nmd_conditionSuffixes[] = { "o", "no", "b", "ae", "e", "ne", "be", "a", "s", "ns", "p", "np", "l", "ge", "le", "g" };
@@ -2921,6 +2923,149 @@ bool _nmd_parse_number(const char* string, int64_t* num, size_t* numDigits)
 	return true;
 }
 
+size_t _nmd_append_prefix_by_reg_size(uint8_t* b, const char* s, size_t* numPrefixes, size_t* index)
+{
+	size_t i;
+	
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg32); i++)
+	{
+		if (_nmd_strcmp(s, _nmd_reg32[i]))
+		{
+			*numPrefixes = 0;
+			*index = i;
+			return 4;
+		}
+	}
+
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg8); i++)
+	{
+		if (_nmd_strcmp(s, _nmd_reg8[i]))
+		{
+			*numPrefixes = 0;
+			*index = i;
+			return 1;
+		}
+	}
+
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg16); i++)
+	{
+		if (_nmd_strcmp(s, _nmd_reg16[i]))
+		{
+			b[0] = 0x66;
+			*numPrefixes = 1;
+			*index = i;
+			return 2;
+		}
+	}	
+
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg64); i++)
+	{
+		if (_nmd_strcmp(s, _nmd_reg64[i]))
+		{
+			b[0] = 0x48;
+			*numPrefixes = 1;
+			*index = i;
+			return 8;
+		}
+	}
+
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_regrx); i++)
+	{
+		if (_nmd_strcmp(s, _nmd_regrx[i]))
+		{
+			b[0] = 0x49;
+			*numPrefixes = 1;
+			*index = i;
+			return 8;
+		}
+	}
+
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_regrxd); i++)
+	{
+		if (_nmd_strcmp(s, _nmd_regrxd[i]))
+		{
+			b[0] = 0x41;
+			*numPrefixes = 1;
+			*index = i;
+			return 4;
+		}
+	}
+
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_regrxw); i++)
+	{
+		if (_nmd_strcmp(s, _nmd_regrxw[i]))
+		{
+			b[0] = 0x66;
+			b[1] = 0x41;
+			*numPrefixes = 2;
+			*index = i;
+			return 2;
+		}
+	}
+
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_regrxb); i++)
+	{
+		if (_nmd_strcmp(s, _nmd_regrxb[i]))
+		{
+			b[0] = 0x41;
+			*numPrefixes = 1;
+			*index = i;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+size_t _nmd_parse_memory_operand_size(const char** string)
+{
+	const char* s = *string;
+	size_t numBytes = 0;
+	if (_nmd_strstr(s, "byte") == s)
+		numBytes = 1;
+	else if (_nmd_strstr(s, "word") == s)
+		numBytes = 2;
+	else if (_nmd_strstr(s, "dword") == s)
+		numBytes = 4;
+	else if (_nmd_strstr(s, "qword") == s)
+		numBytes = 8;
+	else
+		return 0;
+
+	s += numBytes >= 4 ? 5 : 4;
+
+	if (s[0] == ' ' && s[1] == 'p' && s[2] == 't' && s[3] == 'r')
+		s += 4;
+
+	if (s[0] == ' ')
+		s++;
+	else if (s[0] != '[')
+		return 0;
+
+	*string = s;
+
+	return numBytes;
+}
+
+NMD_X86_REG _nmd_parse_memory_operand_segment_reg(const char** string)
+{
+	const char* s = *string;
+	size_t i = 0;
+	for (; i < _NMD_NUM_ELEMENTS(_nmd_segmentReg); i++)
+	{
+		if (_nmd_strstr(s, _nmd_segmentReg[i]) == s)
+		{
+			if (s[2] != ':')
+				return (NMD_X86_REG)0;
+
+			*string = s + 3;
+			return (NMD_X86_REG)(NMD_X86_REG_ES + i);
+		}
+	}
+
+	return (NMD_X86_REG)0;
+}
+
 size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 {
 	size_t i = 0;
@@ -3059,28 +3204,6 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				return 1;
 			}
 		}
-		else if (_nmd_strstr(ai->s, "inc ") == ai->s || _nmd_strstr(ai->s, "dec ") == ai->s)
-		{
-			ai->s += 4;
-			for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg32); i++)
-			{
-				if (_nmd_strcmp(ai->s, _nmd_reg32[i]))
-				{
-					ai->b[0] = (*(ai->s - 4) == 'i' ? 0x40 : 0x48) + (uint8_t)i;
-					return 1;
-				}
-			}
-
-			for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg16); i++)
-			{
-				if (_nmd_strcmp(ai->s, _nmd_reg16[i]))
-				{
-					ai->b[0] = 0x66;
-					ai->b[1] = (*(ai->s - 4) == 'i' ? 0x40 : 0x48) + (uint8_t)i;
-					return 2;
-				}
-			}
-		}
 	}
 
 	if (_nmd_strcmp(ai->s, "pushf"))
@@ -3109,6 +3232,43 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			ai->b[0] = 0x66;
 			ai->b[1] = 0x9d;
 			return 2;
+		}
+	}
+
+	if (_nmd_strstr(ai->s, "inc ") == ai->s || _nmd_strstr(ai->s, "dec ") == ai->s)
+	{
+		const size_t numBytes = _nmd_parse_memory_operand_size(&ai->s);
+		if (numBytes > 0)
+		{
+			const NMD_X86_REG segmentReg = _nmd_parse_memory_operand_segment_reg(&ai->s);
+			//if()
+			//ai->b
+		}
+
+		size_t numPrefixes, index;
+		const size_t size = _nmd_append_prefix_by_reg_size(ai->b, ai->s + 4, &numPrefixes, &index);
+		if (size > 0)
+		{
+			if (ai->mode == NMD_X86_MODE_64)
+			{
+				ai->b[numPrefixes + 0] = size == 1 ? 0xfe : 0xff;
+				ai->b[numPrefixes + 1] = 0xc0 + (ai->s[0] == 'i' ? 0 : 8) + (uint8_t)index;
+				return numPrefixes + 2;
+			}
+			else
+			{
+				if (size == 1)
+				{
+					ai->b[0] = 0xfe;
+					ai->b[1] = 0xc0 + (ai->s[0] == 'i' ? 0 : 8) + (uint8_t)index;
+					return 2;
+				}
+				else
+				{
+					ai->b[numPrefixes + 0] = (ai->s[0] == 'i' ? 0x40 : 0x48) + (uint8_t)index;
+					return numPrefixes + 1;
+				}
+			}
 		}
 	}
 
@@ -3334,7 +3494,7 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 /*
 Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
 Parameters:
- - string         [in]         A pointer to a string that represents a instruction in assembly language.
+ - string         [in]         A pointer to a string that represents one or more instructions in assembly language.
  - buffer         [out]        A pointer to a buffer that receives the encoded instructions.
  - bufferSize     [in]         The size of the buffer in bytes.
  - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
@@ -3359,11 +3519,8 @@ size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uin
 	size_t numInstructions = 0;
 	const size_t numMaxInstructions = (count && *count != 0) ? *count : (size_t)(-1);
 
-	while (string[0] != '\0')
+	while (string[0] != '\0' && numInstructions < numMaxInstructions)
 	{
-		if (numInstructions == numMaxInstructions)
-			break;
-
 		remainingSize = bufferEnd - b;
 
 		/* Copy 'string' to 'buffer' converting it to lowercase and removing unwanted spaces. If the instruction separator character ';' and '\n' is found, stop. */
@@ -3399,6 +3556,7 @@ size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uin
 		if (numBytes == 0 || numBytes > remainingSize)
 			return 0;
 
+		/* Copy bytes from 'tempBuffer' to the buffer provided by the user. */
 		size_t i = 0;
 		for (; i < numBytes; i++)
 			b[i] = tempBuffer[i];
