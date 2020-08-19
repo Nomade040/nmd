@@ -3241,8 +3241,7 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		if (numBytes > 0)
 		{
 			const NMD_X86_REG segmentReg = _nmd_parse_memory_operand_segment_reg(&ai->s);
-			//if()
-			//ai->b
+			/* TODO: handle mem operand and generalize for all instructions later. */
 		}
 
 		size_t numPrefixes, index;
