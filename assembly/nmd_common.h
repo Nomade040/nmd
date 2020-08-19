@@ -20,6 +20,9 @@ const char* const _nmd_reg16[8];
 const char* const _nmd_reg32[8];
 const char* const _nmd_reg64[8];
 const char* const _nmd_regrx[8];
+const char* const _nmd_regrxd[8];
+const char* const _nmd_regrxw[8];
+const char* const _nmd_regrxb[8];
 const char* const _nmd_segmentReg[6];
 
 const char* const _nmd_conditionSuffixes[16];

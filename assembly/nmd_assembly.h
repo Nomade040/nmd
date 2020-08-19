@@ -21,7 +21,7 @@ Interfaces(a.k.a the functions you call from your application):
  - The assembler is represented by the following function:
     Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
     Parameters:
-     - string         [in]         A pointer to a string that represents a instruction in assembly language.
+     - string         [in]         A pointer to a string that represents one or more instructions in assembly language.
      - buffer         [out]        A pointer to a buffer that receives the encoded instructions.
      - bufferSize     [in]         The size of the buffer in bytes.
      - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
@@ -114,7 +114,6 @@ TODO:
   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
   - Implement x86 assembler and emulator.
  Long-Term
-  - Implement decompiler.
   - Add support for other architectures(ARM, MIPS and PowerPC ?).
 
 References:
@@ -342,7 +341,7 @@ typedef struct nmd_x86_vex
 	uint8_t vex[3]; /* The full vex prefix. vex[0] is either C4h(3-byte VEX) or C5h(2-byte VEX).*/
 } nmd_x86_vex;
 
-enum NMD_X86_REG
+typedef enum NMD_X86_REG
 {
 	NMD_X86_REG_NONE = 0,
 
@@ -575,7 +574,7 @@ enum NMD_X86_REG
 	NMD_X86_REG_ZMM29,
 	NMD_X86_REG_ZMM30,
 	NMD_X86_REG_ZMM31,
-};
+} NMD_X86_REG;
 
 enum NMD_GROUP {
 	NMD_GROUP_NONE = 0, /* The instruction is not part of any group. */
@@ -2508,7 +2507,7 @@ typedef struct nmd_x86_cpu
 /*
 Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using either the ';' or '\n' character.
 Parameters:
- - string         [in]         A pointer to a string that represents a instruction in assembly language.
+ - string         [in]         A pointer to a string that represents one or more instructions in assembly language.
  - buffer         [out]        A pointer to a buffer that receives the encoded instructions.
  - bufferSize     [in]         The size of the buffer in bytes.
  - runtimeAddress [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.

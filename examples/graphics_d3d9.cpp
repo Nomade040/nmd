@@ -53,6 +53,11 @@ int main()
     nmd_d3d9_set_device(d3dDevice);
     nmd_d3d9_resize(640, 480);
 
+    nmd_atlas a;
+    nmd_bake_font("C:/Windows/Fonts/arial.ttf", &a, 32.0f);
+
+    a.font = nmd_d3d9_create_texture(a.pixels32, a.width, a.height);
+
     MSG msg;
     while (true)
     {
@@ -70,6 +75,8 @@ int main()
         nmd_add_rect_filled(50, 50, 200, 200, NMD_COLOR_AZURE, 0, 0);
         nmd_add_line(60, 60, 250, 60, NMD_COLOR_BLACK, 1.0f);
         nmd_add_line(60, 70, 250, 150, NMD_COLOR_BLACK, 1.0f);
+
+        nmd_add_text(&a, 20, 20, "Nomade", 0, NMD_COLOR_RED);
 
         nmd_end_frame();
 
