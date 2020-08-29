@@ -57,6 +57,20 @@ size_t _nmd_assemble_reg(_nmd_assemble_info* ai, uint8_t baseByte)
 	return 0;
 }
 
+uint8_t _nmd_encode_segment_reg(NMD_X86_REG segmentReg)
+{
+	switch (segmentReg)
+	{
+	case NMD_X86_REG_ES: return 0x26;
+	case NMD_X86_REG_CS: return 0x2e;
+	case NMD_X86_REG_SS: return 0x36;
+	case NMD_X86_REG_DS: return 0x3e;
+	case NMD_X86_REG_FS: return 0x64;
+	case NMD_X86_REG_GS: return 0x65;
+	default: return 0;
+	}
+}
+
 enum _NMD_NUMBER_BASE
 {
 	_NMD_NUMBER_BASE_NONE        = 0,
@@ -278,7 +292,11 @@ size_t _nmd_parse_memory_operand_size(const char** string)
 	return numBytes;
 }
 
-NMD_X86_REG _nmd_parse_memory_operand_segment_reg(const char** string)
+/*
+Parses a segment register right before a memory operand in the format: 'xx:'
+string: a pointer to the string that represents the segment register. The string is modified to point to the character after the ':' character.
+*/
+bool _nmd_parse_memory_operand_segment_reg(const char** string, NMD_X86_REG* segmentReg)
 {
 	const char* s = *string;
 	size_t i = 0;
@@ -287,14 +305,80 @@ NMD_X86_REG _nmd_parse_memory_operand_segment_reg(const char** string)
 		if (_nmd_strstr(s, _nmd_segmentReg[i]) == s)
 		{
 			if (s[2] != ':')
-				return (NMD_X86_REG)0;
+				return false;
 
 			*string = s + 3;
-			return (NMD_X86_REG)(NMD_X86_REG_ES + i);
+			*segmentReg = (NMD_X86_REG)(NMD_X86_REG_ES + i);
+			return true;
 		}
 	}
 
-	return (NMD_X86_REG)0;
+	return false;
+}
+
+/* 
+Parses a memory operand in the format: '[exp]'
+string: a pointer to the string that represents the memory operand. The string is modified to point to the character after the memory operand.
+buffer[out]: a pointer to a buffer the receives the encoded memory operand.
+Return value: The number of bytes written to the buffer. If the parsing fails, zero is returned.
+*/
+size_t _nmd_parse_memory_operand(const char** string, uint8_t* buffer)
+{
+	const char* s = *string;
+	if (s[0] != '[')
+		return 0;
+
+	s++;
+
+	nmd_x86_modrm modrm;
+	
+	size_t i = 0;
+	
+	bool closingBracket = false;
+	bool hasSIB = false;
+	while (!closingBracket)
+	{
+		bool parsedElement = false;
+		for (; i < _NMD_NUM_ELEMENTS(_nmd_reg32); i++)
+		{
+			const char* tmp;
+			if (_nmd_strstr_ex(s, _nmd_reg32[i], &tmp) == s)
+			{
+				s = tmp;
+				modrm.fields.rm = NMD_X86_REG_EAX + i;
+				parsedElement = true;
+				break;
+			}
+		}
+
+		if (!parsedElement)
+			return 0;
+
+		if (s[0] == '+')
+		{
+
+		}
+		else if (s[0] == '-')
+		{
+
+		}
+		else if (s[0] == '*')
+		{
+		}
+		else if (s[0] == ']')
+		{
+			break;
+		}
+		else
+		{
+			return 0;
+		}
+		
+	}
+
+	buffer[0] = modrm.modrm;
+
+	return 1;
 }
 
 size_t _nmd_assemble_single(_nmd_assemble_info* ai)
@@ -468,11 +552,20 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 
 	if (_nmd_strstr(ai->s, "inc ") == ai->s || _nmd_strstr(ai->s, "dec ") == ai->s)
 	{
-		const size_t numBytes = _nmd_parse_memory_operand_size(&ai->s);
-		if (numBytes > 0)
+		const char* tmp = ai->s + 4;
+
+		const size_t operandSize = _nmd_parse_memory_operand_size(&tmp);
+		if (operandSize > 0)
 		{
-			const NMD_X86_REG segmentReg = _nmd_parse_memory_operand_segment_reg(&ai->s);
-			/* TODO: handle mem operand and generalize for all instructions later. */
+			size_t offset = 0;
+
+			NMD_X86_REG segmentReg;
+			if (_nmd_parse_memory_operand_segment_reg(&tmp, &segmentReg))
+				ai->b[offset++] = _nmd_encode_segment_reg(segmentReg);
+
+			ai->b[offset++] = operandSize == 1 ? 0xfe : 0xff;
+			
+			return _nmd_parse_memory_operand(&tmp, ai->b + offset) + offset;
 		}
 
 		size_t numPrefixes, index;

@@ -235,7 +235,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 					return false;
 
 				/*
-				if (!_nmd_parseModrm(&b, instruction, remainingSize - 2))
+				if (!_nmd_decode_modrm(&b, instruction, remainingSize - 2))
 					return false;
 				
 				instruction->encoding = NMD_X86_ENCODING_3DNOW;

@@ -180,7 +180,7 @@ typedef unsigned long long uint64_t;
 
 #else
 
-/* Dependencies */
+/* Dependencies when 'NMD_ASSEMBLY_NO_INCLUDES' is not defined. */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
