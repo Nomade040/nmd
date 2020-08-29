@@ -180,7 +180,7 @@ typedef unsigned long long uint64_t;
 
 #else
 
-/* Dependencies */
+/* Dependencies when 'NMD_ASSEMBLY_NO_INCLUDES' is not defined. */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -2826,6 +2826,20 @@ size_t _nmd_assemble_reg(_nmd_assemble_info* ai, uint8_t baseByte)
 	return 0;
 }
 
+uint8_t _nmd_encode_segment_reg(NMD_X86_REG segmentReg)
+{
+	switch (segmentReg)
+	{
+	case NMD_X86_REG_ES: return 0x26;
+	case NMD_X86_REG_CS: return 0x2e;
+	case NMD_X86_REG_SS: return 0x36;
+	case NMD_X86_REG_DS: return 0x3e;
+	case NMD_X86_REG_FS: return 0x64;
+	case NMD_X86_REG_GS: return 0x65;
+	default: return 0;
+	}
+}
+
 enum _NMD_NUMBER_BASE
 {
 	_NMD_NUMBER_BASE_NONE        = 0,
@@ -3047,7 +3061,11 @@ size_t _nmd_parse_memory_operand_size(const char** string)
 	return numBytes;
 }
 
-NMD_X86_REG _nmd_parse_memory_operand_segment_reg(const char** string)
+/*
+Parses a segment register right before a memory operand in the format: 'xx:'
+string: a pointer to the string that represents the segment register. The string is modified to point to the character after the ':' character.
+*/
+bool _nmd_parse_memory_operand_segment_reg(const char** string, NMD_X86_REG* segmentReg)
 {
 	const char* s = *string;
 	size_t i = 0;
@@ -3056,14 +3074,80 @@ NMD_X86_REG _nmd_parse_memory_operand_segment_reg(const char** string)
 		if (_nmd_strstr(s, _nmd_segmentReg[i]) == s)
 		{
 			if (s[2] != ':')
-				return (NMD_X86_REG)0;
+				return false;
 
 			*string = s + 3;
-			return (NMD_X86_REG)(NMD_X86_REG_ES + i);
+			*segmentReg = (NMD_X86_REG)(NMD_X86_REG_ES + i);
+			return true;
 		}
 	}
 
-	return (NMD_X86_REG)0;
+	return false;
+}
+
+/* 
+Parses a memory operand in the format: '[exp]'
+string: a pointer to the string that represents the memory operand. The string is modified to point to the character after the memory operand.
+buffer[out]: a pointer to a buffer the receives the encoded memory operand.
+Return value: The number of bytes written to the buffer. If the parsing fails, zero is returned.
+*/
+size_t _nmd_parse_memory_operand(const char** string, uint8_t* buffer)
+{
+	const char* s = *string;
+	if (s[0] != '[')
+		return 0;
+
+	s++;
+
+	nmd_x86_modrm modrm;
+	
+	size_t i = 0;
+	
+	bool closingBracket = false;
+	bool hasSIB = false;
+	while (!closingBracket)
+	{
+		bool parsedElement = false;
+		for (; i < _NMD_NUM_ELEMENTS(_nmd_reg32); i++)
+		{
+			const char* tmp;
+			if (_nmd_strstr_ex(s, _nmd_reg32[i], &tmp) == s)
+			{
+				s = tmp;
+				modrm.fields.rm = NMD_X86_REG_EAX + i;
+				parsedElement = true;
+				break;
+			}
+		}
+
+		if (!parsedElement)
+			return 0;
+
+		if (s[0] == '+')
+		{
+
+		}
+		else if (s[0] == '-')
+		{
+
+		}
+		else if (s[0] == '*')
+		{
+		}
+		else if (s[0] == ']')
+		{
+			break;
+		}
+		else
+		{
+			return 0;
+		}
+		
+	}
+
+	buffer[0] = modrm.modrm;
+
+	return 1;
 }
 
 size_t _nmd_assemble_single(_nmd_assemble_info* ai)
@@ -3237,11 +3321,20 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 
 	if (_nmd_strstr(ai->s, "inc ") == ai->s || _nmd_strstr(ai->s, "dec ") == ai->s)
 	{
-		const size_t numBytes = _nmd_parse_memory_operand_size(&ai->s);
-		if (numBytes > 0)
+		const char* tmp = ai->s + 4;
+
+		const size_t operandSize = _nmd_parse_memory_operand_size(&tmp);
+		if (operandSize > 0)
 		{
-			const NMD_X86_REG segmentReg = _nmd_parse_memory_operand_segment_reg(&ai->s);
-			/* TODO: handle mem operand and generalize for all instructions later. */
+			size_t offset = 0;
+
+			NMD_X86_REG segmentReg;
+			if (_nmd_parse_memory_operand_segment_reg(&tmp, &segmentReg))
+				ai->b[offset++] = _nmd_encode_segment_reg(segmentReg);
+
+			ai->b[offset++] = operandSize == 1 ? 0xfe : 0xff;
+			
+			return _nmd_parse_memory_operand(&tmp, ai->b + offset) + offset;
 		}
 
 		size_t numPrefixes, index;
@@ -3571,7 +3664,7 @@ size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uin
 	return (size_t)(b - (uint8_t*)buffer);
 }
 
-void _nmd_parse_operand_segment_reg(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_segment_reg(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	if (instruction->segmentOverride)
 		operand->fields.reg = (uint8_t)(NMD_X86_REG_ES + _nmd_getBitNumber(instruction->segmentOverride));
@@ -3579,7 +3672,7 @@ void _nmd_parse_operand_segment_reg(const nmd_x86_instruction* instruction, nmd_
 		operand->fields.reg = (uint8_t)(!(instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (instruction->modrm.fields.rm == 0b100 || instruction->modrm.fields.rm == 0b101) ? NMD_X86_REG_SS : NMD_X86_REG_DS);
 }
 
-void _nmd_parse_modrm_upper32(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_modrm_upper32(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_MEMORY;
 
@@ -3612,13 +3705,13 @@ void _nmd_parse_modrm_upper32(const nmd_x86_instruction* instruction, nmd_x86_op
 			operand->fields.mem.base = (uint8_t)((instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE) ? (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? NMD_X86_REG_R8 : NMD_X86_REG_RAX) : NMD_X86_REG_EAX) + instruction->modrm.fields.rm);
 	}
 
-	_nmd_parse_operand_segment_reg(instruction, operand);
+	_nmd_decode_operand_segment_reg(instruction, operand);
 
 	operand->fields.mem.disp = instruction->displacement;
 	operand->size += (uint8_t)(instruction->dispMask);
 }
 
-void _nmd_parse_memory_operand(const nmd_x86_instruction* instruction, nmd_x86_operand* operand, uint8_t mod11baseReg)
+void _nmd_decode_memory_operand(const nmd_x86_instruction* instruction, nmd_x86_operand* operand, uint8_t mod11baseReg)
 {
 	/* At least one byte is used for ModR/M. */
 	operand->size = 1;
@@ -3629,61 +3722,61 @@ void _nmd_parse_memory_operand(const nmd_x86_instruction* instruction, nmd_x86_o
 		operand->fields.reg = mod11baseReg + instruction->modrm.fields.rm;
 	}
 	else
-		_nmd_parse_modrm_upper32(instruction, operand);
+		_nmd_decode_modrm_upper32(instruction, operand);
 }
 
-void _nmd_parse_operand_Eb(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Eb(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
-	_nmd_parse_memory_operand(instruction, operand, NMD_X86_REG_AL);
+	_nmd_decode_memory_operand(instruction, operand, NMD_X86_REG_AL);
 }
 
-void _nmd_parse_operand_Ew(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Ew(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
-	_nmd_parse_memory_operand(instruction, operand, NMD_X86_REG_AX);
+	_nmd_decode_memory_operand(instruction, operand, NMD_X86_REG_AX);
 }
 
-void _nmd_parse_operand_Ev(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Ev(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
-	_nmd_parse_memory_operand(instruction, operand, (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
+	_nmd_decode_memory_operand(instruction, operand, (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
 }
 
-void _nmd_parse_operand_Ey(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Ey(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
-	_nmd_parse_memory_operand(instruction, operand, (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
+	_nmd_decode_memory_operand(instruction, operand, (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
 }
 
-void _nmd_parse_operand_Qq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Qq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
-	_nmd_parse_memory_operand(instruction, operand, NMD_X86_REG_MM0);
+	_nmd_decode_memory_operand(instruction, operand, NMD_X86_REG_MM0);
 }
 
-void _nmd_parse_operand_Wdq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Wdq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
-	_nmd_parse_memory_operand(instruction, operand, NMD_X86_REG_XMM0);
+	_nmd_decode_memory_operand(instruction, operand, NMD_X86_REG_XMM0);
 }
 
-void _nmd_parse_operand_Gb(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Gb(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_AL + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_parse_operand_Gd(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Gd(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_EAX + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_parse_operand_Gw(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Gw(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_AX + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_parse_operand_Gv(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Gv(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	if (instruction->prefixes & NMD_X86_PREFIXES_REX_B)
@@ -3693,7 +3786,7 @@ void _nmd_parse_operand_Gv(const nmd_x86_instruction* instruction, nmd_x86_opera
 	operand->size = 1;
 }
 
-void _nmd_parse_operand_Rv(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Rv(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	if (instruction->prefixes & NMD_X86_PREFIXES_REX_R)
@@ -3703,35 +3796,35 @@ void _nmd_parse_operand_Rv(const nmd_x86_instruction* instruction, nmd_x86_opera
 	operand->size = 1;
 }
 
-void _nmd_parse_operand_Gy(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Gy(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = (uint8_t)((instruction->mode == NMD_X86_MODE_64 ? NMD_X86_REG_RAX : NMD_X86_REG_EAX) + instruction->modrm.fields.reg);
 	operand->size = 1;
 }
 
-void _nmd_parse_operand_Pq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Pq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_MM0 + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_parse_perand_Nq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Nq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_MM0 + instruction->modrm.fields.rm;
 	operand->size = 1;
 }
 
-void _nmd_parse_operand_Vdq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Vdq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_XMM0 + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_parse_operand_Udq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+void _nmd_decode_operand_Udq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_XMM0 + instruction->modrm.fields.rm;
@@ -3762,7 +3855,7 @@ void _nmd_decode_conditional_flag(nmd_x86_instruction* instruction, const uint8_
 }
 
 /* 'remaningSize' in the context of this function is the number of bytes the instruction takes not counting prefixes and opcode. */
-bool _nmd_parseModrm(const uint8_t** b, nmd_x86_instruction* const instruction, const size_t remainingSize)
+bool _nmd_decode_modrm(const uint8_t** b, nmd_x86_instruction* const instruction, const size_t remainingSize)
 {
 	if (remainingSize == 0)
 		return false;
@@ -3928,7 +4021,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 
 			op = instruction->opcode;
 
-			if (!_nmd_parseModrm(&b, instruction, remainingSize - 3))
+			if (!_nmd_decode_modrm(&b, instruction, remainingSize - 3))
 				return false;
 
 			const nmd_x86_modrm modrm = instruction->modrm;
@@ -4052,44 +4145,44 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 
 					if (NMD_R(op) == 0 || (op >= 0x1c && op <= 0x1e))
 					{
-						_nmd_parse_operand_Pq(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Qq(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Pq(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Qq(instruction, &instruction->operands[1]);
 					}
 					else if (NMD_R(op) == 8)
 					{
-						_nmd_parse_operand_Gy(instruction, &instruction->operands[0]);
-						_nmd_parse_modrm_upper32(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Gy(instruction, &instruction->operands[0]);
+						_nmd_decode_modrm_upper32(instruction, &instruction->operands[1]);
 					}
 					else if (NMD_R(op) >= 1 && NMD_R(op) <= 0xe)
 					{
-						_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Wdq(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Wdq(instruction, &instruction->operands[1]);
 					}
 					else if (op == 0xf6)
 					{
-						_nmd_parse_operand_Gy(instruction, &instruction->operands[!instruction->simdPrefix ? 1 : 0]);
-						_nmd_parse_operand_Ey(instruction, &instruction->operands[!instruction->simdPrefix ? 0 : 1]);
+						_nmd_decode_operand_Gy(instruction, &instruction->operands[!instruction->simdPrefix ? 1 : 0]);
+						_nmd_decode_operand_Ey(instruction, &instruction->operands[!instruction->simdPrefix ? 0 : 1]);
 					}
 					else if (op == 0xf0 || op == 0xf1)
 					{
 						if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO || (instruction->prefixes & (NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE | NMD_X86_PREFIXES_REPEAT_NOT_ZERO)) == (NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE | NMD_X86_PREFIXES_REPEAT_NOT_ZERO))
 						{
-							_nmd_parse_operand_Gd(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Gd(instruction, &instruction->operands[0]);
 							if (op == 0xf0)
-								_nmd_parse_operand_Eb(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Eb(instruction, &instruction->operands[1]);
 							else if (instruction->prefixes == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
-								_nmd_parse_operand_Ey(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Ey(instruction, &instruction->operands[1]);
 							else
-								_nmd_parse_operand_Ew(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Ew(instruction, &instruction->operands[1]);
 						}
 						else
 						{
 							if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
-								_nmd_parse_operand_Gw(instruction, &instruction->operands[op == 0xf0 ? 0 : 1]);
+								_nmd_decode_operand_Gw(instruction, &instruction->operands[op == 0xf0 ? 0 : 1]);
 							else
-								_nmd_parse_operand_Gy(instruction, &instruction->operands[op == 0xf0 ? 0 : 1]);
+								_nmd_decode_operand_Gy(instruction, &instruction->operands[op == 0xf0 ? 0 : 1]);
 
-							_nmd_parse_memory_operand(instruction, &instruction->operands[op == 0xf0 ? 1 : 0], (uint8_t)(instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : (instruction->operandSize64 ? NMD_X86_REG_RAX : NMD_X86_REG_EAX)));
+							_nmd_decode_memory_operand(instruction, &instruction->operands[op == 0xf0 ? 1 : 0], (uint8_t)(instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : (instruction->operandSize64 ? NMD_X86_REG_RAX : NMD_X86_REG_EAX)));
 						}
 					}
 				}
@@ -4158,23 +4251,23 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 
 					if (op == 0x0f && !instruction->simdPrefix)
 					{
-						_nmd_parse_operand_Pq(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Qq(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Pq(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Qq(instruction, &instruction->operands[1]);
 					}
 					else if (NMD_R(op) == 1)
 					{
-						_nmd_parse_memory_operand(instruction, &instruction->operands[0], NMD_X86_REG_EAX);
-						_nmd_parse_operand_Vdq(instruction, &instruction->operands[1]);
+						_nmd_decode_memory_operand(instruction, &instruction->operands[0], NMD_X86_REG_EAX);
+						_nmd_decode_operand_Vdq(instruction, &instruction->operands[1]);
 					}
 					else if (NMD_R(op) == 2)
 					{
-						_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
-						_nmd_parse_memory_operand(instruction, &instruction->operands[1], (uint8_t)(NMD_C(op) == 1 ? NMD_X86_REG_XMM0 : NMD_X86_REG_EAX));
+						_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
+						_nmd_decode_memory_operand(instruction, &instruction->operands[1], (uint8_t)(NMD_C(op) == 1 ? NMD_X86_REG_XMM0 : NMD_X86_REG_EAX));
 					}
 					else if (op == 0xcc || op == 0xdf || NMD_R(op) == 4 || NMD_R(op) == 6 || NMD_R(op) == 0)
 					{
-						_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Wdq(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Wdq(instruction, &instruction->operands[1]);
 					}
 				}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS */
@@ -4188,7 +4281,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 				if (remainingSize < 5)
 					return false;
 			
-				if (!_nmd_parseModrm(&b, instruction, remainingSize - 2))
+				if (!_nmd_decode_modrm(&b, instruction, remainingSize - 2))
 					return false;
 
 				instruction->encoding = NMD_X86_ENCODING_3DNOW;
@@ -4220,7 +4313,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 				instruction->hasModrm = true, instruction->modrm.modrm = *++b;
 			else if (op < 4 || (NMD_R(op) != 3 && NMD_R(op) > 0 && NMD_R(op) < 7) || (op >= 0xD0 && op != 0xFF) || (NMD_R(op) == 7 && NMD_C(op) != 7) || NMD_R(op) == 9 || NMD_R(op) == 0xB || (NMD_R(op) == 0xC && NMD_C(op) < 8) || (NMD_R(op) == 0xA && (op % 8) >= 3) || op == 0x0ff || op == 0x00 || op == 0x0d)
 			{
-				if (!_nmd_parseModrm(&b, instruction, remainingSize - 2))
+				if (!_nmd_decode_modrm(&b, instruction, remainingSize - 2))
 					return false;
 			}
 
@@ -4615,9 +4708,9 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					if (op == 0x00)
 					{
 						if (instruction->modrm.fields.reg >= 0b010)
-							_nmd_parse_operand_Ew(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Ew(instruction, &instruction->operands[0]);
 						else
-							_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 
 						instruction->operands[0].action = (uint8_t)(instruction->modrm.fields.reg >= 0b010 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_WRITE);
 					}
@@ -4625,14 +4718,14 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					{
 						if (instruction->modrm.fields.mod != 0b11)
 						{
-							_nmd_parse_modrm_upper32(instruction, &instruction->operands[0]);
+							_nmd_decode_modrm_upper32(instruction, &instruction->operands[0]);
 							instruction->operands[0].action = (uint8_t)(instruction->modrm.fields.reg >= 0b010 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_WRITE);
 						}
 						else if (instruction->modrm.fields.reg == 0b100)
-							_nmd_parse_operand_Rv(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Rv(instruction, &instruction->operands[0]);
 						else if (instruction->modrm.fields.reg == 0b110)
 						{
-							_nmd_parse_operand_Ew(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Ew(instruction, &instruction->operands[0]);
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ;
 						}
 
@@ -4641,14 +4734,14 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					}
 					else if (op == 0x02 || op == 0x03)
 					{
-						_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Ew(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Ew(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (op == 0x0d)
 					{
-						_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (NMD_R(op) == 0x8)
@@ -4657,13 +4750,13 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					}
 					else if (NMD_R(op) == 9)
 					{
-						_nmd_parse_operand_Eb(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Eb(instruction, &instruction->operands[0]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 					}
 					else if (op == 0x17)
 					{
-						_nmd_parse_modrm_upper32(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Vdq(instruction, &instruction->operands[1]);
+						_nmd_decode_modrm_upper32(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Vdq(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
@@ -4677,51 +4770,51 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					}
 					else if (op == 0x29 || op == 0x2b || (op == 0x7f && instruction->simdPrefix))
 					{
-						_nmd_parse_operand_Wdq(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Vdq(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Wdq(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Vdq(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (op == 0x2a || op == 0x2c || op == 0x2d)
 					{
 						if (op == 0x2a)
-							_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
 						else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT || instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
-							_nmd_parse_operand_Gy(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Gy(instruction, &instruction->operands[0]);
 						else if (op == 0x2d && instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
-							_nmd_parse_operand_Qq(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Qq(instruction, &instruction->operands[0]);
 						else
-							_nmd_parse_operand_Pq(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Pq(instruction, &instruction->operands[0]);
 
 						if (op == 0x2a)
 						{
 							if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT || instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
-								_nmd_parse_operand_Ey(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Ey(instruction, &instruction->operands[1]);
 							else
-								_nmd_parse_operand_Qq(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Qq(instruction, &instruction->operands[1]);
 						}
 						else
-							_nmd_parse_operand_Wdq(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Wdq(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (op == 0x50)
 					{
-						_nmd_parse_operand_Gy(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Udq(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Gy(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Udq(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (NMD_R(op) == 5 || (op >= 0x10 && op <= 0x16) || op == 0x28 || op == 0x2e || op == 0x2f || (op == 0x7e && instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT))
 					{
-						_nmd_parse_operand_Vdq(instruction, &instruction->operands[op == 0x11 || op == 0x13 ? 1 : 0]);
-						_nmd_parse_operand_Wdq(instruction, &instruction->operands[op == 0x11 || op == 0x13 ? 0 : 1]);
+						_nmd_decode_operand_Vdq(instruction, &instruction->operands[op == 0x11 || op == 0x13 ? 1 : 0]);
+						_nmd_decode_operand_Wdq(instruction, &instruction->operands[op == 0x11 || op == 0x13 ? 0 : 1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (op == 0x7e)
 					{
-						_nmd_parse_operand_Ey(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Ey(instruction, &instruction->operands[0]);
 						instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
 						instruction->operands[1].size = 1;
 						instruction->operands[1].fields.reg = (uint8_t)((instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_XMM0 : NMD_X86_REG_MM0) + instruction->modrm.fields.reg);
@@ -4732,21 +4825,21 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					{
 						if (!instruction->simdPrefix)
 						{
-							_nmd_parse_operand_Pq(instruction, &instruction->operands[op == 0x7f ? 1 : 0]);
+							_nmd_decode_operand_Pq(instruction, &instruction->operands[op == 0x7f ? 1 : 0]);
 
 							if (op == 0x6e)
-								_nmd_parse_operand_Ey(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Ey(instruction, &instruction->operands[1]);
 							else
-								_nmd_parse_operand_Qq(instruction, &instruction->operands[op == 0x7f ? 0 : 1]);
+								_nmd_decode_operand_Qq(instruction, &instruction->operands[op == 0x7f ? 0 : 1]);
 						}
 						else
 						{
-							_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
 
 							if (op == 0x6e)
-								_nmd_parse_operand_Ey(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Ey(instruction, &instruction->operands[1]);
 							else
-								_nmd_parse_operand_Wdq(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Wdq(instruction, &instruction->operands[1]);
 						}
 
 						if (op == 0x70)
@@ -4758,9 +4851,9 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					else if (op >= 0x71 && op <= 0x73)
 					{
 						if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
-							_nmd_parse_operand_Udq(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Udq(instruction, &instruction->operands[0]);
 						else
-							_nmd_parse_operand_Qq(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Qq(instruction, &instruction->operands[0]);
 						instruction->operands[1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
@@ -4773,8 +4866,8 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 							{
 								i = 0;
 								if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
-									_nmd_parse_operand_Vdq(instruction, &instruction->operands[i++]);
-								_nmd_parse_operand_Udq(instruction, &instruction->operands[i + 0]);
+									_nmd_decode_operand_Vdq(instruction, &instruction->operands[i++]);
+								_nmd_decode_operand_Udq(instruction, &instruction->operands[i + 0]);
 								instruction->operands[i + 1].type = instruction->operands[i + 2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 								instruction->operands[i + 1].size = instruction->operands[i + 2].size = 1;
 								instruction->operands[i + 1].fields.imm = b[1];
@@ -4782,14 +4875,14 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 							}
 							else
 							{
-								_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
-								_nmd_parse_operand_Wdq(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
+								_nmd_decode_operand_Wdq(instruction, &instruction->operands[1]);
 							}
 						}
 						else
 						{
-							_nmd_parse_operand_Ey(instruction, &instruction->operands[op == 0x78 ? 0 : 1]);
-							_nmd_parse_operand_Gy(instruction, &instruction->operands[op == 0x78 ? 1 : 0]);
+							_nmd_decode_operand_Ey(instruction, &instruction->operands[op == 0x78 ? 0 : 1]);
+							_nmd_decode_operand_Gy(instruction, &instruction->operands[op == 0x78 ? 1 : 0]);
 						}
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
@@ -4802,8 +4895,8 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					}
 					else if ((NMD_R(op) == 0xa && ((op % 8) >= 3 && (op % 8) <= 5)) || op == 0xb3 || op == 0xbb)
 					{
-						_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Gv(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Gv(instruction, &instruction->operands[1]);
 
 						if (NMD_R(op) == 0xa)
 						{
@@ -4821,14 +4914,14 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					}
 					else if (op == 0xaf || op == 0xb8)
 					{
-						_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Ev(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Ev(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (op == 0xba)
 					{
-						_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 						instruction->operands[0].action = (uint8_t)(instruction->modrm.fields.reg <= 0b101 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_READ_WRITE);
 						instruction->operands[1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
@@ -4836,18 +4929,18 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					}
 					else if (NMD_R(op) == 0xb && (op % 8) >= 6)
 					{
-						_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
 						if ((op % 8) == 6)
-							_nmd_parse_operand_Eb(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Eb(instruction, &instruction->operands[1]);
 						else
-							_nmd_parse_operand_Ew(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Ew(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (NMD_R(op) == 0x4 || (NMD_R(op) == 0xb && ((op % 8) == 0x4 || (op % 8) == 0x5)))
 					{
-						_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Ev(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Ev(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
@@ -4855,13 +4948,13 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					{
 						if (NMD_C(op) == 0)
 						{
-							_nmd_parse_operand_Eb(instruction, &instruction->operands[0]);
-							_nmd_parse_operand_Gb(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Eb(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Gb(instruction, &instruction->operands[1]);
 						}
 						else
 						{
-							_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
-							_nmd_parse_operand_Gv(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Gv(instruction, &instruction->operands[1]);
 						}
 
 						if (NMD_R(op) == 0xb)
@@ -4874,22 +4967,22 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					}
 					else if (op == 0xb2)
 					{
-						_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
-						_nmd_parse_modrm_upper32(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
+						_nmd_decode_modrm_upper32(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (op == 0xc3)
 					{
-						_nmd_parse_modrm_upper32(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Gy(instruction, &instruction->operands[1]);
+						_nmd_decode_modrm_upper32(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Gy(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 					}
 					else if (op == 0xc2 || op == 0xc6)
 					{
-						_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Wdq(instruction, &instruction->operands[1]);
+						_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Wdq(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 						instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
@@ -4897,21 +4990,21 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					else if (op == 0xc4)
 					{
 						if (instruction->prefixes == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
-							_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
 						else
-							_nmd_parse_operand_Pq(instruction, &instruction->operands[0]);
-						_nmd_parse_operand_Ey(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Pq(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Ey(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 						instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 					}
 					else if (op == 0xc5)
 					{
-						_nmd_parse_operand_Gd(instruction, &instruction->operands[0]);
+						_nmd_decode_operand_Gd(instruction, &instruction->operands[0]);
 						if (instruction->prefixes == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
-							_nmd_parse_operand_Udq(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Udq(instruction, &instruction->operands[1]);
 						else
-							_nmd_parse_perand_Nq(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Nq(instruction, &instruction->operands[1]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 						instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
@@ -4919,9 +5012,9 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					else if (op == 0xc7)
 					{
 						if (instruction->modrm.fields.mod == 0b11)
-							_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 						else
-							_nmd_parse_modrm_upper32(instruction, &instruction->operands[0]);
+							_nmd_decode_modrm_upper32(instruction, &instruction->operands[0]);
 						instruction->operands[0].action = (uint8_t)(instruction->modrm.fields.reg == 0b001 ? (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE) : (instruction->modrm.fields.mod == 0b11 || !instruction->simdPrefix ? NMD_X86_OPERAND_ACTION_WRITE : NMD_X86_OPERAND_ACTION_READ));
 					}
 					else if (op >= 0xc8 && op <= 0xcf)
@@ -4934,20 +5027,20 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					{
 						if (op == 0xff)
 						{
-							_nmd_parse_operand_Gd(instruction, &instruction->operands[0]);
-							_nmd_parse_memory_operand(instruction, &instruction->operands[1], NMD_X86_REG_EAX);
+							_nmd_decode_operand_Gd(instruction, &instruction->operands[0]);
+							_nmd_decode_memory_operand(instruction, &instruction->operands[1], NMD_X86_REG_EAX);
 						}
 						else if (op == 0xd6 && instruction->simdPrefix != NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 						{
 							if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
 							{
-								_nmd_parse_operand_Vdq(instruction, &instruction->operands[0]);
-								_nmd_parse_operand_Qq(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Vdq(instruction, &instruction->operands[0]);
+								_nmd_decode_operand_Qq(instruction, &instruction->operands[1]);
 							}
 							else
 							{
-								_nmd_parse_operand_Pq(instruction, &instruction->operands[0]);
-								_nmd_parse_operand_Wdq(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Pq(instruction, &instruction->operands[0]);
+								_nmd_decode_operand_Wdq(instruction, &instruction->operands[1]);
 							}
 						}
 						else
@@ -4958,18 +5051,18 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 							if (!instruction->simdPrefix)
 							{
 								if (op == 0xd7)
-									_nmd_parse_operand_Gd(instruction, &instruction->operands[0]);
+									_nmd_decode_operand_Gd(instruction, &instruction->operands[0]);
 								else
-									_nmd_parse_operand_Pq(instruction, &instruction->operands[opIndex1]);
-								_nmd_parse_operand_Qq(instruction, &instruction->operands[opIndex2]);
+									_nmd_decode_operand_Pq(instruction, &instruction->operands[opIndex1]);
+								_nmd_decode_operand_Qq(instruction, &instruction->operands[opIndex2]);
 							}
 							else
 							{
 								if (op == 0xd7)
-									_nmd_parse_operand_Gd(instruction, &instruction->operands[0]);
+									_nmd_decode_operand_Gd(instruction, &instruction->operands[0]);
 								else
-									_nmd_parse_operand_Vdq(instruction, &instruction->operands[opIndex1]);
-								_nmd_parse_operand_Wdq(instruction, &instruction->operands[opIndex2]);
+									_nmd_decode_operand_Vdq(instruction, &instruction->operands[opIndex1]);
+								_nmd_decode_operand_Wdq(instruction, &instruction->operands[opIndex2]);
 							}
 						}
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
@@ -4991,7 +5084,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 		/* Check for ModR/M, SIB and displacement. */
 		if (NMD_R(op) == 8 || _nmd_findByte(_nmd_op1modrm, sizeof(_nmd_op1modrm), op) || (NMD_R(op) < 4 && (NMD_C(op) < 4 || (NMD_C(op) >= 8 && NMD_C(op) < 0xC))) || (NMD_R(op) == 0xD && NMD_C(op) >= 8) || (remainingSize > 1 && ((nmd_x86_modrm*)(b + 1))->fields.mod != 0b11 && (op == 0xc4 || op == 0xc5 || op == 0x62)))
 		{
-			if (!_nmd_parseModrm(&b, instruction, remainingSize - 1))
+			if (!_nmd_decode_modrm(&b, instruction, remainingSize - 1))
 				return false;
 		}
 
@@ -5060,7 +5153,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 					op = instruction->opcode;
 				}
 
-				if (!_nmd_parseModrm(&b, instruction, remainingSize - (instruction->vex.vex[0] == 0xc4 ? 4 : 3)))
+				if (!_nmd_decode_modrm(&b, instruction, remainingSize - (instruction->vex.vex[0] == 0xc4 ? 4 : 3)))
 					return false;
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VEX */
@@ -5648,13 +5741,13 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						{
 							if (op % 2 == 0)
 							{
-								_nmd_parse_operand_Eb(instruction, &instruction->operands[op == 0x8a ? 1 : 0]);
-								_nmd_parse_operand_Gb(instruction, &instruction->operands[op == 0x8a ? 0 : 1]);
+								_nmd_decode_operand_Eb(instruction, &instruction->operands[op == 0x8a ? 1 : 0]);
+								_nmd_decode_operand_Gb(instruction, &instruction->operands[op == 0x8a ? 0 : 1]);
 							}
 							else
 							{
-								_nmd_parse_operand_Ev(instruction, &instruction->operands[op == 0x8b ? 1 : 0]);
-								_nmd_parse_operand_Gv(instruction, &instruction->operands[op == 0x8b ? 0 : 1]);
+								_nmd_decode_operand_Ev(instruction, &instruction->operands[op == 0x8b ? 1 : 0]);
+								_nmd_decode_operand_Gv(instruction, &instruction->operands[op == 0x8b ? 0 : 1]);
 							}
 
 							if (op >= 0x88)
@@ -5668,9 +5761,9 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						else if (op >= 0x80 && op <= 0x83)
 						{
 							if (op % 2 == 0)
-								_nmd_parse_operand_Eb(instruction, &instruction->operands[0]);
+								_nmd_decode_operand_Eb(instruction, &instruction->operands[0]);
 							else
-								_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+								_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READ_WRITE;
 							instruction->operands[1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 						}
@@ -5687,13 +5780,13 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 							const size_t opMod8 = (size_t)(op % 8);
 							if (opMod8 == 0 || opMod8 == 2)
 							{
-								_nmd_parse_operand_Eb(instruction, &instruction->operands[opMod8 == 0 ? 0 : 1]);
-								_nmd_parse_operand_Gb(instruction, &instruction->operands[opMod8 == 0 ? 1 : 0]);
+								_nmd_decode_operand_Eb(instruction, &instruction->operands[opMod8 == 0 ? 0 : 1]);
+								_nmd_decode_operand_Gb(instruction, &instruction->operands[opMod8 == 0 ? 1 : 0]);
 							}
 							else if (opMod8 == 1 || opMod8 == 3)
 							{
-								_nmd_parse_operand_Ev(instruction, &instruction->operands[opMod8 == 1 ? 0 : 1]);
-								_nmd_parse_operand_Gv(instruction, &instruction->operands[opMod8 == 1 ? 1 : 0]);
+								_nmd_decode_operand_Ev(instruction, &instruction->operands[opMod8 == 1 ? 0 : 1]);
+								_nmd_decode_operand_Gv(instruction, &instruction->operands[opMod8 == 1 ? 1 : 0]);
 							}
 							else if (opMod8 == 4 || opMod8 == 5)
 							{
@@ -5724,16 +5817,16 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						}
 						else if (op == 0x62)
 						{
-							_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
-							_nmd_parse_modrm_upper32(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
+							_nmd_decode_modrm_upper32(instruction, &instruction->operands[1]);
 							instruction->operands[0].action = instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 						}
 						else if (op == 0x63)
 						{
 							if (mode == NMD_X86_MODE_64)
 							{
-								_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
-								_nmd_parse_operand_Ev(instruction, &instruction->operands[1]);
+								_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
+								_nmd_decode_operand_Ev(instruction, &instruction->operands[1]);
 								instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 								instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 							}
@@ -5745,7 +5838,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 									instruction->operands[0].fields.reg = NMD_X86_REG_AX + instruction->modrm.fields.rm;
 								}
 								else
-									_nmd_parse_modrm_upper32(instruction, &instruction->operands[0]);
+									_nmd_decode_modrm_upper32(instruction, &instruction->operands[0]);
 
 								instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
 								instruction->operands[1].fields.reg = NMD_X86_REG_AX + instruction->modrm.fields.reg;
@@ -5755,8 +5848,8 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						}
 						else if (op == 0x69 || op == 0x6b)
 						{
-							_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
-							_nmd_parse_operand_Ev(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Ev(instruction, &instruction->operands[1]);
 							instruction->operands[2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 							instruction->operands[2].fields.imm = (int64_t)(instruction->immediate);
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
@@ -5764,7 +5857,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						}
 						else if (op == 0x8c)
 						{
-							_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 							instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 							instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
@@ -5772,10 +5865,10 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						}
 						else if (op == 0x8d)
 						{
-							_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 							instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
-							_nmd_parse_modrm_upper32(instruction, &instruction->operands[1]);
+							_nmd_decode_modrm_upper32(instruction, &instruction->operands[1]);
 						}
 						else if (op == 0x8e)
 						{
@@ -5783,16 +5876,16 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 							instruction->operands[0].fields.reg = NMD_X86_REG_ES + instruction->modrm.fields.reg;
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 							instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
-							_nmd_parse_operand_Ew(instruction, &instruction->operands[1]);
+							_nmd_decode_operand_Ew(instruction, &instruction->operands[1]);
 						}
 						else if (op == 0x8f)
 						{
-							_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						}
 						else if (op >= 0x91 && op <= 0x97)
 						{
-							_nmd_parse_operand_Gv(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Gv(instruction, &instruction->operands[0]);
 							instruction->operands[0].fields.reg = instruction->operands[0].fields.reg + NMD_C(op);
 							instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
 							instruction->operands[1].fields.reg = (uint8_t)(instruction->operandSize64 ? NMD_X86_REG_RAX : (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && mode != NMD_X86_MODE_16 ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
@@ -5804,7 +5897,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 							instruction->operands[op < 0xa2 ? 0 : 1].fields.reg = (uint8_t)(op % 2 == 0 ? NMD_X86_REG_AL : (instruction->operandSize64 ? NMD_X86_REG_RAX : ((instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && mode != NMD_X86_MODE_16) || (mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? NMD_X86_REG_AX : NMD_X86_REG_EAX)));
 							instruction->operands[op < 0xa2 ? 1 : 0].type = NMD_X86_OPERAND_TYPE_MEMORY;
 							instruction->operands[op < 0xa2 ? 1 : 0].fields.mem.disp = (mode == NMD_X86_MODE_64) ? *(uint64_t*)(b + 1) : *(uint32_t*)(b + 1);
-							_nmd_parse_operand_segment_reg(instruction, &instruction->operands[op < 0xa2 ? 1 : 0]);
+							_nmd_decode_operand_segment_reg(instruction, &instruction->operands[op < 0xa2 ? 1 : 0]);
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 							instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 						}
@@ -5826,9 +5919,9 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 							if (!(op >= 0xc6 && instruction->modrm.fields.reg))
 							{
 								if (op % 2 == 0)
-									_nmd_parse_operand_Eb(instruction, &instruction->operands[0]);
+									_nmd_decode_operand_Eb(instruction, &instruction->operands[0]);
 								else
-									_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+									_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 							}
 							instruction->operands[op >= 0xc6 && instruction->modrm.fields.reg ? 0 : 1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 							instruction->operands[0].action = (uint8_t)(op <= 0xc1 ? NMD_X86_OPERAND_ACTION_READ_WRITE : NMD_X86_OPERAND_ACTION_WRITE);
@@ -5837,7 +5930,7 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						{
 							instruction->operands[0].type = NMD_X86_OPERAND_TYPE_REGISTER;
 							instruction->operands[0].fields.reg = (uint8_t)((instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX) + instruction->modrm.fields.reg);
-							_nmd_parse_modrm_upper32(instruction, &instruction->operands[1]);
+							_nmd_decode_modrm_upper32(instruction, &instruction->operands[1]);
 							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 							instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 						}
@@ -5852,9 +5945,9 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						else if (op >= 0xd0 && op <= 0xd3)
 						{
 							if (op % 2 == 0)
-								_nmd_parse_operand_Eb(instruction, &instruction->operands[0]);
+								_nmd_decode_operand_Eb(instruction, &instruction->operands[0]);
 							else
-								_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+								_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 
 							if (op < 0xd2)
 							{
@@ -5918,12 +6011,12 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 						}
 						else if (op == 0xf6 || op == 0xfe)
 						{
-							_nmd_parse_operand_Eb(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Eb(instruction, &instruction->operands[0]);
 							instruction->operands[0].action = (uint8_t)(op == 0xfe && instruction->modrm.fields.reg >= 0b010 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_READ_WRITE);
 						}
 						else if (op == 0xf7 || op == 0xff)
 						{
-							_nmd_parse_operand_Ev(instruction, &instruction->operands[0]);
+							_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 							instruction->operands[0].action = (uint8_t)(op == 0xff && instruction->modrm.fields.reg >= 0b010 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_READ_WRITE);
 						}
 					}
@@ -6204,7 +6297,7 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 					return false;
 
 				/*
-				if (!_nmd_parseModrm(&b, instruction, remainingSize - 2))
+				if (!_nmd_decode_modrm(&b, instruction, remainingSize - 2))
 					return false;
 				
 				instruction->encoding = NMD_X86_ENCODING_3DNOW;
