@@ -2575,7 +2575,9 @@ size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
 
 #define _NMD_NUM_ELEMENTS(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#define _NMD_IS_UPPERCASE(c) (c >= 'A' && c <= 'Z')
 #define _NMD_IS_LOWERCASE(c) (c >= 'a' && c <= 'z')
+#define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? c + 0x20 : c)
 #define _NMD_IS_DECIMAL_NUMBER(c) (c >= '0' && c <= '9')
 
 const char* const _nmd_reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
@@ -2760,7 +2762,7 @@ bool _nmd_strcmp(const char* s1, const char* s2)
 	return !*s1 && !*s2;
 }
 
-size_t _nmd_getBitNumber(uint32_t mask)
+size_t _nmd_get_bit_index(uint32_t mask)
 {
 	size_t i = 0;
 	while (!(mask & (1 << i)))
@@ -2848,7 +2850,7 @@ enum _NMD_NUMBER_BASE
 	_NMD_NUMBER_BASE_BINARY      = 2
 };
 
-bool _nmd_parse_number(const char* string, int64_t* num, size_t* numDigits)
+bool _nmd_parse_number(const char* string, int64_t* pNum, size_t* pNumDigits)
 {
 	if (*string == '\0')
 		return false;
@@ -2902,37 +2904,40 @@ bool _nmd_parse_number(const char* string, int64_t* num, size_t* numDigits)
 			break;
 	}
 
-	*numDigits = i;
+	size_t numDigits = i;
 
-	int64_t numTemp = 0;
-	for (i = 0; i < *numDigits; i++)
+	int64_t num = 0;
+	for (i = 0; i < numDigits; i++)
 	{
 		const char c = s[i];
-		numTemp += (c <= '9') ? (c - '0') : (10 + c - 'a');
-		if (i < *numDigits - 1)
+		num += (c <= '9') ? (c - '0') : (10 + c - 'a');
+		if (i < numDigits - 1)
 		{
 			/* Return false if number is greater than 2^64-1 */
-			if (*numDigits > 16 && i >= 15)
+			if ( numDigits > 16 && i >= 15)
 			{
-				if ((base == _NMD_NUMBER_BASE_DECIMAL && (uint64_t)numTemp >= (uint64_t)1844674407370955162) || /* ceiling((2^64-1) / 10) */
-					(base == _NMD_NUMBER_BASE_HEXADECIMAL && (uint64_t)numTemp >= (uint64_t)1152921504606846976) || /* *ceiling((2^64-1) / 16) */
-					(base == _NMD_NUMBER_BASE_BINARY && (uint64_t)numTemp >= (uint64_t)9223372036854775808)) /* ceiling((2^64-1) / 2) */
+				if ((base == _NMD_NUMBER_BASE_DECIMAL && (uint64_t)num >= (uint64_t)1844674407370955162) || /* ceiling((2^64-1) / 10) */
+					(base == _NMD_NUMBER_BASE_HEXADECIMAL && (uint64_t)num >= (uint64_t)1152921504606846976) || /* *ceiling((2^64-1) / 16) */
+					(base == _NMD_NUMBER_BASE_BINARY && (uint64_t)num >= (uint64_t)9223372036854775808)) /* ceiling((2^64-1) / 2) */
 				{
 					return false;
 				}
 
 			}
-			numTemp *= base;
+			num *= base;
 		}
 	}
 
 	if (s != string) /* There's either a "0x" or "0b" prefix. */
-		*numDigits = (size_t)((ptrdiff_t)(s + i) - (ptrdiff_t)string);
+		numDigits = (size_t)((ptrdiff_t)(s + i) - (ptrdiff_t)string);
 	
 	if (isNegative)
-		numTemp *= -1;
+		num *= -1;
 
-	*num = numTemp;
+	*pNum = num;
+
+	if(pNumDigits)
+		*pNumDigits = numDigits;
 
 	return true;
 }
@@ -3031,7 +3036,14 @@ size_t _nmd_append_prefix_by_reg_size(uint8_t* b, const char* s, size_t* numPref
 	return 0;
 }
 
-size_t _nmd_parse_memory_operand_size(const char** string)
+/* 
+Parses a memory operand in the format: '[exp]'
+string: a pointer to the string that represents the memory operand. The string is modified to point to the character after the memory operand.
+operand[out]: Describes the memory operand.
+size[out]: The size of the pointer. byte ptr:1, dword ptr:4, etc.. or zero if unknown.
+Return value: True if success, false otherwise.
+*/
+bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* operand, size_t* size)
 {
 	const char* s = *string;
 	size_t numBytes = 0;
@@ -3044,31 +3056,24 @@ size_t _nmd_parse_memory_operand_size(const char** string)
 	else if (_nmd_strstr(s, "qword") == s)
 		numBytes = 8;
 	else
-		return 0;
+		numBytes = 0;
+	*size = numBytes;
 
-	s += numBytes >= 4 ? 5 : 4;
+	if (numBytes > 0)
+	{
+		s += numBytes >= 4 ? 5 : 4;
 
-	if (s[0] == ' ' && s[1] == 'p' && s[2] == 't' && s[3] == 'r')
-		s += 4;
+		if (s[0] == ' ' && s[1] == 'p' && s[2] == 't' && s[3] == 'r')
+			s += 4;
 
-	if (s[0] == ' ')
-		s++;
-	else if (s[0] != '[')
-		return 0;
+		if (s[0] == ' ')
+			s++;
+		else if (s[0] != '[')
+			return false;
+	}
 
-	*string = s;
-
-	return numBytes;
-}
-
-/*
-Parses a segment register right before a memory operand in the format: 'xx:'
-string: a pointer to the string that represents the segment register. The string is modified to point to the character after the ':' character.
-*/
-bool _nmd_parse_memory_operand_segment_reg(const char** string, NMD_X86_REG* segmentReg)
-{
-	const char* s = *string;
 	size_t i = 0;
+	operand->segment = NMD_X86_REG_NONE;
 	for (; i < _NMD_NUM_ELEMENTS(_nmd_segmentReg); i++)
 	{
 		if (_nmd_strstr(s, _nmd_segmentReg[i]) == s)
@@ -3076,78 +3081,107 @@ bool _nmd_parse_memory_operand_segment_reg(const char** string, NMD_X86_REG* seg
 			if (s[2] != ':')
 				return false;
 
-			*string = s + 3;
-			*segmentReg = (NMD_X86_REG)(NMD_X86_REG_ES + i);
-			return true;
+			s += 3;
+			operand->segment = (NMD_X86_REG)(NMD_X86_REG_ES + i);
+			break;
 		}
 	}
 
-	return false;
-}
-
-/* 
-Parses a memory operand in the format: '[exp]'
-string: a pointer to the string that represents the memory operand. The string is modified to point to the character after the memory operand.
-buffer[out]: a pointer to a buffer the receives the encoded memory operand.
-Return value: The number of bytes written to the buffer. If the parsing fails, zero is returned.
-*/
-size_t _nmd_parse_memory_operand(const char** string, uint8_t* buffer)
-{
-	const char* s = *string;
-	if (s[0] != '[')
-		return 0;
-
-	s++;
-
-	nmd_x86_modrm modrm;
+	if (s[0] == '[')
+		s++;
+	else
+		return false;
 	
-	size_t i = 0;
-	
-	bool closingBracket = false;
-	bool hasSIB = false;
-	while (!closingBracket)
+	operand->base = 0;
+	operand->index = 0;
+	operand->scale = 0;
+	operand->disp = 0;
+	bool add = false;
+	bool sub = false;
+	bool multiply = false;
+	bool isRegister = false;
+	while (true)
 	{
 		bool parsedElement = false;
-		for (; i < _NMD_NUM_ELEMENTS(_nmd_reg32); i++)
+		if (!sub && !multiply)
 		{
-			const char* tmp;
-			if (_nmd_strstr_ex(s, _nmd_reg32[i], &tmp) == s)
+			for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg32); i++)
 			{
-				s = tmp;
-				modrm.fields.rm = NMD_X86_REG_EAX + i;
-				parsedElement = true;
-				break;
+				const char* tmp;
+				if (_nmd_strstr_ex(s, _nmd_reg32[i], &tmp) == s)
+				{
+					s = tmp;
+					if (add)
+					{
+						operand->index = (NMD_X86_REG)(NMD_X86_REG_EAX + i);
+						operand->scale = 1;
+						add = false;
+					}
+					else
+						operand->base = (NMD_X86_REG)(NMD_X86_REG_EAX + i);
+					parsedElement = true;
+					isRegister = true;
+					break;
+				}
 			}
 		}
 
+		int64_t num;
+		size_t numDigits;
+		if (!parsedElement && _nmd_parse_number(s, &num, &numDigits))
+		{
+			s += numDigits;
+
+			if (add)
+			{
+				operand->disp += num;
+				add = false;
+			}
+			else if (sub)
+			{
+				operand->disp -= num;
+				sub = false;
+			}
+			else if (multiply)
+			{
+				if (!isRegister || (num != 1 && num != 2 && num != 4 && num != 8))
+					return false;
+
+				operand->scale = num;
+			}
+			else
+				operand->disp = num;
+
+			parsedElement = true;
+		}
+
 		if (!parsedElement)
-			return 0;
+			return false;
 
 		if (s[0] == '+')
-		{
-
-		}
+			add = true;
 		else if (s[0] == '-')
-		{
-
-		}
+			sub = true;
 		else if (s[0] == '*')
 		{
+			/* There cannot be more than one '*' operator. */
+			if (multiply)
+				return false;
+
+			multiply = true;
 		}
 		else if (s[0] == ']')
 		{
 			break;
 		}
 		else
-		{
-			return 0;
-		}
-		
+			return false;
+
+		s++;
 	}
 
-	buffer[0] = modrm.modrm;
-
-	return 1;
+	*string = s + 1;
+	return true;
 }
 
 size_t _nmd_assemble_single(_nmd_assemble_info* ai)
@@ -3322,23 +3356,86 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 	if (_nmd_strstr(ai->s, "inc ") == ai->s || _nmd_strstr(ai->s, "dec ") == ai->s)
 	{
 		const char* tmp = ai->s + 4;
-
-		const size_t operandSize = _nmd_parse_memory_operand_size(&tmp);
-		if (operandSize > 0)
+		nmd_x86_memory_operand memoryOperand;
+		size_t size;
+		if(_nmd_parse_memory_operand(&tmp, &memoryOperand, &size))
 		{
 			size_t offset = 0;
+			if (memoryOperand.segment && memoryOperand.segment != ((memoryOperand.base == NMD_X86_REG_ESP || memoryOperand.index == NMD_X86_REG_ESP) ? NMD_X86_REG_SS : NMD_X86_REG_DS))
+				ai->b[offset++] = _nmd_encode_segment_reg(memoryOperand.segment);
 
-			NMD_X86_REG segmentReg;
-			if (_nmd_parse_memory_operand_segment_reg(&tmp, &segmentReg))
-				ai->b[offset++] = _nmd_encode_segment_reg(segmentReg);
+			ai->b[offset++] = size == 1 ? 0xfe : 0xff;
 
-			ai->b[offset++] = operandSize == 1 ? 0xfe : 0xff;
+			nmd_x86_modrm modrm;
+			modrm.fields.reg = ai->s[0] == 'i' ? 0 : 8;
+			modrm.fields.mod = 0;
+
+			if (memoryOperand.index != NMD_X86_REG_NONE && memoryOperand.base != NMD_X86_REG_NONE)
+			{
+				modrm.fields.rm = 0b100;
+				nmd_x86_sib sib;
+				sib.fields.scale = _nmd_get_bit_index(memoryOperand.scale);
+				sib.fields.base = memoryOperand.base - NMD_X86_REG_EAX;
+				sib.fields.index = memoryOperand.index - NMD_X86_REG_EAX;
+				
+				const size_t nextOffset = offset;
+				if (memoryOperand.disp != 0)
+				{
+					if (memoryOperand.disp >= -128 && memoryOperand.disp <= 127)
+					{
+						modrm.fields.mod = 1;
+						*(int8_t*)(ai->b + offset + 2) = (int8_t)memoryOperand.disp;
+						offset++;
+					}
+					else
+					{
+						modrm.fields.mod = 2;
+						*(int32_t*)(ai->b + offset + 2) = (int32_t)memoryOperand.disp;
+						offset += 4;
+					}
+				}
+				
+				ai->b[nextOffset] = modrm.modrm;
+				ai->b[nextOffset + 1] = sib.sib;
+				offset += 2;
+
+				return offset;
+			}
+			else if (memoryOperand.base != NMD_X86_REG_NONE)
+			{
+				modrm.fields.rm = memoryOperand.base - NMD_X86_REG_EAX;
+				const size_t nextOffset = offset;
+				if (memoryOperand.disp != 0)
+				{
+					if (memoryOperand.disp >= -128 && memoryOperand.disp <= 127)
+					{
+						modrm.fields.mod = 1;
+						*(int8_t*)(ai->b + offset + 1) = (int8_t)memoryOperand.disp;
+						offset++;
+					}
+					else
+					{
+						modrm.fields.mod = 2;
+						*(int32_t*)(ai->b + offset + 1) = (int32_t)memoryOperand.disp;
+						offset += 4;
+					}
+				}
+				ai->b[nextOffset] = modrm.modrm;
+				offset++;
+			}
+			else
+			{
+				modrm.fields.rm = 0b101;
+				ai->b[offset++] = modrm.modrm;
+				*(int32_t*)(ai->b + offset) = (int32_t)memoryOperand.disp;
+				offset += 4;
+			}
 			
-			return _nmd_parse_memory_operand(&tmp, ai->b + offset) + offset;
+			return offset;
 		}
 
 		size_t numPrefixes, index;
-		const size_t size = _nmd_append_prefix_by_reg_size(ai->b, ai->s + 4, &numPrefixes, &index);
+		size = _nmd_append_prefix_by_reg_size(ai->b, ai->s + 4, &numPrefixes, &index);
 		if (size > 0)
 		{
 			if (ai->mode == NMD_X86_MODE_64)
@@ -3620,7 +3717,7 @@ size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uin
 		bool allowSpace = false;
 		for (; *string; string++)
 		{
-			const char c = *string;
+			char c = *string;
 			if (c == ';' || c == '\n')
 				break;
 			else if (c == ' ' && !allowSpace)
@@ -3629,9 +3726,9 @@ size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uin
 			if (length >= 128)
 				return 0;
 
-			const char newChar = (c >= 'A' && c <= 'Z') ? c + 0x20 : c;
-			parsedString[length++] = newChar;
-			allowSpace = (_NMD_IS_LOWERCASE(newChar) || _NMD_IS_DECIMAL_NUMBER(newChar)) && (_NMD_IS_LOWERCASE(*(string + 2)) || _NMD_IS_DECIMAL_NUMBER(*(string + 2)));
+			c = _NMD_TOLOWER(c);
+			parsedString[length++] = c;
+			allowSpace = (_NMD_IS_LOWERCASE(c) || _NMD_IS_DECIMAL_NUMBER(c)) && (_NMD_IS_LOWERCASE(string[2]) || _NMD_IS_DECIMAL_NUMBER(string[2]));
 		}
 
 		if (*string != '\0')
@@ -3667,7 +3764,7 @@ size_t nmd_x86_assemble(const char* string, void* buffer, size_t bufferSize, uin
 void _nmd_decode_operand_segment_reg(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	if (instruction->segmentOverride)
-		operand->fields.reg = (uint8_t)(NMD_X86_REG_ES + _nmd_getBitNumber(instruction->segmentOverride));
+		operand->fields.reg = (uint8_t)(NMD_X86_REG_ES + _nmd_get_bit_index(instruction->segmentOverride));
 	else
 		operand->fields.reg = (uint8_t)(!(instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (instruction->modrm.fields.rm == 0b100 || instruction->modrm.fields.rm == 0b101) ? NMD_X86_REG_SS : NMD_X86_REG_DS);
 }
@@ -6773,7 +6870,7 @@ void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* add
 	{
 		size_t i = 0;
 		if (si->instruction->segmentOverride)
-			i = _nmd_getBitNumber(si->instruction->segmentOverride);
+			i = _nmd_get_bit_index(si->instruction->segmentOverride);
 
 		_nmd_append_string(si, si->instruction->segmentOverride ? _nmd_segmentReg[i] : (!(si->instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (si->instruction->modrm.fields.rm == 0b100 || si->instruction->modrm.fields.rm == 0b101) ? "ss" : "ds"));
 		*si->buffer++ = ':';
