@@ -417,45 +417,27 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 {
 	size_t i = 0;
 
-	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false , repeatNotZeroPrefix = false;
-
-	if (_nmd_strstr(ai->s, "emit ") == (const char*)ai->s)
-	{
-		int64_t num = 0;
-		size_t numDigits = 0;
-		size_t offset = 5;
-		while (_nmd_parse_number(ai->s + offset, &num, &numDigits))
-		{
-			if (num < 0 || num > 0xff)
-				return 0;
-
-			ai->b[i++] = (uint8_t)num;
-
-			offset += numDigits;
-			if (ai->s[offset] == ' ')
-				offset++;
-		}
-		return i;
-	}
-
 	/* Parse prefixes */
-	if (_nmd_strstr(ai->s, "lock ") == (const char*)ai->s)
+	bool lockPrefix = false, repeatPrefix = false, repeatZeroPrefix = false, repeatNotZeroPrefix = false;
+	if (_nmd_strstr(ai->s, "lock ") == ai->s)
 		lockPrefix = true, ai->s += 5;
-	else if (_nmd_strstr(ai->s, "rep ") == (const char*)ai->s)
+	else if (_nmd_strstr(ai->s, "rep ") == ai->s)
 		repeatPrefix = true, ai->s += 4;
-	else if (_nmd_strstr(ai->s, "repe ") == (const char*)ai->s || _nmd_strstr(ai->s, "repz ") == (const char*)ai->s)
+	else if (_nmd_strstr(ai->s, "repe ") == ai->s || _nmd_strstr(ai->s, "repz ") == ai->s)
 		repeatZeroPrefix = true, ai->s += 5;
-	else if (_nmd_strstr(ai->s, "repne ") == (const char*)ai->s || _nmd_strstr(ai->s, "repnz ") == (const char*)ai->s)
+	else if (_nmd_strstr(ai->s, "repne ") == ai->s || _nmd_strstr(ai->s, "repnz ") == ai->s)
 		repeatNotZeroPrefix = true, ai->s += 6;
-
-	if (_nmd_strstr(ai->s, "xacquire ") == (const char*)ai->b)
+	
+	if (_nmd_strstr(ai->s, "xacquire ") == ai->s)
 	{
+
 	}
-	else if (_nmd_strstr(ai->s, "xrelease ") == (const char*)ai->b)
+	else if (_nmd_strstr(ai->s, "xrelease ") == ai->s)
 	{
+
 	}
 
-	/* Parse opcode */
+	/* Parse opcodes */
 	if (ai->mode == NMD_X86_MODE_64) /* Only x86-64. */
 	{
 		if (_nmd_strcmp(ai->s, "xchg r8,rax") || _nmd_strcmp(ai->s, "xchg rax,r8"))
@@ -499,7 +481,7 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			return 2;
 		}
 	}
-	else /* Only x86-16 or x86-32. */
+	else /* x86-16 / x86-32 */
 	{
 		if (_nmd_strcmp(ai->s, "pushad"))
 		{
@@ -553,143 +535,6 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		}
 	}
 
-	if (_nmd_strcmp(ai->s, "pushf"))
-	{
-		if (ai->mode == NMD_X86_MODE_16)
-		{
-			ai->b[0] = 0x9c;
-			return 1;
-		}
-		else
-		{
-			ai->b[0] = 0x66;
-			ai->b[1] = 0x9c;
-			return 2;
-		}
-	}
-	else if (_nmd_strcmp(ai->s, "popf"))
-	{
-		if (ai->mode == NMD_X86_MODE_16)
-		{
-			ai->b[0] = 0x9d;
-			return 1;
-		}
-		else
-		{
-			ai->b[0] = 0x66;
-			ai->b[1] = 0x9d;
-			return 2;
-		}
-	}
-
-	if (_nmd_strstr(ai->s, "inc ") == ai->s || _nmd_strstr(ai->s, "dec ") == ai->s)
-	{
-		const char* tmp = ai->s + 4;
-		nmd_x86_memory_operand memoryOperand;
-		size_t size;
-		if(_nmd_parse_memory_operand(&tmp, &memoryOperand, &size))
-		{
-			size_t offset = 0;
-			if (memoryOperand.segment && memoryOperand.segment != ((memoryOperand.base == NMD_X86_REG_ESP || memoryOperand.index == NMD_X86_REG_ESP) ? NMD_X86_REG_SS : NMD_X86_REG_DS))
-				ai->b[offset++] = _nmd_encode_segment_reg(memoryOperand.segment);
-
-			ai->b[offset++] = size == 1 ? 0xfe : 0xff;
-
-			nmd_x86_modrm modrm;
-			modrm.fields.reg = ai->s[0] == 'i' ? 0 : 8;
-			modrm.fields.mod = 0;
-
-			if (memoryOperand.index != NMD_X86_REG_NONE && memoryOperand.base != NMD_X86_REG_NONE)
-			{
-				modrm.fields.rm = 0b100;
-				nmd_x86_sib sib;
-				sib.fields.scale = _nmd_get_bit_index(memoryOperand.scale);
-				sib.fields.base = memoryOperand.base - NMD_X86_REG_EAX;
-				sib.fields.index = memoryOperand.index - NMD_X86_REG_EAX;
-				
-				const size_t nextOffset = offset;
-				if (memoryOperand.disp != 0)
-				{
-					if (memoryOperand.disp >= -128 && memoryOperand.disp <= 127)
-					{
-						modrm.fields.mod = 1;
-						*(int8_t*)(ai->b + offset + 2) = (int8_t)memoryOperand.disp;
-						offset++;
-					}
-					else
-					{
-						modrm.fields.mod = 2;
-						*(int32_t*)(ai->b + offset + 2) = (int32_t)memoryOperand.disp;
-						offset += 4;
-					}
-				}
-				
-				ai->b[nextOffset] = modrm.modrm;
-				ai->b[nextOffset + 1] = sib.sib;
-				offset += 2;
-
-				return offset;
-			}
-			else if (memoryOperand.base != NMD_X86_REG_NONE)
-			{
-				modrm.fields.rm = memoryOperand.base - NMD_X86_REG_EAX;
-				const size_t nextOffset = offset;
-				if (memoryOperand.disp != 0)
-				{
-					if (memoryOperand.disp >= -128 && memoryOperand.disp <= 127)
-					{
-						modrm.fields.mod = 1;
-						*(int8_t*)(ai->b + offset + 1) = (int8_t)memoryOperand.disp;
-						offset++;
-					}
-					else
-					{
-						modrm.fields.mod = 2;
-						*(int32_t*)(ai->b + offset + 1) = (int32_t)memoryOperand.disp;
-						offset += 4;
-					}
-				}
-				ai->b[nextOffset] = modrm.modrm;
-				offset++;
-			}
-			else
-			{
-				modrm.fields.rm = 0b101;
-				ai->b[offset++] = modrm.modrm;
-				*(int32_t*)(ai->b + offset) = (int32_t)memoryOperand.disp;
-				offset += 4;
-			}
-			
-			return offset;
-		}
-
-		size_t numPrefixes, index;
-		size = _nmd_append_prefix_by_reg_size(ai->b, ai->s + 4, &numPrefixes, &index);
-		if (size > 0)
-		{
-			if (ai->mode == NMD_X86_MODE_64)
-			{
-				ai->b[numPrefixes + 0] = size == 1 ? 0xfe : 0xff;
-				ai->b[numPrefixes + 1] = 0xc0 + (ai->s[0] == 'i' ? 0 : 8) + (uint8_t)index;
-				return numPrefixes + 2;
-			}
-			else
-			{
-				if (size == 1)
-				{
-					ai->b[0] = 0xfe;
-					ai->b[1] = 0xc0 + (ai->s[0] == 'i' ? 0 : 8) + (uint8_t)index;
-					return 2;
-				}
-				else
-				{
-					ai->b[numPrefixes + 0] = (ai->s[0] == 'i' ? 0x40 : 0x48) + (uint8_t)index;
-					return numPrefixes + 1;
-				}
-			}
-		}
-	}
-
 	typedef struct NMD_StringBytePair { const char* s; uint8_t b; } NMD_StringBytePair;
 
 	const NMD_StringBytePair op1SingleByte[] = {
@@ -728,6 +573,14 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		{ "cld",     0xfc },
 		{ "std",     0xfd },
 	};
+	for (i = 0; i < _NMD_NUM_ELEMENTS(op1SingleByte); i++)
+	{
+		if (_nmd_strcmp(ai->s, op1SingleByte[i].s))
+		{
+			ai->b[0] = op1SingleByte[i].b;
+			return 1;
+		}
+	}
 
 	const NMD_StringBytePair op2SingleByte[] = {
 		{ "syscall",  0x05 },
@@ -752,16 +605,6 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		{ "pop gs",   0xa9 },
 		{ "rsm",      0xaa }
 	};
-
-	for (i = 0; i < _NMD_NUM_ELEMENTS(op1SingleByte); i++)
-	{
-		if (_nmd_strcmp(ai->s, op1SingleByte[i].s))
-		{
-			ai->b[0] = op1SingleByte[i].b;
-			return 1;
-		}
-	}
-
 	for (i = 0; i < _NMD_NUM_ELEMENTS(op2SingleByte); i++)
 	{
 		if (_nmd_strcmp(ai->s, op2SingleByte[i].s))
@@ -771,8 +614,229 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			return 2;
 		}
 	}
+	
+	if (ai->s[0] == 'j')
+	{
+		const char* s = 0;
+		for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_conditionSuffixes); i++)
+		{
+			if (_nmd_strstr_ex(ai->s + 1, _nmd_conditionSuffixes[i], &s) == ai->s + 1)
+			{
+				if (s[0] != ' ')
+					return 0;
 
-	if (_nmd_strcmp(ai->s, "pause"))
+
+				int64_t num;
+				size_t numDigits;
+				if (!_nmd_parse_number(s + 1, &num, &numDigits))
+					return 0;
+
+				const int64_t delta = num - ai->runtimeAddress;
+				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
+				{
+					ai->b[0] = 0x70 + (uint8_t)i;
+					*(int8_t*)(ai->b + 1) = (int8_t)(delta - 2);
+					return 2;
+				}
+				else if (delta >= -(1 << 31) + 6 && delta <= ((size_t)(1) << 31) - 1 + 6)
+				{
+					ai->b[0] = 0x0f;
+					ai->b[1] = 0x80 + (uint8_t)i;
+					*(int32_t*)(ai->b + 2) = (int32_t)(delta - 6);
+					return 6;
+				}
+				else
+					return 0;
+			}
+		}
+	}
+	else if (_nmd_strstr(ai->s, "inc ") == ai->s || _nmd_strstr(ai->s, "dec ") == ai->s)
+	{
+		const char* tmp = ai->s + 4;
+		nmd_x86_memory_operand memoryOperand;
+		size_t size;
+		if (_nmd_parse_memory_operand(&tmp, &memoryOperand, &size))
+		{
+			size_t offset = 0;
+			if (memoryOperand.segment && memoryOperand.segment != ((memoryOperand.base == NMD_X86_REG_ESP || memoryOperand.index == NMD_X86_REG_ESP) ? NMD_X86_REG_SS : NMD_X86_REG_DS))
+				ai->b[offset++] = _nmd_encode_segment_reg((NMD_X86_REG)memoryOperand.segment);
+
+			ai->b[offset++] = size == 1 ? 0xfe : 0xff;
+
+			nmd_x86_modrm modrm;
+			modrm.fields.reg = ai->s[0] == 'i' ? 0 : 8;
+			modrm.fields.mod = 0;
+
+			if (memoryOperand.index != NMD_X86_REG_NONE && memoryOperand.base != NMD_X86_REG_NONE)
+			{
+				modrm.fields.rm = 0b100;
+				nmd_x86_sib sib;
+				sib.fields.scale = _nmd_get_bit_index(memoryOperand.scale);
+				sib.fields.base = memoryOperand.base - NMD_X86_REG_EAX;
+				sib.fields.index = memoryOperand.index - NMD_X86_REG_EAX;
+
+				const size_t nextOffset = offset;
+				if (memoryOperand.disp != 0)
+				{
+					if (memoryOperand.disp >= -128 && memoryOperand.disp <= 127)
+					{
+						modrm.fields.mod = 1;
+						*(int8_t*)(ai->b + offset + 2) = (int8_t)memoryOperand.disp;
+						offset++;
+					}
+					else
+					{
+						modrm.fields.mod = 2;
+						*(int32_t*)(ai->b + offset + 2) = (int32_t)memoryOperand.disp;
+						offset += 4;
+					}
+				}
+
+				ai->b[nextOffset] = modrm.modrm;
+				ai->b[nextOffset + 1] = sib.sib;
+				offset += 2;
+
+				return offset;
+			}
+			else if (memoryOperand.base != NMD_X86_REG_NONE)
+			{
+				modrm.fields.rm = memoryOperand.base - NMD_X86_REG_EAX;
+				const size_t nextOffset = offset;
+				if (memoryOperand.disp != 0)
+				{
+					if (memoryOperand.disp >= -128 && memoryOperand.disp <= 127)
+					{
+						modrm.fields.mod = 1;
+						*(int8_t*)(ai->b + offset + 1) = (int8_t)memoryOperand.disp;
+						offset++;
+					}
+					else
+					{
+						modrm.fields.mod = 2;
+						*(int32_t*)(ai->b + offset + 1) = (int32_t)memoryOperand.disp;
+						offset += 4;
+					}
+				}
+				ai->b[nextOffset] = modrm.modrm;
+				offset++;
+			}
+			else
+			{
+				modrm.fields.rm = 0b101;
+				ai->b[offset++] = modrm.modrm;
+				*(int32_t*)(ai->b + offset) = (int32_t)memoryOperand.disp;
+				offset += 4;
+			}
+
+			return offset;
+		}
+
+		size_t numPrefixes, index;
+		size = _nmd_append_prefix_by_reg_size(ai->b, ai->s + 4, &numPrefixes, &index);
+		if (size > 0)
+		{
+			if (ai->mode == NMD_X86_MODE_64)
+			{
+				ai->b[numPrefixes + 0] = size == 1 ? 0xfe : 0xff;
+				ai->b[numPrefixes + 1] = 0xc0 + (ai->s[0] == 'i' ? 0 : 8) + (uint8_t)index;
+				return numPrefixes + 2;
+			}
+			else
+			{
+				if (size == 1)
+				{
+					ai->b[0] = 0xfe;
+					ai->b[1] = 0xc0 + (ai->s[0] == 'i' ? 0 : 8) + (uint8_t)index;
+					return 2;
+				}
+				else
+				{
+					ai->b[numPrefixes + 0] = (ai->s[0] == 'i' ? 0x40 : 0x48) + (uint8_t)index;
+					return numPrefixes + 1;
+				}
+			}
+		}
+	}
+	else if (_nmd_strstr(ai->s, "push ") == ai->s)
+	{
+		size_t numDigits = 0;
+		int64_t num = 0;
+		if (_nmd_parse_number(ai->s + 5, &num, &numDigits))
+		{
+			if (*(ai->s + numDigits) != '\0' || !(num >= -(1 << 31) && num <= ((int64_t)1 << 31) - 1))
+				return 0;
+
+			if (num >= -(1 << 7) && num <= (1 << 7) - 1)
+			{
+				ai->b[0] = 0x6a;
+				*(int8_t*)(ai->b + 1) = (int8_t)num;
+				return 2;
+			}
+			else
+			{
+				ai->b[0] = 0x68;
+				*(int32_t*)(ai->b + 1) = (int32_t)num;
+				return 5;
+			}
+		}
+
+		size_t n = _nmd_assemble_reg(ai, 0x50);
+		if (n > 0)
+			return n;
+
+	}
+	else if (_nmd_strstr(ai->s, "pop ") == ai->s)
+	{
+		ai->s += 3;
+		return _nmd_assemble_reg(ai, 0x58);
+	}
+	else if (_nmd_strstr(ai->s, "emit ") == ai->s)
+	{
+		int64_t num = 0;
+		size_t numDigits = 0;
+		size_t offset = 5;
+		while (_nmd_parse_number(ai->s + offset, &num, &numDigits))
+		{
+			if (num < 0 || num > 0xff)
+				return 0;
+
+			ai->b[i++] = (uint8_t)num;
+
+			offset += numDigits;
+			if (ai->s[offset] == ' ')
+				offset++;
+		}
+		return i;
+	}
+	else if (_nmd_strcmp(ai->s, "pushf"))
+	{
+		if (ai->mode == NMD_X86_MODE_16)
+		{
+			ai->b[0] = 0x9c;
+			return 1;
+		}
+		else
+		{
+			ai->b[0] = 0x66;
+			ai->b[1] = 0x9c;
+			return 2;
+		}
+	}
+	else if (_nmd_strcmp(ai->s, "popf"))
+	{
+		if (ai->mode == NMD_X86_MODE_16)
+		{
+			ai->b[0] = 0x9d;
+			return 1;
+		}
+		else
+		{
+			ai->b[0] = 0x66;
+			ai->b[1] = 0x9d;
+			return 2;
+		}
+	}
+	else if (_nmd_strcmp(ai->s, "pause"))
 	{
 		ai->b[0] = 0xf3;
 		ai->b[1] = 0x90;
@@ -830,82 +894,7 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		ai->b[1] = 0x9d;
 		return 2;
 	}
-	else if (_nmd_strstr(ai->s, "push ") == ai->s)
-	{
-		size_t numDigits = 0;
-		int64_t num = 0;
-		if (_nmd_parse_number(ai->s + 5, &num, &numDigits))
-		{
-			if (*(ai->s + numDigits) != '\0' || !(num >= -(1 << 31) && num <= ((int64_t)1 << 31) - 1))
-				return 0;
-
-			if (num >= -(1 << 7) && num <= (1 << 7) - 1)
-			{
-				ai->b[0] = 0x6a;
-				*(int8_t*)(ai->b + 1) = (int8_t)num;
-				return 2;
-			}
-			else
-			{
-				ai->b[0] = 0x68;
-				*(int32_t*)(ai->b + 1) = (int32_t)num;
-				return 5;
-			}
-		}
-
-		size_t n = _nmd_assemble_reg(ai, 0x50);
-		if (n > 0)
-			return n;
-
-	}
-	else if (_nmd_strstr(ai->s, "pop ") == ai->s)
-	{
-		ai->s += 3;
-		return _nmd_assemble_reg(ai, 0x58);
-	}
-
-	if (ai->s[0] == 'j')
-	{
-		const char* s = 0;
-		for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_conditionSuffixes); i++)
-		{
-			if (_nmd_strstr_ex(ai->s + 1, _nmd_conditionSuffixes[i], &s) == ai->s + 1)
-			{
-				if (s[0] != ' ')
-					return 0;
-
-
-				int64_t num;
-				size_t numDigits;
-				if (!_nmd_parse_number(s + 1, &num, &numDigits))
-					return 0;
-
-				const int64_t delta = num - ai->runtimeAddress;
-				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
-				{
-					ai->b[0] = 0x70 + (uint8_t)i;
-					*(int8_t*)(ai->b + 1) = (int8_t)(delta - 2);
-					return 2;
-				}
-				else if (delta >= -(1 << 31) + 6 && delta <= ((size_t)(1) << 31) - 1 + 6)
-				{
-					ai->b[0] = 0x0f;
-					ai->b[1] = 0x80 + (uint8_t)i;
-					*(int32_t*)(ai->b + 2) = (int32_t)(delta - 6);
-					return 6;
-				}
-				else
-					return 0;
-			}
-		}
-	}
-
-	/* try to parse 00 00*/
-	if (_nmd_strstr("add", ai->s) == ai->s)
-	{
-
-	}
-
+	
 	return 0;
 }
 
