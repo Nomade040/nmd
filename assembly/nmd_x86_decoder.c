@@ -3,7 +3,7 @@
 void _nmd_decode_operand_segment_reg(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	if (instruction->segmentOverride)
-		operand->fields.reg = (uint8_t)(NMD_X86_REG_ES + _nmd_getBitNumber(instruction->segmentOverride));
+		operand->fields.reg = (uint8_t)(NMD_X86_REG_ES + _nmd_get_bit_index(instruction->segmentOverride));
 	else
 		operand->fields.reg = (uint8_t)(!(instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (instruction->modrm.fields.rm == 0b100 || instruction->modrm.fields.rm == 0b101) ? NMD_X86_REG_SS : NMD_X86_REG_DS);
 }

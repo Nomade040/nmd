@@ -137,7 +137,7 @@ void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* add
 	{
 		size_t i = 0;
 		if (si->instruction->segmentOverride)
-			i = _nmd_getBitNumber(si->instruction->segmentOverride);
+			i = _nmd_get_bit_index(si->instruction->segmentOverride);
 
 		_nmd_append_string(si, si->instruction->segmentOverride ? _nmd_segmentReg[i] : (!(si->instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (si->instruction->modrm.fields.rm == 0b100 || si->instruction->modrm.fields.rm == 0b101) ? "ss" : "ds"));
 		*si->buffer++ = ':';

@@ -8,7 +8,9 @@
 
 #define _NMD_NUM_ELEMENTS(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#define _NMD_IS_UPPERCASE(c) (c >= 'A' && c <= 'Z')
 #define _NMD_IS_LOWERCASE(c) (c >= 'a' && c <= 'z')
+#define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? c + 0x20 : c)
 #define _NMD_IS_DECIMAL_NUMBER(c) (c >= '0' && c <= '9')
 
 const char* const _nmd_reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
@@ -193,7 +195,7 @@ bool _nmd_strcmp(const char* s1, const char* s2)
 	return !*s1 && !*s2;
 }
 
-size_t _nmd_getBitNumber(uint32_t mask)
+size_t _nmd_get_bit_index(uint32_t mask)
 {
 	size_t i = 0;
 	while (!(mask & (1 << i)))

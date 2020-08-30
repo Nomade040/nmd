@@ -11,7 +11,9 @@
 
 #define _NMD_NUM_ELEMENTS(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#define _NMD_IS_UPPERCASE(c) (c >= 'A' && c <= 'Z')
 #define _NMD_IS_LOWERCASE(c) (c >= 'a' && c <= 'z')
+#define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? c + 0x20 : c)
 #define _NMD_IS_DECIMAL_NUMBER(c) (c >= '0' && c <= '9')
 
 const char* const _nmd_reg8[8];
@@ -82,6 +84,6 @@ const char* _nmd_find_number(const char* s1, const char* s2);
 /* Returns true if s1 matches s2 exactly. */
 bool _nmd_strcmp(const char* s1, const char* s2);
 
-size_t _nmd_getBitNumber(uint32_t mask);
+size_t _nmd_get_bit_index(uint32_t mask);
 
 #endif /* NMD_COMMON_H */
