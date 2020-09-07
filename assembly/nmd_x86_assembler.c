@@ -8,6 +8,14 @@ typedef struct _nmd_assemble_info
 	uint64_t runtimeAddress;
 } _nmd_assemble_info;
 
+enum _NMD_NUMBER_BASE
+{
+	_NMD_NUMBER_BASE_NONE = 0,
+	_NMD_NUMBER_BASE_DECIMAL = 10,
+	_NMD_NUMBER_BASE_HEXADECIMAL = 16,
+	_NMD_NUMBER_BASE_BINARY = 2
+};
+
 size_t _nmd_assemble_reg(_nmd_assemble_info* ai, uint8_t baseByte)
 {
 	uint8_t i = 0;
@@ -70,14 +78,6 @@ uint8_t _nmd_encode_segment_reg(NMD_X86_REG segmentReg)
 	default: return 0;
 	}
 }
-
-enum _NMD_NUMBER_BASE
-{
-	_NMD_NUMBER_BASE_NONE        = 0,
-	_NMD_NUMBER_BASE_DECIMAL     = 10,
-	_NMD_NUMBER_BASE_HEXADECIMAL = 16,
-	_NMD_NUMBER_BASE_BINARY      = 2
-};
 
 bool _nmd_parse_number(const char* string, int64_t* pNum, size_t* pNumDigits)
 {
@@ -376,7 +376,7 @@ bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* oper
 				if (!isRegister || (num != 1 && num != 2 && num != 4 && num != 8))
 					return false;
 
-				operand->scale = num;
+				operand->scale = (uint8_t)num;
 			}
 			else
 				operand->disp = num;
@@ -671,7 +671,7 @@ size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			{
 				modrm.fields.rm = 0b100;
 				nmd_x86_sib sib;
-				sib.fields.scale = _nmd_get_bit_index(memoryOperand.scale);
+				sib.fields.scale = (uint8_t)_nmd_get_bit_index(memoryOperand.scale);
 				sib.fields.base = memoryOperand.base - NMD_X86_REG_EAX;
 				sib.fields.index = memoryOperand.index - NMD_X86_REG_EAX;
 

@@ -150,12 +150,12 @@ int64_t _nmd_resolve_memory_operand_va(nmd_x86_cpu* cpu, nmd_x86_instruction* in
 }
 
 /*
-Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
+Emulates x86 code according to the state of the cpu. You MUST initialize the following variables before calling this
 function: 'cpu->mode', 'cpu->physicalMemory', 'cpu->physicalMemorySize', 'cpu->virtualAddress' and 'cpu->rip'.
 You may optionally initialize 'cpu->rsp' if a stack is desirable. Below is a short description of each variable:
  - 'cpu->mode': The emulator's operating architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - 'cpu->physicalMemory': A pointer to a buffer used as the emulator's memory.
- - 'cpu->physicalMemorySize': The size of the buffer pointer by 'physicalMemory' in bytes.
+ - 'cpu->physicalMemorySize': The size of the 'physicalMemory' buffer in bytes.
  - 'cpu->virtualAddress': The starting address of the emulator's virtual address space.
  - 'cpu->rip': The virtual address where emulation starts.
  - 'cpu->rsp': The virtual address of the bottom of the stack.
