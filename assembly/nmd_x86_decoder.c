@@ -253,11 +253,12 @@ bool _nmd_decode_modrm(const uint8_t** b, nmd_x86_instruction* const instruction
 	return true;
 }
 
+
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
 Parameters:
- - buffer      [in]  A pointer to a buffer containing a encoded instruction.
- - bufferSize  [in]  The buffer's size in bytes.
+ - buffer      [in]  A pointer to a buffer containing an encoded instruction.
+ - bufferSize  [in]  The size of the buffer in bytes.
  - instruction [out] A pointer to a variable of type 'nmd_x86_instruction' that receives information about the instruction.
  - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.

@@ -60,10 +60,10 @@ bool _nmd_ldisasm_parse_modrm(const uint8_t** b, bool addressPrefix, NMD_X86_MOD
 }
 
 /*
-Returns the instruction's length if it's valid, zero otherwise.
+Returns the length of the instruction if it is valid, zero otherwise.
 Parameters:
- - buffer     [in] A pointer to a buffer containing a encoded instruction.
- - bufferSize [in] The buffer's size in bytes.
+ - buffer     [in] A pointer to a buffer containing an encoded instruction.
+ - bufferSize [in] The size of the buffer in bytes.
  - mode       [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
 */
 size_t nmd_x86_ldisasm(const void* buffer, size_t bufferSize, NMD_X86_MODE mode)
