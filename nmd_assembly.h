@@ -3082,7 +3082,7 @@ bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* oper
 				return false;
 
 			s += 3;
-			operand->segment = (NMD_X86_REG)(NMD_X86_REG_ES + i);
+			operand->segment = (uint8_t)(NMD_X86_REG_ES + i);
 			break;
 		}
 	}
@@ -3113,12 +3113,12 @@ bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* oper
 					s = tmp;
 					if (add)
 					{
-						operand->index = (NMD_X86_REG)(NMD_X86_REG_EAX + i);
+						operand->index = (uint8_t)(NMD_X86_REG_EAX + i);
 						operand->scale = 1;
 						add = false;
 					}
 					else
-						operand->base = (NMD_X86_REG)(NMD_X86_REG_EAX + i);
+						operand->base = (uint8_t)(NMD_X86_REG_EAX + i);
 					parsedElement = true;
 					isRegister = true;
 					break;
@@ -5442,9 +5442,9 @@ bool nmd_x86_decode_buffer(const void* buffer, size_t bufferSize, nmd_x86_instru
 							if (instruction->operandSize64)
 								instruction->id = NMD_X86_INSTRUCTION_IRETQ;
 							else if (mode == NMD_X86_MODE_16)
-								instruction->id = operandSize ? NMD_X86_INSTRUCTION_IRETD : NMD_X86_INSTRUCTION_IRET;
+								instruction->id = (uint16_t)(operandSize ? NMD_X86_INSTRUCTION_IRETD : NMD_X86_INSTRUCTION_IRET);
 							else
-								instruction->id = operandSize ? NMD_X86_INSTRUCTION_IRET : NMD_X86_INSTRUCTION_IRETD;
+								instruction->id = (uint16_t)(operandSize ? NMD_X86_INSTRUCTION_IRET : NMD_X86_INSTRUCTION_IRETD);
 							break;
 						case 0xe4: case 0xe5: case 0xec: case 0xed: instruction->id = NMD_X86_INSTRUCTION_IN; break;
 						case 0xe6: case 0xe7: case 0xee: case 0xef: instruction->id = NMD_X86_INSTRUCTION_OUT; break;
