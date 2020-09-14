@@ -311,7 +311,7 @@ bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* oper
 				return false;
 
 			s += 3;
-			operand->segment = (NMD_X86_REG)(NMD_X86_REG_ES + i);
+			operand->segment = (uint8_t)(NMD_X86_REG_ES + i);
 			break;
 		}
 	}
@@ -342,12 +342,12 @@ bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* oper
 					s = tmp;
 					if (add)
 					{
-						operand->index = (NMD_X86_REG)(NMD_X86_REG_EAX + i);
+						operand->index = (uint8_t)(NMD_X86_REG_EAX + i);
 						operand->scale = 1;
 						add = false;
 					}
 					else
-						operand->base = (NMD_X86_REG)(NMD_X86_REG_EAX + i);
+						operand->base = (uint8_t)(NMD_X86_REG_EAX + i);
 					parsedElement = true;
 					isRegister = true;
 					break;
