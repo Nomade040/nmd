@@ -12,4 +12,8 @@ set of single-header libraries for C/C++
 
 **The end user should use the single-header libraries in the current folder("nmd/").** The code in the folders is for development only.
 
+Showcase(listed in no particular order):
+ - [RTTI Finder Dumper](https://github.com/theluc4s/RTTI-Finder-Dumper)
+ - [CVEAC-2020](https://github.com/thesecretclub/CVEAC-2020)
+
 I wanted to make this reposity in the same style as https://github.com/nothings/stb/ because it seemed practical.
