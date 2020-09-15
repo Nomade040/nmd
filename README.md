@@ -10,7 +10,7 @@ set of single-header libraries for C/C++
 
 **The documentation is at the start of each library(i.e. header file).**
 
-**The end user should use the single-header libraries in the current folder("nmd/").** The code in the folders is for development only.
+**The end user should use the single-header libraries in the root directory.** The code in the folders(e.g. `/assembly`, `/graphics`) is for development only.
 
 Showcase(listed in no particular order):
  - [RTTI Finder Dumper](https://github.com/theluc4s/RTTI-Finder-Dumper)
