@@ -16,4 +16,4 @@ Showcase(listed in no particular order):
  - [RTTI Finder Dumper](https://github.com/theluc4s/RTTI-Finder-Dumper)
  - [CVEAC-2020](https://github.com/thesecretclub/CVEAC-2020)
 
-I wanted to make this reposity in the same style as https://github.com/nothings/stb/ because it seemed practical.
+Repository inspired by [nothings/stb](https://github.com/nothings/stb).
