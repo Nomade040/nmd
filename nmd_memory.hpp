@@ -4375,21 +4375,43 @@ void MemIn::EnumModules(const DWORD processId, bool (*callback)(MODULEENTRY32& m
 }
 
 //Credits to: https://guidedhacking.com/threads/universal-pattern-signature-parser.9588/ & https://guidedhacking.com/threads/python-script-to-convert-ces-aob-signature-to-c-s-signature-mask.14095/
-void MemIn::AOBToPattern(const char* const AOB, std::string& pattern, std::string& mask)
+void MemIn::AOBToPattern(const char* AOB, std::string& pattern, std::string& mask)
 {
 	if (!AOB)
 		return;
 
-	auto ishex = [](const char c) -> bool { return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'); };
-	auto hexchartoint = [](const char c) -> uint8_t { return (c >= 'A') ? (c - 'A' + 10) : (c - '0'); };
+	auto ishex = [](const char c) -> bool { return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'); };
 
-	const char* bytes = static_cast<const char*>(AOB);
-	for (; *bytes != '\0'; bytes++)
+	auto hexchartoint = [](const char c) -> uint8_t
 	{
-		if (ishex(*bytes))
-			pattern += static_cast<char>((ishex(*(bytes + 1))) ? hexchartoint(*bytes) | (hexchartoint(*(bytes++)) << 4) : hexchartoint(*bytes)), mask += 'x';
-		else if (*bytes == '?')
-			pattern += '\x00', mask += '?', (*(bytes + 1) == '?') ? (bytes++) : (bytes);
+		if (c <= '9') /* 0x39 */
+			return c - '0'; /* 0x30 */
+		else if (c <= 'F') /* 0x46 */
+			return c - 'A' + 10; /* 0x41 */
+		else if (c <= 'f') /* 0x66 */
+			return c - 'a' + 10; /* 0x61 */
+	};
+
+	for (; *AOB; AOB++)
+	{
+		if (ishex(*AOB))
+		{
+			const uint8_t lowPart = hexchartoint(*AOB);
+			if (ishex(AOB[1]))
+				pattern += static_cast<char>((lowPart << 4) | hexchartoint(*++AOB));
+			else
+				pattern += static_cast<char>(lowPart);
+
+			mask += 'x';
+		}
+		else if (*AOB == '?')
+		{
+			pattern += '\x00';
+			mask += '?';
+
+			if (AOB[1] == '?')
+				AOB++;
+		}
 	}
 }
 
