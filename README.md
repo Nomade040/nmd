@@ -8,8 +8,12 @@ set of single-header libraries for C/C++
 - C89 graphics library: [nmd_graphics.h](nmd_graphics.h)
 - C++ memory library for windows: [nmd_memory.hpp](nmd_memory.hpp)
 
-**The documentation is at the start of each library(i.e. header file).**
+**Each library's documentation is at the start of the file.**
 
-**The end user should use the single-header libraries in the current folder("nmd/").** The code in the folders is for development only.
+**The end user should use the single-header libraries in the root directory.** The code in the folders(e.g. `/assembly`, `/graphics`) is for development only.
 
-I wanted to make this reposity in the same style as https://github.com/nothings/stb/ because it seemed practical.
+Showcase(listed in no particular order):
+ - [RTTI Finder Dumper](https://github.com/theluc4s/RTTI-Finder-Dumper)
+ - [CVEAC-2020](https://github.com/thesecretclub/CVEAC-2020)
+
+Repository inspired by [nothings/stb](https://github.com/nothings/stb).
