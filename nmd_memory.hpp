@@ -4174,8 +4174,11 @@ bool MemIn::Unhook(const uintptr_t address)
 	//Restore original instruction(s)
 	memcpy(reinterpret_cast<void*>(address), reinterpret_cast<const void*>(m_Hooks[address].buffer + m_Hooks[address].bufferSize - 5 - m_Hooks[address].numReplacedBytes), m_Hooks[address].numReplacedBytes);
 	if (*reinterpret_cast<uint8_t*>(address) == 0xE9)
-		*reinterpret_cast<uint32_t*>(address + 1) = static_cast<uint32_t>(static_cast<ptrdiff_t>(*reinterpret_cast<uint32_t*>(address + 1) + (m_Hooks[address].buffer + m_Hooks[address].bufferSize)) - static_cast<ptrdiff_t>(address + 5));
-
+		*reinterpret_cast<uint32_t*>(address + 1) = static_cast<uint32_t>(static_cast<ptrdiff_t>(*reinterpret_cast<uint32_t*>(m_Hooks[address].buffer + 1) + (m_Hooks[address].buffer + 5)) - static_cast<ptrdiff_t>(address + 5));
+	
+	// Give time for the function to return. A timer is probably a better solution because it'd make this function return instantly
+	Sleep(20);
+	
 	//Free memory used to store the buffer
 	if (m_Hooks[address].useCodeCaveAsMemory)
 		memset(reinterpret_cast<void*>(m_Hooks[address].buffer), m_Hooks[address].codeCaveNullByte, static_cast<size_t>(m_Hooks[address].bufferSize));
