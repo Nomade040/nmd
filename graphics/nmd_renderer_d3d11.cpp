@@ -201,14 +201,17 @@ bool _nmd_d3d11_create_objects()
     depthStencilDesc.BackFace = depthStencilDesc.FrontFace;
     _nmd_d3d11.device->CreateDepthStencilState(&depthStencilDesc, &_nmd_d3d11.depth_stencil_state);
 
-    int width = 16, height = 16;
-    unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
-    memset(pixels, 0xff, width * height * 4);
-
+    if (!nmd_bake_font_from_memory(nmd_karla_ttf_regular, &_nmd_context.drawList.default_atlas, 14.0f))
+        return false;
+    
     /* Upload texture to graphics system */
-    if (!(_nmd_context.drawList.font = nmd_d3d11_create_texture(pixels, width, height)))
+    if (!(_nmd_context.drawList.default_atlas.font_id = nmd_d3d11_create_texture(_nmd_context.drawList.default_atlas.pixels32, 512, 512)))
         return false;
 
+    uint32_t tmp = 0xffffffff;
+    if(!(_nmd_context.drawList.blank_tex_id = nmd_d3d11_create_texture(&tmp, 1, 1)))
+        return false;
+    
     /* Create texture sampler */
     D3D11_SAMPLER_DESC samplerDesc;
     memset(&samplerDesc, 0, sizeof(samplerDesc));

@@ -317,12 +317,22 @@ class MemEx
 	std::unordered_map<uintptr_t, size_t> m_Pages;
 
 	bool m_isWow64;
+
+	static BOOL CALLBACK enum_windows_callback(HWND handle, LPARAM lParam);
 public:
 	const static DWORD dwPageSize;
 	const static DWORD dwDesiredAccess;
 
 	MemEx();
 	~MemEx();
+
+	struct _enum_window_data
+	{
+		DWORD pid;
+		HWND hWnd;
+	};
+
+	static HWND GetMainHwndByProcessId(DWORD pid);
 
 	//Returns true if a handle is opened(i.e. Open() was called and Close() was not called after that), false otherwise.
 	bool IsOpened() const;
@@ -1395,6 +1405,10 @@ public:
 	//  address [in] The address to be unhooked.
 	static bool Unhook(const uintptr_t address);
 
+	//Returns the address of the 'IDXGISwapChain::Present' functon.
+	// You must define the 'NMD_MEMORY_D3D11' macro to use this function.
+	static uintptr_t GetD3D11Present();
+
 	//Scans the address space according to 'scanBoundaries' for a nullByte.
 	//Parameters:
 	//  size           [in]  The size of the code cave.
@@ -2233,6 +2247,35 @@ MemEx::MemEx()
 	m_isWow64(false) {}
 
 MemEx::~MemEx() { Close(); }
+
+
+
+BOOL CALLBACK MemEx::enum_windows_callback(HWND hWnd, LPARAM lParam)
+{
+	_enum_window_data* data = (_enum_window_data*)lParam;
+
+	DWORD window_pid = 0;
+	GetWindowThreadProcessId(hWnd, &window_pid);
+
+	if (window_pid == data->pid && !GetWindow(hWnd, GW_OWNER) && IsWindowVisible(hWnd))
+	{
+		data->hWnd = hWnd;
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+HWND MemEx::GetMainHwndByProcessId(DWORD pid)
+{
+	_enum_window_data ewd;
+	ewd.pid = pid;
+	ewd.hWnd = 0;
+	
+	EnumWindows(enum_windows_callback, (LPARAM)&ewd);
+
+	return ewd.hWnd;
+}
 
 bool MemEx::IsOpened() const { return m_hProcess != NULL; }
 
@@ -3821,6 +3864,9 @@ bool MemIn::Nop(const uintptr_t address, const size_t size, const bool saveBytes
 
 bool MemIn::Restore(const uintptr_t address)
 {
+	if(!m_Nops[address].buffer)
+		return false;
+
 	bool bRet = Patch(address, reinterpret_cast<const char*>(m_Nops[address].buffer.get()), m_Nops[address].size);
 
 	m_Nops.erase(address);
@@ -4198,6 +4244,38 @@ bool MemIn::Unhook(const uintptr_t address)
 
 	return static_cast<bool>(FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<LPCVOID>(address), static_cast<SIZE_T>(m_Hooks[address].numReplacedBytes)));
 }
+
+
+#ifdef NMD_MEMORY_D3D11
+//Returns the address of the 'IDXGISwapChain::Present' functon.
+// You must define the 'NMD_MEMORY_D3D11' macro to use this function.
+uintptr_t MemIn::GetD3D11Present()
+{
+	DXGI_SWAP_CHAIN_DESC sd;
+	memset(&sd, 0, sizeof(sd));
+	sd.BufferCount = 1;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	sd.OutputWindow = GetDesktopWindow();
+	sd.Windowed = TRUE;
+	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+	sd.SampleDesc.Count = 1;
+
+	ID3D11Device* device;
+	IDXGISwapChain* swapchain;
+
+	if (FAILED(D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_SINGLETHREADED, NULL, 0, D3D11_SDK_VERSION, &sd, &swapchain, &device, NULL, NULL)))
+		return 0;
+
+	const uintptr_t present = (uintptr_t)(*(void***)swapchain)[8];
+
+	device->Release();
+	swapchain->Release();
+
+	return present;
+}
+#endif // NMD_MEMORY_D3D11
+
 
 uintptr_t MemIn::FindCodeCave(const size_t size, const uint32_t nullByte, const ScanBoundaries& scanBoundaries, size_t* const codeCaveSize, const DWORD protection, const size_t numThreads, const bool firstMatch)
 {

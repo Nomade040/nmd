@@ -174,11 +174,17 @@ typedef unsigned long long uint64_t;
 
 /* The number of draw commands the buffer intially supports */
 #ifndef NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE
-#define NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE 8
+#define NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE 32
 #endif /* NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE */
+
+/* The number of windows the buffer intially supports */
+#ifndef NMD_WINDOWS_BUFFER_INITIAL_SIZE
+#define NMD_WINDOWS_BUFFER_INITIAL_SIZE 4
+#endif /* NMD_WINDOWS_BUFFER_INITIAL_SIZE */
 
 #ifdef _WIN32
 #include <Windows.h>
+LRESULT nmd_win32_wnd_proc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 #endif /* _WIN32 */
 
 typedef uint16_t nmd_index;
@@ -266,13 +272,12 @@ typedef struct
 /* Describes a texture atlas */
 typedef struct
 {
-    void* fontData;
     int width;
     int height;
     uint8_t* pixels8;
     nmd_color* pixels32;
-    void* bakedChars; /* internal */
-    nmd_tex_id font;
+    void* baked_chars; /* internal */
+    nmd_tex_id font_id;
 } nmd_atlas;
 
 typedef struct
@@ -300,7 +305,8 @@ typedef struct
     size_t numDrawCommands; /* number of draw commands in the 'drawCommands' buffer. */
     size_t drawCommandsCapacity; /* size of the 'drawCommands' buffer in bytes. */
 
-    nmd_tex_id font;
+    nmd_atlas default_atlas;
+    nmd_tex_id blank_tex_id;
 
     /*
     void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);*/
@@ -308,8 +314,65 @@ typedef struct
 
 typedef struct
 {
-    nmd_drawlist drawList;
+    uint32_t id; /* A 32-bit number that identifies the window */
+    nmd_rect rect; /* Specifies the area that the windows lies */
+    bool visible; /* True if the window is visible */
+    bool moving; /* True if the window is being moved by the mouse */
+    bool collapsed; /* True if the window is collapsed */
+    bool allow_close; /* The has a close button and can be closed(visble=0) */
+    bool allow_move_title_bar; /* The window can be moved when the mouse drags the title bar */
+    bool allow_move_body; /* The window can be moved when the mouse drags the window's body */
+    bool allow_collapse; /* The window has a collpse button and can be collapsed */
+    bool allow_resize; /* The window can be resized */
+    int y_offset;
+} nmd_window;
+
+typedef struct
+{
+    /* The position of the mouse relative to the window */
+    nmd_vec2 mouse_pos;
+
+    /* The state of keyboard keys */
+    bool keys_down[256];
+
+    /* The state of mouse's buttons
+    mouse_down[0]: left button
+    mouse_down[1]: right button
+    mouse_down[2]: middle button
+    mouse_down[3]/mouse_down[4]: special buttons
+    */
+    bool mouse_down[5];
+
+    bool mouse_released[5]; /* Mouse was released. nmd_end_frame() clears this array, so it's only used one frame */
+    nmd_vec2 mouse_clicked_pos[5]; /* Position when mouse button was clicked */
+
+    nmd_vec2 window_move_delta; /* The delta pos between the top left corner of the window being moved and the mouse's position when it was pressed*/
+} nmd_io;
+
+typedef struct
+{
+    nmd_window* window; /* The current window being accessed */
+    nmd_window* windows; /* An array of windows */
+    size_t num_windows; /* The number of windows in the 'windows' array */
+    size_t windows_capacity; /* The capacity of the 'windows' array */
+    nmd_vec2 window_pos; /* The window's initial position */
+    char fmt_buffer[1024]; /* temporary buffer */
+} nmd_gui;
+
+typedef struct
+{
+    nmd_drawlist drawList; /* Vertices, indices, draw commands */
+    nmd_io io; /* IO data */
+    nmd_gui gui; /* Windows, gui related data */
+
+#ifdef _WIN32
+    HWND hWnd;
+#endif /* _WIN32*/
 } nmd_context;
+
+#ifdef _WIN32
+void nmd_win32_set_hwnd(HWND hWnd);
+#endif /* _WIN32*/
 
 void nmd_path_to(float x0, float y0);
 void nmd_path_rect(float x0, float y0, float x1, float y1, float rounding, uint32_t roundingCorners);
@@ -353,6 +416,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
 /*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);*/
 
 /*void nmd_add_text(float x, float y, const char* text, nmd_color color);*/
+void nmd_get_text_size(const nmd_atlas* font, const char* text, const char* textEnd, nmd_vec2* size_out);
 void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* textEnd, nmd_color color);
 
 void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color);
@@ -372,6 +436,24 @@ nmd_color nmd_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
 nmd_context* nmd_get_context();
 
+/* Specifies the begin of the window. Widgets can be added after calling this function. Returns true if the window is not minimized */
+bool nmd_begin(const char* window_name);
+
+/* Specifies the end of the window. Widgets won't be added after calling this function */
+void nmd_end();
+
+/* Appends text to the window. Be careful, the formatted string must not exceed 1024 bytes + null terminator */
+void nmd_text(const char* fmt, ...);
+
+/* Adds a button widget. Returns true if the button is clicked */
+bool nmd_button(const char* label);
+
+/* Adds a checkbox widget. Returns true if the checkbox state changes. */
+bool nmd_checkbox(const char* label, bool* checked);
+
+/* Adds a float slider widget. Returns true if the value changes. */
+bool nmd_slider_float(const char* label, float* value, float min_value, float max_value);
+
 /* Starts a new empty scene/frame. Internally this function clears all vertices, indices and command buffers. */
 void nmd_new_frame();
 
@@ -387,21 +469,33 @@ void nmd_push_draw_command(const nmd_rect* clipRect);
 
 void nmd_push_texture_draw_command(nmd_tex_id userTextureId, const nmd_rect* clipRect);
 
-bool nmd_bake_font(const char* fontPath, nmd_atlas* atlas, float size);
+bool nmd_bake_font_from_memory(const void* font_data, nmd_atlas* atlas, float size);
 
-#define NMD_COLOR_BLACK         nmd_rgb(0,   0,   0  )
-#define NMD_COLOR_WHITE         nmd_rgb(255, 255, 255)
-#define NMD_COLOR_RED           nmd_rgb(255, 0,   0  )
-#define NMD_COLOR_GREEN         nmd_rgb(0,   255, 0  )
-#define NMD_COLOR_BLUE          nmd_rgb(0,   0,   255)
-#define NMD_COLOR_ORANGE        nmd_rgb(255, 165, 0  )
-#define NMD_COLOR_AMBER         nmd_rgb(255, 191, 0  )
-#define NMD_COLOR_ANDROID_GREEN nmd_rgb(164, 198, 57 )
-#define NMD_COLOR_AZURE         nmd_rgb(0,   127, 255)
-#define NMD_COLOR_BRONZE        nmd_rgb(205, 127, 50 )
-#define NMD_COLOR_CORN          nmd_rgb(251, 236, 93 )
-#define NMD_COLOR_EMERALD       nmd_rgb(80,  200, 120)
-#define NMD_COLOR_LAPIS_LAZULI  nmd_rgb(38,  97,  156)
-#define NMD_COLOR_LAVA          nmd_rgb(207, 16,  32 )
+bool nmd_bake_font(const char* font_path, nmd_atlas* atlas, float size);
+
+#define NMD_COLOR_BLACK                 nmd_rgb(  0,   0,   0)
+#define NMD_COLOR_WHITE                 nmd_rgb(255, 255, 255)
+#define NMD_COLOR_RED                   nmd_rgb(255,   0,   0)
+#define NMD_COLOR_GREEN                 nmd_rgb(  0, 255,   0)
+#define NMD_COLOR_BLUE                  nmd_rgb(  0,   0, 255)
+#define NMD_COLOR_ORANGE                nmd_rgb(255, 165,   0)
+#define NMD_COLOR_AMBER                 nmd_rgb(255, 191,   0)
+#define NMD_COLOR_ANDROID_GREEN         nmd_rgb(164, 198,  57)
+#define NMD_COLOR_AZURE                 nmd_rgb(  0, 127, 255)
+#define NMD_COLOR_BRONZE                nmd_rgb(205, 127,  50)
+#define NMD_COLOR_CORN                  nmd_rgb(251, 236,  93)
+#define NMD_COLOR_EMERALD               nmd_rgb( 80, 200, 120)
+#define NMD_COLOR_LAPIS_LAZULI          nmd_rgb( 38,  97, 156)
+#define NMD_COLOR_LAVA                  nmd_rgb(207,  16,  32)
+
+#define NMD_COLOR_GUI_MAIN              nmd_rgb( 58, 109,  41)
+#define NMD_COLOR_GUI_WIDGET_BACKGROUND nmd_rgb( 38,  66,  29)
+#define NMD_COLOR_GUI_WIDGET_HOVER      nmd_rgb( 51,  91,  37)
+#define NMD_COLOR_GUI_BUTTON_BACKGROUND NMD_COLOR_GUI_WIDGET_HOVER
+#define NMD_COLOR_GUI_BUTTON_HOVER      nmd_rgb( 60, 122,  37)
+#define NMD_COLOR_GUI_HOVER             nmd_rgb( 91, 178,  62)
+#define NMD_COLOR_GUI_PRESSED           nmd_rgb( 69, 160,  38)
+#define NMD_COLOR_GUI_ACTIVE            nmd_rgb( 53, 160,  17)
+#define NMD_COLOR_GUI_BACKGROUND        nmd_rgb( 20,  20,  20)
 
 #endif /* NMD_GRAPHICS_H */

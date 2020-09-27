@@ -5,9 +5,11 @@ file_names = [
     # Implementation files
     'nmd_common.c',
     'nmd_stb_truetype.c',
+    'nmd_default_font.c',
     'stb_truetype.h',
     'nmd_graphics.c',
     'nmd_drawlist.c',
+    'nmd_gui.c',
     'nmd_renderer_d3d9.cpp',
     'nmd_renderer_d3d11.cpp',
     'nmd_renderer_opengl.c'
