@@ -31,6 +31,7 @@ Parameters:
 */
 void nmd_push_draw_command(const nmd_rect* clipRect)
 {
+    /* Calculate the number of vertices and indices present in draw commands */
     size_t numAccountedVertices = 0, numAccountedIndices = 0;
     size_t i = 0;
     for (; i < _nmd_context.drawList.numDrawCommands; i++)
@@ -39,27 +40,30 @@ void nmd_push_draw_command(const nmd_rect* clipRect)
         numAccountedIndices += _nmd_context.drawList.drawCommands[i].numIndices;
     }
 
+    /* Calculate the number of vertices and indices NOT present in draw commands */
     size_t numUnaccountedIndices = _nmd_context.drawList.numIndices - numAccountedIndices;
 
+    /* Create draw commands until all vertices and indices are present in draw commands */
     while (numUnaccountedIndices > 0)
     {
-        /* If the number of unaccounted indices is less than the maximum number of indices that can be hold by 'nmd_index'(usually 2^16). */
-        if (numUnaccountedIndices <= (1 << (8 * sizeof(nmd_index))))
+        /* If the number of unaccounted indices is less than the maximum number of indices that can be hold by 'nmd_index'(usually 2^16) */
+        if (numUnaccountedIndices < (1 << (8 * sizeof(nmd_index))))
         {
             /* Add draw command */
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numVertices - numAccountedVertices;
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numUnaccountedIndices;
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = _nmd_context.drawList.font;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = _nmd_context.drawList.numIndices - numAccountedIndices;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = _nmd_context.drawList.blank_tex_id;
             if (clipRect)
                 _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect = *clipRect;
             else
                 _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect.p1.x = -1.0f;
+
             _nmd_context.drawList.numDrawCommands++;
             return;
         }
         else
         {
-            size_t numIndices = (2 << (8 * sizeof(nmd_index) - 1)) - 1;
+            size_t numIndices = (1 << (8 * sizeof(nmd_index)));
             nmd_index lastIndex = _nmd_context.drawList.indices[numIndices - 1];
 
             bool isLastIndexReferenced = false;
@@ -79,9 +83,10 @@ void nmd_push_draw_command(const nmd_rect* clipRect)
 
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = lastIndex + 1;
             _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numIndices;
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = 0;
+            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = _nmd_context.drawList.blank_tex_id;
+
             _nmd_context.drawList.numDrawCommands++;
-            
+
             numUnaccountedIndices -= numIndices;
         }
     }
@@ -118,6 +123,13 @@ void _nmd_calculate_circle_segments(float maxError)
     }
 }
 
+#ifdef _WIN32
+void nmd_win32_set_hwnd(HWND hWnd)
+{
+    _nmd_context.hWnd = hWnd;
+}
+#endif /* _WIN32*/
+
 /* Starts a new empty scene/frame. Internally this function clears all vertices, indices and command buffers. */
 void nmd_new_frame()
 {
@@ -149,41 +161,77 @@ void nmd_new_frame()
 
         _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_ALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
         _nmd_context.drawList.drawCommandsCapacity = NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command);
+
+        _nmd_context.gui.num_windows = 0;
+        _nmd_context.gui.windows = (nmd_window*)NMD_ALLOC(NMD_WINDOWS_BUFFER_INITIAL_SIZE * sizeof(nmd_window));
+        _nmd_context.gui.windows_capacity = NMD_WINDOWS_BUFFER_INITIAL_SIZE;
+        _nmd_context.gui.window = 0;
+        _nmd_context.gui.window_pos.x = 60;
+        _nmd_context.gui.window_pos.y = 60;
     }
 
     _nmd_context.drawList.numVertices = 0;
     _nmd_context.drawList.numIndices = 0;
     _nmd_context.drawList.numDrawCommands = 0;
+
+#ifdef _WIN32
+    POINT point;
+    if (_nmd_context.hWnd && GetCursorPos(&point) && ScreenToClient(_nmd_context.hWnd, &point))
+    {
+        _nmd_context.io.mouse_pos.x = point.x;
+        _nmd_context.io.mouse_pos.y = point.y;
+    }
+#endif /* _WIN32 */
 }
 
 /* "Ends" a frame. Wrapper around nmd_push_draw_command(). */
 void nmd_end_frame()
 {
+    /* Clears the mouse released state because it should only be used once */
+    for (size_t i = 0; i < 5; i++)
+        _nmd_context.io.mouse_released[i] = false;
+
     nmd_push_draw_command(0);
 }
 
-bool nmd_bake_font(const char* fontPath, nmd_atlas* atlas, float size)
+bool nmd_bake_font_from_memory(const void* font_data, nmd_atlas* atlas, float size)
 {
     atlas->width = 512;
     atlas->height = 512;
 
-    FILE* f = fopen(fontPath, "rb");
-    fseek(f, 0L, SEEK_END);
-    const size_t fileSize = ftell(f);
-    fseek(f, 0L, SEEK_SET);
-    atlas->fontData = NMD_ALLOC(fileSize);
     atlas->pixels8 = (uint8_t*)NMD_ALLOC(atlas->width * atlas->height);
     atlas->pixels32 = (nmd_color*)NMD_ALLOC(atlas->width * atlas->height * 4);
-    fread(atlas->fontData, 1, fileSize, f);
-    atlas->bakedChars = NMD_ALLOC(sizeof(stbtt_bakedchar) * 96);
-    stbtt_BakeFontBitmap((unsigned char*)atlas->fontData, 0, size, atlas->pixels8 , atlas->width, atlas->height, 0x20, 96, (stbtt_bakedchar*)atlas->bakedChars);
-    fclose(f);
+    atlas->baked_chars = NMD_ALLOC(sizeof(stbtt_bakedchar) * 96);
+
+    stbtt_BakeFontBitmap((const unsigned char*)font_data, 0, size, atlas->pixels8, atlas->width, atlas->height, 0x20, 96, (stbtt_bakedchar*)atlas->baked_chars);
 
     size_t i = 0;
     for (; i < atlas->width * atlas->height; i++)
         atlas->pixels32[i] = nmd_rgba(255, 255, 255, atlas->pixels8[i]);
 
     return true;
+}
+
+bool nmd_bake_font(const char* fontPath, nmd_atlas* atlas, float size)
+{
+    FILE* f = fopen(fontPath, "rb");
+
+    /* Get file size*/
+    fseek(f, 0L, SEEK_END);
+    const size_t file_size = ftell(f);
+    fseek(f, 0L, SEEK_SET);
+
+    /* Allocate and read file */
+    void* font_data = NMD_ALLOC(file_size);    
+    fread(font_data, 1, file_size, f);
+
+    bool ret = nmd_bake_font_from_memory(font_data, atlas, size);
+    
+    /* Close and free file */
+    fclose(f);
+    NMD_FREE(font_data);
+
+    return ret;
 }
 
 //bool nmd_bake_font(nmd_atlas* atlas)

@@ -517,22 +517,14 @@ void nmd_add_triangle(float x0, float y0, float x1, float y1, float x2, float y2
 
 void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, float y2, nmd_color color)
 {
-    if (!color.a || !_nmd_reserve(3, 3))
+    if (!color.a)
         return;
 
-    const size_t offset = _nmd_context.drawList.numVertices;
-
-    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
-    indices[0] = offset + 0;
-    indices[1] = offset + 1;
-    indices[2] = offset + 2;
-    _nmd_context.drawList.numIndices += 6;
-
-    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
-    vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].color = color;
-    vertices[1].pos.x = x1; vertices[1].pos.y = y1; vertices[1].color = color;
-    vertices[2].pos.x = x2; vertices[2].pos.y = y2; vertices[2].color = color;
-    _nmd_context.drawList.numVertices += 4;
+    nmd_path_to(x0, y0);
+    nmd_path_to(x1, y1);
+    nmd_path_to(x2, y2);
+    
+    nmd_path_fill_convex(color);
 }
 
 void nmd_add_circle(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness)
@@ -1020,7 +1012,7 @@ void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, con
     stbtt_aligned_quad q;
     for(; text < textEnd; text++)
     {
-        stbtt_GetBakedQuad((stbtt_bakedchar*)font->bakedChars, 512, 512, *text - 32, &x, &y, &q, 1);
+        stbtt_GetBakedQuad((stbtt_bakedchar*)font->baked_chars, 512, 512, *text - 32, &x, &y, &q, 1);
 
         const size_t offset = _nmd_context.drawList.numVertices;
 
@@ -1037,7 +1029,21 @@ void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, con
         _nmd_context.drawList.numVertices += 4;
     }
 
-    nmd_push_texture_draw_command(font->font, 0);
+    nmd_push_texture_draw_command(font->font_id, 0);
+}
+
+void nmd_get_text_size(const nmd_atlas* font, const char* text, const char* textEnd, nmd_vec2* size_out)
+{
+    if (!textEnd)
+        textEnd = text + strlen(text);
+    
+    stbtt_aligned_quad q;
+    float x = 0, y = 0;
+    for (; text < textEnd; text++)
+        stbtt_GetBakedQuad((stbtt_bakedchar*)font->baked_chars, 512, 512, *text - 32, &x, &y, &q, 1);
+
+    size_out->x = q.x1;
+    size_out->y = q.y1 - q.y0;
 }
 
 void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color)
