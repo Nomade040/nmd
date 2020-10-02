@@ -111,7 +111,7 @@ TEST(AssemblerAndDisassemblerTest, TestAllInstructions)
 		SCOPED_TRACE("INDEX:" + std::to_string(i) + '(' + instructions[i].s + ')');
 
 		// Test decoder
-		EXPECT_EQ(nmd_x86_decode_buffer(&instructions[i].i.buffer, instructions[i].i.length, &instruction, (NMD_X86_MODE)instructions[i].i.mode, NMD_X86_DECODER_FLAGS_ALL), instructions[i].i.valid);
+		EXPECT_EQ(nmd_x86_decode(&instructions[i].i.buffer, instructions[i].i.length, &instruction, (NMD_X86_MODE)instructions[i].i.mode, NMD_X86_DECODER_FLAGS_ALL), instructions[i].i.valid);
 		if (instructions[i].i.valid)
 		{
 			// Test decoder
@@ -121,7 +121,7 @@ TEST(AssemblerAndDisassemblerTest, TestAllInstructions)
 			EXPECT_EQ(nmd_x86_ldisasm(instructions[i].i.buffer, instructions[i].i.length, (NMD_X86_MODE)instructions[i].i.mode), instructions[i].i.length);
 
 			// Test formatter
-			nmd_x86_format_instruction(&instruction, formattedInstruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_FORMAT_FLAGS_DEFAULT);
+			nmd_x86_format(&instruction, formattedInstruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_FORMAT_FLAGS_DEFAULT);
 			EXPECT_EQ(strcmp(formattedInstruction, instructions[i].s), 0);
 			
 			// Test assembler

@@ -209,6 +209,7 @@ nmd_tex_id nmd_d3d9_create_texture(void* pixels, int width, int height);
 void nmd_d3d11_set_device_context(ID3D11DeviceContext* pDeviceContext);
 bool nmd_d3d11_resize(int width, int height);
 void nmd_d3d11_render();
+void nmd_d3d11_delete_objects();
 nmd_tex_id nmd_d3d11_create_texture(void* pixels, int width, int height);
 #endif /* NMD_GRAPHICS_D3D11 */
 

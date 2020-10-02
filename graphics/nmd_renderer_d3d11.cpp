@@ -201,16 +201,19 @@ bool _nmd_d3d11_create_objects()
     depthStencilDesc.BackFace = depthStencilDesc.FrontFace;
     _nmd_d3d11.device->CreateDepthStencilState(&depthStencilDesc, &_nmd_d3d11.depth_stencil_state);
 
-    if (!nmd_bake_font_from_memory(nmd_karla_ttf_regular, &_nmd_context.drawList.default_atlas, 14.0f))
-        return false;
-    
-    /* Upload texture to graphics system */
-    if (!(_nmd_context.drawList.default_atlas.font_id = nmd_d3d11_create_texture(_nmd_context.drawList.default_atlas.pixels32, 512, 512)))
-        return false;
+    if (!_nmd_context.drawList.default_atlas.font_id)
+    {
+        if (!nmd_bake_font_from_memory(nmd_karla_ttf_regular, &_nmd_context.drawList.default_atlas, 14.0f))
+            return false;
 
-    uint32_t tmp = 0xffffffff;
-    if(!(_nmd_context.drawList.blank_tex_id = nmd_d3d11_create_texture(&tmp, 1, 1)))
-        return false;
+        /* Upload texture to graphics system */
+        if (!(_nmd_context.drawList.default_atlas.font_id = nmd_d3d11_create_texture(_nmd_context.drawList.default_atlas.pixels32, 512, 512)))
+            return false;
+
+        uint32_t tmp = 0xffffffff;
+        if (!(_nmd_context.drawList.blank_tex_id = nmd_d3d11_create_texture(&tmp, 1, 1)))
+            return false;
+    }
     
     /* Create texture sampler */
     D3D11_SAMPLER_DESC samplerDesc;
@@ -226,6 +229,46 @@ bool _nmd_d3d11_create_objects()
     _nmd_d3d11.device->CreateSamplerState(&samplerDesc, &_nmd_d3d11.font_sampler);
 
     return true;
+}
+
+void nmd_d3d11_delete_objects()
+{
+    _nmd_d3d11.vertex_shader->Release();
+    _nmd_d3d11.vertex_shader = 0;
+
+    _nmd_d3d11.pixel_shader->Release();
+    _nmd_d3d11.pixel_shader = 0;
+
+    _nmd_d3d11.input_layout->Release();
+    _nmd_d3d11.input_layout = 0;
+
+    _nmd_d3d11.const_buffer->Release();
+    _nmd_d3d11.const_buffer = 0;
+
+    _nmd_d3d11.font_sampler->Release();
+    _nmd_d3d11.font_sampler = 0;
+
+    _nmd_d3d11.rasterizer_state->Release();
+    _nmd_d3d11.rasterizer_state = 0;
+
+    _nmd_d3d11.blend_state->Release();
+    _nmd_d3d11.blend_state = 0;
+
+    _nmd_d3d11.depth_stencil_state = 0;
+
+    _nmd_d3d11.vertex_buffer_size = 5000;
+    _nmd_d3d11.index_buffer_size = 10000;
+
+    _nmd_d3d11.vertex_buffer->Release();
+    _nmd_d3d11.vertex_buffer = 0;
+
+    _nmd_d3d11.index_buffer->Release();
+    _nmd_d3d11.index_buffer = 0;
+
+    _nmd_d3d11.device_context = 0;
+    _nmd_d3d11.device->Release();
+
+    _nmd_d3d11.device = 0;
 }
 
 bool nmd_d3d11_resize(int width, int height)

@@ -25,40 +25,40 @@ const char* const _nmd_regrx[8];
 const char* const _nmd_regrxd[8];
 const char* const _nmd_regrxw[8];
 const char* const _nmd_regrxb[8];
-const char* const _nmd_segmentReg[6];
+const char* const _nmd_segment_reg[6];
 
-const char* const _nmd_conditionSuffixes[16];
+const char* const _nmd_condition_suffixes[16];
 
-const char* const _nmd_op1OpcodeMapMnemonics[8];
-const char* const _nmd_opcodeExtensionsGrp1[8];
-const char* const _nmd_opcodeExtensionsGrp2[8];
-const char* const _nmd_opcodeExtensionsGrp3[8];
-const char* const _nmd_opcodeExtensionsGrp5[7];
-const char* const _nmd_opcodeExtensionsGrp6[6];
-const char* const _nmd_opcodeExtensionsGrp7[8];
-const char* const _nmd_opcodeExtensionsGrp7reg0[6];
-const char* const _nmd_opcodeExtensionsGrp7reg1[8];
-const char* const _nmd_opcodeExtensionsGrp7reg2[8];
-const char* const _nmd_opcodeExtensionsGrp7reg3[8];
-const char* const _nmd_opcodeExtensionsGrp7reg7[6];
+const char* const _nmd_op1_opcode_map_mnemonics[8];
+const char* const _nmd_opcode_extensions_grp1[8];
+const char* const _nmd_opcode_extensions_grp2[8];
+const char* const _nmd_opcode_extensions_grp3[8];
+const char* const _nmd_opcode_extensions_grp5[7];
+const char* const _nmd_opcode_extensions_grp6[6];
+const char* const _nmd_opcode_extensions_grp7[8];
+const char* const _nmd_opcode_extensions_grp7_reg0[6];
+const char* const _nmd_opcode_extensions_grp7_reg1[8];
+const char* const _nmd_opcode_extensions_grp7_reg2[8];
+const char* const _nmd_opcode_extensions_grp7_reg3[8];
+const char* const _nmd_opcode_extensions_grp7_reg7[6];
 
-const char* const _nmd_escapeOpcodesD8[8];
-const char* const _nmd_escapeOpcodesD9[8];
-const char* const _nmd_escapeOpcodesDA_DE[8];
-const char* const _nmd_escapeOpcodesDB[8];
-const char* const _nmd_escapeOpcodesDC[8];
-const char* const _nmd_escapeOpcodesDD[8];
-const char* const _nmd_escapeOpcodesDF[8];
-const char* const* _nmd_escapeOpcodes[8];
+const char* const _nmd_escape_opcodesD8[8];
+const char* const _nmd_escape_opcodesD9[8];
+const char* const _nmd_escape_opcodesDA_DE[8];
+const char* const _nmd_escape_opcodesDB[8];
+const char* const _nmd_escape_opcodesDC[8];
+const char* const _nmd_escape_opcodesDD[8];
+const char* const _nmd_escape_opcodesDF[8];
+const char* const* _nmd_escape_opcodes[8];
 
-const uint8_t _nmd_op1modrm[16];
-const uint8_t _nmd_op1imm8[13];
-const uint8_t _nmd_op1imm32[7];
-const uint8_t _nmd_invalid2op[7];
-const uint8_t _nmd_twoOpcodes[6];
-const uint8_t _nmd_valid3DNowOpcodes[24];
+const uint8_t _nmd_op1_modrm[16];
+const uint8_t _nmd_op1_imm8[13];
+const uint8_t _nmd_op1_imm32[7];
+const uint8_t _nmd_invalid_op2[7];
+const uint8_t _nmd_two_opcodes[6];
+const uint8_t _nmd_valid_3DNow_opcodes[24];
 
-bool _nmd_findByte(const uint8_t* arr, const size_t N, const uint8_t x);
+bool _nmd_find_byte(const uint8_t* arr, const size_t N, const uint8_t x);
 
 /* Returns a pointer to the first occurrence of 'c' in 's', or a null pointer if 'c' is not present. */
 const char* _nmd_strchr(const char* s, char c);
