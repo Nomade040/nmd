@@ -142,18 +142,18 @@ TEST(EmulatorTest, TestAllInstructions)
 	nmd_x86_cpu cpu;
 	memset(&cpu, 0, sizeof(cpu));
 	cpu.mode = NMD_X86_MODE_32;
-	cpu.physicalMemory = malloc(EMULATOR_BLOCK_SIZE);
-	cpu.physicalMemorySize = EMULATOR_BLOCK_SIZE;
-	cpu.virtualAddress = 0x3b000; /* Some random number(address) */
-	cpu.rip = cpu.virtualAddress + 0x1000; /* Execution starts 0x1000 bytes after the start of the block */
-	cpu.rsp.l64 = cpu.virtualAddress + 0x48000; /* The bottom of the stack is 0x48000 bytes after the start of the block */
+	cpu.physical_memory = malloc(EMULATOR_BLOCK_SIZE);
+	cpu.physical_memory_size = EMULATOR_BLOCK_SIZE;
+	cpu.virtual_address = 0x3b000; /* Some random number(address) */
+	cpu.rip = cpu.virtual_address + 0x1000; /* Execution starts 0x1000 bytes after the start of the block */
+	cpu.rsp.l64 = cpu.virtual_address + 0x48000; /* The bottom of the stack is 0x48000 bytes after the start of the block */
 
-	void* mem = NMD_EMULATOR_RESOLVE_VA(cpu.virtualAddress + 0x200);
+	void* mem = NMD_EMULATOR_RESOLVE_VA(cpu.virtual_address + 0x200);
 	*(uint64_t*)mem = 0;
 
 	/* 00 - add Eb, Gb */
 	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x00\x18", 2);
-	cpu.rax.l64 = cpu.virtualAddress + 0x200;
+	cpu.rax.l64 = cpu.virtual_address + 0x200;
 	*(uint8_t*)mem = 10;
 	cpu.rbx.l8 = 27;
 	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
