@@ -2607,13 +2607,13 @@ const char* const _nmd_opcode_extensions_grp7_reg3[] = { "vmrun ", "vmmcall", "v
 const char* const _nmd_opcode_extensions_grp7_reg7[] = { "swapgs", "rdtscp", "monitorx", "mwaitx", "clzero ", "rdpru" };
 
 const char* const _nmd_escape_opcodesD8[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
-const char* const _nmd_escapeOpcodesD9[] = { "ld", 0, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
-const char* const _nmd_escapeOpcodesDA_DE[] = { "iadd", "imul", "icom", "icomp", "isub", "isubr", "idiv", "idivr" };
-const char* const _nmd_escapeOpcodesDB[] = { "ild", "isttp", "ist", "istp", 0, "ld", 0, "stp" };
-const char* const _nmd_escapeOpcodesDC[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
-const char* const _nmd_escapeOpcodesDD[] = { "ld", "isttp", "st", "stp", "rstor", 0, "nsave", "nstsw" };
-const char* const _nmd_escapeOpcodesDF[] = { "ild", "isttp", "ist", "istp", "bld", "ild", "bstp", "istp" };
-const char* const* _nmd_escapeOpcodes[] = { _nmd_escape_opcodesD8, _nmd_escapeOpcodesD9, _nmd_escapeOpcodesDA_DE, _nmd_escapeOpcodesDB, _nmd_escapeOpcodesDC, _nmd_escapeOpcodesDD, _nmd_escapeOpcodesDA_DE, _nmd_escapeOpcodesDF };
+const char* const _nmd_escape_opcodesD9[] = { "ld", 0, "st", "stp", "ldenv", "ldcw", "nstenv", "nstcw" };
+const char* const _nmd_escape_opcodesDA_DE[] = { "iadd", "imul", "icom", "icomp", "isub", "isubr", "idiv", "idivr" };
+const char* const _nmd_escape_opcodesDB[] = { "ild", "isttp", "ist", "istp", 0, "ld", 0, "stp" };
+const char* const _nmd_escape_opcodesDC[] = { "add", "mul", "com", "comp", "sub", "subr", "div", "divr" };
+const char* const _nmd_escape_opcodesDD[] = { "ld", "isttp", "st", "stp", "rstor", 0, "nsave", "nstsw" };
+const char* const _nmd_escape_opcodesDF[] = { "ild", "isttp", "ist", "istp", "bld", "ild", "bstp", "istp" };
+const char* const* _nmd_escape_opcodes[] = { _nmd_escape_opcodesD8, _nmd_escape_opcodesD9, _nmd_escape_opcodesDA_DE, _nmd_escape_opcodesDB, _nmd_escape_opcodesDC, _nmd_escape_opcodesDD, _nmd_escape_opcodesDA_DE, _nmd_escape_opcodesDF };
 
 const uint8_t _nmd_op1_modrm[] = { 0xFF, 0x63, 0x69, 0x6B, 0xC0, 0xC1, 0xC6, 0xC7, 0xD0, 0xD1, 0xD2, 0xD3, 0xF6, 0xF7, 0xFE };
 const uint8_t _nmd_op1_imm8[] = { 0x6A, 0x6B, 0x80, 0x82, 0x83, 0xA8, 0xC0, 0xC1, 0xC6, 0xCD, 0xD4, 0xD5, 0xEB };
