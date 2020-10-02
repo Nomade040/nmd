@@ -1,10 +1,10 @@
 #include "nmd_common.h"
 
-#define NMD_EMULATOR_RESOLVE_VA(va) ((void*)((uint64_t)cpu.physicalMemory + (va - cpu.virtualAddress)))
+#define NMD_EMULATOR_RESOLVE_VA(va) ((void*)((uint64_t)cpu.physical_memory + (va - cpu.virtual_address)))
 
-bool _nmd_check_jump_condition(nmd_x86_cpu* const cpu, uint8_t opcodeCondition)
+bool _nmd_check_jump_condition(nmd_x86_cpu* const cpu, uint8_t opcode_condition)
 {
-	switch (opcodeCondition)
+	switch (opcode_condition)
 	{
 	case 0x0: return cpu->flags.fields.OF == 1;                                                 /* Jump if overflow (OF=1) */
 	case 0x1: return cpu->flags.fields.OF == 0;                                                 /* Jump if not overflow (OF=0) */
@@ -114,8 +114,8 @@ void _nmd_xor_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruc
 
 #define _NMD_GET_GREG(index) (&cpu->rax + (index)) /* general register */
 #define _NMD_GET_RREG(index) (&cpu->r8 + (index)) /* r8,r9...r15 */
-#define _NMD_GET_PHYSICAL_ADDRESS(address) (uint8_t*)((uint64_t)(cpu->physicalMemory)+((address)-cpu->virtualAddress))
-#define _NMD_IN_BOUNDARIES(address) (address >= cpu->physicalMemory && address < endPhysicalMemory)
+#define _NMD_GET_PHYSICAL_ADDRESS(address) (uint8_t*)((uint64_t)(cpu->physical_memory)+((address)-cpu->virtual_address))
+#define _NMD_IN_BOUNDARIES(address) (address >= cpu->physical_memory && address < end_physical_memory)
 /* #define NMD_TEST(value, bit) ((value&(1<<bit))==(1<<bit)) */
 
 void* _nmd_resolve_memory_operand(nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
@@ -126,12 +126,12 @@ void* _nmd_resolve_memory_operand(nmd_x86_cpu* cpu, nmd_x86_instruction* instruc
 	{
 		int64_t va_expr; /* virtual address expression */
 
-		if (instruction->hasSIB)
+		if (instruction->has_sib)
 			va_expr = _NMD_GET_GREG(instruction->sib.fields.base)->l64 + _NMD_GET_GREG(instruction->sib.fields.index)->l64;
 		else
 			va_expr = _NMD_GET_GREG(instruction->modrm.fields.rm)->l64;
 
-		va_expr += ((instruction->dispMask == NMD_X86_DISP8) ? (int8_t)instruction->displacement : (int32_t)instruction->displacement);
+		va_expr += ((instruction->disp_mask == NMD_X86_DISP8) ? (int8_t)instruction->displacement : (int32_t)instruction->displacement);
 
 		return _NMD_GET_PHYSICAL_ADDRESS(va_expr);
 	}
@@ -141,32 +141,32 @@ int64_t _nmd_resolve_memory_operand_va(nmd_x86_cpu* cpu, nmd_x86_instruction* in
 {
 	int64_t va_expr; /* virtual address expression */
 
-	if (instruction->hasSIB)
+	if (instruction->has_sib)
 		va_expr = _NMD_GET_GREG(instruction->sib.fields.base)->l64 + _NMD_GET_GREG(instruction->sib.fields.index)->l64;
 	else
 		va_expr = _NMD_GET_GREG(instruction->modrm.fields.rm)->l64;
 
-	return va_expr + ((instruction->dispMask == NMD_X86_DISP8) ? (int8_t)instruction->displacement : (int32_t)instruction->displacement);
+	return va_expr + ((instruction->disp_mask == NMD_X86_DISP8) ? (int8_t)instruction->displacement : (int32_t)instruction->displacement);
 }
 
 /*
 Emulates x86 code according to the state of the cpu. You MUST initialize the following variables before calling this
-function: 'cpu->mode', 'cpu->physicalMemory', 'cpu->physicalMemorySize', 'cpu->virtualAddress' and 'cpu->rip'.
+function: 'cpu->mode', 'cpu->physical_memory', 'cpu->physical_memory_size', 'cpu->virtual_address' and 'cpu->rip'.
 You may optionally initialize 'cpu->rsp' if a stack is desirable. Below is a short description of each variable:
  - 'cpu->mode': The emulator's operating architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
- - 'cpu->physicalMemory': A pointer to a buffer used as the emulator's memory.
- - 'cpu->physicalMemorySize': The size of the 'physicalMemory' buffer in bytes.
- - 'cpu->virtualAddress': The starting address of the emulator's virtual address space.
+ - 'cpu->physical_memory': A pointer to a buffer used as the emulator's memory.
+ - 'cpu->physical_memory_size': The size of the 'physical_memory' buffer in bytes.
+ - 'cpu->virtual_address': The starting address of the emulator's virtual address space.
  - 'cpu->rip': The virtual address where emulation starts.
  - 'cpu->rsp': The virtual address of the bottom of the stack.
 Parameters:
- - cpu      [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
- - maxCount [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
+ - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
+ - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
+bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 {
-	const uint64_t endVirtualAddress = cpu->virtualAddress + cpu->physicalMemorySize;
-	const void* endPhysicalMemory = (uint8_t*)cpu->physicalMemory + cpu->physicalMemorySize;
+	const uint64_t end_virtual_address = cpu->virtual_address + cpu->physical_memory_size;
+	const void* end_physical_memory = (uint8_t*)cpu->physical_memory + cpu->physical_memory_size;
 
 	cpu->count = 0;
 	cpu->running = true;
@@ -175,16 +175,16 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 	{
 		nmd_x86_instruction instruction;
 		const void* buffer = _NMD_GET_PHYSICAL_ADDRESS(cpu->rip);
-		const bool validBuffer = _NMD_IN_BOUNDARIES(buffer);
-		if (!validBuffer || !nmd_x86_decode_buffer(buffer, (size_t)(endVirtualAddress - cpu->rip), &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
+		const bool valid_buffer = _NMD_IN_BOUNDARIES(buffer);
+		if (!valid_buffer || !nmd_x86_decode(buffer, (size_t)(end_virtual_address - cpu->rip), &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
 		{
 			if (cpu->callback)
-				cpu->callback(cpu, &instruction, validBuffer ? NMD_X86_EMULATOR_EXCEPTION_BAD_INSTRUCTION : NMD_X86_EMULATOR_EXCEPTION_BAD_MEMORY);
+				cpu->callback(cpu, &instruction, valid_buffer ? NMD_X86_EMULATOR_EXCEPTION_BAD_INSTRUCTION : NMD_X86_EMULATOR_EXCEPTION_BAD_MEMORY);
 			cpu->running = false;
 			return false;
 		}
 
-		if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_DEFAULT)
+		if (instruction.opcode_map == NMD_X86_OPCODE_MAP_DEFAULT)
 		{
 			if (instruction.opcode >= 0x88 && instruction.opcode <= 0x8b) /* mov [88,8b] */
 			{
@@ -433,7 +433,7 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 			}
 			else if (instruction.opcode == 0x90)
 			{
-				if (instruction.simdPrefix == NMD_X86_PREFIXES_REPEAT) /* pause */
+				if (instruction.simd_prefix == NMD_X86_PREFIXES_REPEAT) /* pause */
 				{
 					/* spin-wait loop ahead? */
 				}
@@ -519,7 +519,7 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 				cpu->rsp.l64 += cpu->mode;
 			}
 		}
-		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F)
+		else if (instruction.opcode_map == NMD_X86_OPCODE_MAP_0F)
 		{
 			if (NMD_R(instruction.opcode) == 8 && _nmd_check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r32 */
 				cpu->rip += (int32_t)(instruction.immediate);
@@ -545,11 +545,11 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 				cpu->rsp.l64 += cpu->mode;
 			}
 		}
-		else if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F38)
+		else if (instruction.opcode_map == NMD_X86_OPCODE_MAP_0F38)
 		{
 
 		}
-		else /* if (instruction.opcodeMap == NMD_X86_OPCODE_MAP_0F_38) */
+		else /* if (instruction.opcode_map == NMD_X86_OPCODE_MAP_0F_38) */
 		{
 
 		}
@@ -569,7 +569,7 @@ bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t maxCount)
 
 		cpu->rip += instruction.length;
 
-		if (maxCount > 0 && ++cpu->count >= maxCount)
+		if (max_count > 0 && ++cpu->count >= max_count)
 			return true;
 	}
 

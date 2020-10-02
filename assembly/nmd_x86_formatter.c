@@ -4,8 +4,8 @@ typedef struct
 {
 	char* buffer;
 	const nmd_x86_instruction* instruction;
-	uint64_t runtimeAddress;
-	uint32_t formatFlags;
+	uint64_t runtime_address;
+	uint32_t flags;
 } _nmd_string_info;
 
 void _nmd_append_string(_nmd_string_info* const si, const char* source)
@@ -16,48 +16,48 @@ void _nmd_append_string(_nmd_string_info* const si, const char* source)
 
 size_t _nmd_get_num_digits(uint64_t n, bool hex)
 {
-	size_t numDigits = 0;
+	size_t num_digits = 0;
 	while ((n /= (hex ? 16 : 10)) > 0)
-		numDigits++;
+		num_digits++;
 
-	return numDigits;
+	return num_digits;
 }
 
 void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
 {
-	size_t numDigits = _nmd_get_num_digits(n, si->formatFlags & NMD_X86_FORMAT_FLAGS_HEX);
-	size_t bufferOffset = numDigits + 1;
+	size_t num_digits = _nmd_get_num_digits(n, si->flags & NMD_X86_FORMAT_FLAGS_HEX);
+	size_t buffer_offset = num_digits + 1;
 
-	if (si->formatFlags & NMD_X86_FORMAT_FLAGS_HEX)
+	if (si->flags & NMD_X86_FORMAT_FLAGS_HEX)
 	{
-		const bool condition = n > 9 || si->formatFlags & NMD_X86_FORMAT_FLAGS_ENFORCE_HEX_ID;
-		if (si->formatFlags & NMD_X86_FORMAT_FLAGS_0X_PREFIX && condition)
+		const bool condition = n > 9 || si->flags & NMD_X86_FORMAT_FLAGS_ENFORCE_HEX_ID;
+		if (si->flags & NMD_X86_FORMAT_FLAGS_0X_PREFIX && condition)
 			*si->buffer++ = '0', *si->buffer++ = 'x';
 
-		const uint8_t baseChar = (uint8_t)(si->formatFlags & NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE ? 0x57 : 0x37);
+		const uint8_t base_char = (uint8_t)(si->flags & NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE ? 0x57 : 0x37);
 		do {
 			size_t num = n % 16;
-			*(si->buffer + numDigits--) = (char)((num > 9 ? baseChar : '0') + num);
+			*(si->buffer + num_digits--) = (char)((num > 9 ? base_char : '0') + num);
 		} while ((n /= 16) > 0);
 
-		if (si->formatFlags & NMD_X86_FORMAT_FLAGS_H_SUFFIX && condition)
-			*(si->buffer + bufferOffset++) = 'h';
+		if (si->flags & NMD_X86_FORMAT_FLAGS_H_SUFFIX && condition)
+			*(si->buffer + buffer_offset++) = 'h';
 	}
 	else
 	{
 		do {
-			*(si->buffer + numDigits--) = (char)('0' + n % 10);
+			*(si->buffer + num_digits--) = (char)('0' + n % 10);
 		} while ((n /= 10) > 0);
 	}
 
-	si->buffer += bufferOffset;
+	si->buffer += buffer_offset;
 }
 
-void _nmd_append_signed_number(_nmd_string_info* const si, int64_t n, bool showPositiveSign)
+void _nmd_append_signed_number(_nmd_string_info* const si, int64_t n, bool show_positive_sign)
 {
 	if (n >= 0)
 	{
-		if (showPositiveSign)
+		if (show_positive_sign)
 			*si->buffer++ = '+';
 
 		_nmd_append_number(si, (uint64_t)n);
@@ -72,26 +72,26 @@ void _nmd_append_signed_number(_nmd_string_info* const si, int64_t n, bool showP
 void _nmd_append_signed_number_memory_view(_nmd_string_info* const si)
 {
 	_nmd_append_number(si, (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 0xFF00 : (si->instruction->mode == NMD_X86_MODE_64 ? 0xFFFFFFFFFFFFFF00 : 0xFFFFFF00)) | si->instruction->immediate);
-	if (si->formatFlags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX)
+	if (si->flags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX)
 	{
 		*si->buffer++ = '(';
 		_nmd_append_signed_number(si, (int8_t)(si->instruction->immediate), false);
 		*si->buffer++ = ')';
 	}
-	else if (si->formatFlags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
+	else if (si->flags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_DEC)
 	{
 		*si->buffer++ = '(';
-		const uint32_t previousMask = si->formatFlags;
-		si->formatFlags &= ~NMD_X86_FORMAT_FLAGS_HEX;
+		const uint32_t previous_mask = si->flags;
+		si->flags &= ~NMD_X86_FORMAT_FLAGS_HEX;
 		_nmd_append_signed_number(si, (int8_t)(si->instruction->immediate), false);
-		si->formatFlags = previousMask;
+		si->flags = previous_mask;
 		*si->buffer++ = ')';
 	}
 }
 
 void _nmd_append_relative_address8(_nmd_string_info* const si)
 {
-	if (si->runtimeAddress == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		_nmd_append_signed_number(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
@@ -100,46 +100,46 @@ void _nmd_append_relative_address8(_nmd_string_info* const si)
 	{
 		uint64_t n;
 		if (si->instruction->mode == NMD_X86_MODE_64)
-			n = (uint64_t)((int64_t)(si->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else if (si->instruction->mode == NMD_X86_MODE_16)
-			n = (uint16_t)((int16_t)(si->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint16_t)((int16_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else
-			n = (uint32_t)((int32_t)(si->runtimeAddress + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
 		_nmd_append_number(si, n);
 	}
 }
 
 void _nmd_append_relative_address16_32(_nmd_string_info* const si)
 {
-	if (si->runtimeAddress == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
 	}
 	else
 		_nmd_append_number(si, ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == NMD_X86_MODE_64 ?
-			(uint64_t)((uint64_t)((int64_t)(si->runtimeAddress + si->instruction->length) + (int32_t)(si->instruction->immediate))) :
-			(uint64_t)((uint32_t)((int32_t)(si->runtimeAddress + si->instruction->length) + (int32_t)(si->instruction->immediate)))
+			(uint64_t)((uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int32_t)(si->instruction->immediate))) :
+			(uint64_t)((uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int32_t)(si->instruction->immediate)))
 		));
 }
 
-void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* addrSpecifierReg)
+void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* addr_specifier_reg)
 {
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE
-	if (si->formatFlags & NMD_X86_FORMAT_FLAGS_POINTER_SIZE)
+	if (si->flags & NMD_X86_FORMAT_FLAGS_POINTER_SIZE)
 	{
-		_nmd_append_string(si, addrSpecifierReg);
+		_nmd_append_string(si, addr_specifier_reg);
 		_nmd_append_string(si, " ptr ");
 	}
 #endif /* NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE */
 
-	if (!(si->formatFlags & NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE && !si->instruction->segmentOverride))
+	if (!(si->flags & NMD_X86_FORMAT_FLAGS_ONLY_SEGMENT_OVERRIDE && !si->instruction->segment_override))
 	{
 		size_t i = 0;
-		if (si->instruction->segmentOverride)
-			i = _nmd_get_bit_index(si->instruction->segmentOverride);
+		if (si->instruction->segment_override)
+			i = _nmd_get_bit_index(si->instruction->segment_override);
 
-		_nmd_append_string(si, si->instruction->segmentOverride ? _nmd_segmentReg[i] : (!(si->instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (si->instruction->modrm.fields.rm == 0b100 || si->instruction->modrm.fields.rm == 0b101) ? "ss" : "ds"));
+		_nmd_append_string(si, si->instruction->segment_override ? _nmd_segment_reg[i] : (!(si->instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (si->instruction->modrm.fields.rm == 0b100 || si->instruction->modrm.fields.rm == 0b101) ? "ss" : "ds"));
 		*si->buffer++ = ':';
 	}
 }
@@ -154,19 +154,19 @@ void _nmd_append_modrm16_upper(_nmd_string_info* const si)
 		_nmd_append_string(si, addresses[si->instruction->modrm.fields.rm]);
 	}
 
-	if (si->instruction->dispMask != NMD_X86_DISP_NONE && (si->instruction->displacement != 0 || *(si->buffer - 1) == '['))
+	if (si->instruction->disp_mask != NMD_X86_DISP_NONE && (si->instruction->displacement != 0 || *(si->buffer - 1) == '['))
 	{
 		if (si->instruction->modrm.fields.mod == 0b00 && si->instruction->modrm.fields.rm == 0b110)
 			_nmd_append_number(si, si->instruction->displacement);
 		else
 		{
-			const bool isNegative = si->instruction->displacement & (1 << (si->instruction->dispMask * 8 - 1));
+			const bool is_negative = si->instruction->displacement & (1 << (si->instruction->disp_mask * 8 - 1));
 			if (*(si->buffer - 1) != '[')
-				*si->buffer++ = isNegative ? '-' : '+';
+				*si->buffer++ = is_negative ? '-' : '+';
 
-			if (isNegative)
+			if (is_negative)
 			{
-				const uint16_t mask = (uint16_t)(si->instruction->dispMask == 2 ? 0xFFFF : 0xFF);
+				const uint16_t mask = (uint16_t)(si->instruction->disp_mask == 2 ? 0xFFFF : 0xFF);
 				_nmd_append_number(si, (uint64_t)(~si->instruction->displacement & mask) + 1);
 			}
 			else
@@ -181,7 +181,7 @@ void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 {
 	*si->buffer++ = '[';
 
-	if (si->instruction->hasSIB)
+	if (si->instruction->has_sib)
 	{
 		if (si->instruction->sib.fields.base == 0b101)
 		{
@@ -196,7 +196,7 @@ void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 			if (!(si->instruction->sib.fields.base == 0b101 && si->instruction->modrm.fields.mod == 0b00))
 				*si->buffer++ = '+';
 			_nmd_append_string(si, (si->instruction->mode == NMD_X86_MODE_64 && !(si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE) ? (si->instruction->prefixes & NMD_X86_PREFIXES_REX_X ? _nmd_regrx : _nmd_reg64) : _nmd_reg32)[si->instruction->sib.fields.index]);
-			if (!(si->instruction->sib.fields.scale == 0b00 && !(si->formatFlags & NMD_X86_FORMAT_FLAGS_SCALE_ONE)))
+			if (!(si->instruction->sib.fields.scale == 0b00 && !(si->flags & NMD_X86_FORMAT_FLAGS_SCALE_ONE)))
 				*si->buffer++ = '*', *si->buffer++ = (char)('0' + (1 << si->instruction->sib.fields.scale));
 		}
 
@@ -205,7 +205,7 @@ void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 			if (*(si->buffer - 1) != '[')
 				*si->buffer++ = '+';
 			_nmd_append_string(si, "r12");
-			if (!(si->instruction->sib.fields.scale == 0b00 && !(si->formatFlags & NMD_X86_FORMAT_FLAGS_SCALE_ONE)))
+			if (!(si->instruction->sib.fields.scale == 0b00 && !(si->flags & NMD_X86_FORMAT_FLAGS_SCALE_ONE)))
 				*si->buffer++ = '*', *si->buffer++ = (char)('0' + (1 << si->instruction->sib.fields.scale));
 		}
 	}
@@ -218,15 +218,15 @@ void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 	}
 
 	/* Handle displacement. */
-	if (si->instruction->dispMask != NMD_X86_DISP_NONE && (si->instruction->displacement != 0 || *(si->buffer - 1) == '['))
+	if (si->instruction->disp_mask != NMD_X86_DISP_NONE && (si->instruction->displacement != 0 || *(si->buffer - 1) == '['))
 	{
 		/* Relative address. */
-		if (si->instruction->modrm.fields.rm == 0b101 && si->instruction->mode == NMD_X86_MODE_64 && si->instruction->modrm.fields.mod == 0b00 && si->runtimeAddress != NMD_X86_INVALID_RUNTIME_ADDRESS)
+		if (si->instruction->modrm.fields.rm == 0b101 && si->instruction->mode == NMD_X86_MODE_64 && si->instruction->modrm.fields.mod == 0b00 && si->runtime_address != NMD_X86_INVALID_RUNTIME_ADDRESS)
 		{
 			if (si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE)
-				_nmd_append_number(si, (uint32_t)((int32_t)(si->runtimeAddress + si->instruction->length) + (int32_t)si->instruction->displacement));
+				_nmd_append_number(si, (uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int32_t)si->instruction->displacement));
 			else
-				_nmd_append_number(si, (uint64_t)((int64_t)(si->runtimeAddress + si->instruction->length) + (int64_t)((int32_t)si->instruction->displacement)));
+				_nmd_append_number(si, (uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int64_t)((int32_t)si->instruction->displacement)));
 		}
 		else if (si->instruction->modrm.fields.mod == 0b00 && ((si->instruction->sib.fields.base == 0b101 && si->instruction->sib.fields.index == 0b100) || si->instruction->modrm.fields.rm == 0b101) && *(si->buffer - 1) == '[')
 			_nmd_append_number(si, si->instruction->mode == NMD_X86_MODE_64 ? 0xFFFFFFFF00000000 | si->instruction->displacement : si->instruction->displacement);
@@ -235,13 +235,13 @@ void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 			if (si->instruction->modrm.fields.rm == 0b101 && si->instruction->mode == NMD_X86_MODE_64 && si->instruction->modrm.fields.mod == 0b00)
 				_nmd_append_string(si, si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE ? "eip" : "rip");
 
-			const bool isNegative = si->instruction->displacement & (1 << (si->instruction->dispMask * 8 - 1));
+			const bool is_negative = si->instruction->displacement & (1 << (si->instruction->disp_mask * 8 - 1));
 			if (*(si->buffer - 1) != '[')
-				*si->buffer++ = isNegative ? '-' : '+';
+				*si->buffer++ = is_negative ? '-' : '+';
 
-			if (isNegative)
+			if (is_negative)
 			{
-				const uint32_t mask = (uint32_t)(si->instruction->dispMask == 4 ? -1 : (1 << (si->instruction->dispMask * 8)) - 1);
+				const uint32_t mask = (uint32_t)(si->instruction->disp_mask == 4 ? -1 : (1 << (si->instruction->disp_mask * 8)) - 1);
 				_nmd_append_number(si, (uint64_t)(~si->instruction->displacement & mask) + 1);
 			}
 			else
@@ -252,9 +252,9 @@ void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 	*si->buffer++ = ']';
 }
 
-void _nmd_append_modrm_upper(_nmd_string_info* const si, const char* addrSpecifierReg)
+void _nmd_append_modrm_upper(_nmd_string_info* const si, const char* addr_specifier_reg)
 {
-	_nmd_append_modrm_memory_prefix(si, addrSpecifierReg);
+	_nmd_append_modrm_memory_prefix(si, addr_specifier_reg);
 
 	if ((si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE)) || (si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32))
 		_nmd_append_modrm16_upper(si);
@@ -357,18 +357,18 @@ void _nmd_append_Ev(_nmd_string_info* const si)
 				*si->buffer++ = 'd';
 		}
 		else
-			_nmd_append_string(si, ((si->instruction->operandSize64 ? _nmd_reg64 : (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode != NMD_X86_MODE_16) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? _nmd_reg16 : _nmd_reg32))[si->instruction->modrm.fields.rm]);
+			_nmd_append_string(si, ((si->instruction->rex_w_prefix ? _nmd_reg64 : (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode != NMD_X86_MODE_16) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? _nmd_reg16 : _nmd_reg32))[si->instruction->modrm.fields.rm]);
 	}
 	else
-		_nmd_append_modrm_upper(si, (si->instruction->operandSize64) ? "qword" : ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode != NMD_X86_MODE_16) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? "word" : "dword"));
+		_nmd_append_modrm_upper(si, (si->instruction->rex_w_prefix) ? "qword" : ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode != NMD_X86_MODE_16) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? "word" : "dword"));
 }
 
 void _nmd_append_Ey(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
-		_nmd_append_string(si, (si->instruction->operandSize64 ? _nmd_reg64 : _nmd_reg32)[si->instruction->modrm.fields.rm]);
+		_nmd_append_string(si, (si->instruction->rex_w_prefix ? _nmd_reg64 : _nmd_reg32)[si->instruction->modrm.fields.rm]);
 	else
-		_nmd_append_modrm_upper(si, si->instruction->operandSize64 ? "qword" : "dword");
+		_nmd_append_modrm_upper(si, si->instruction->rex_w_prefix ? "qword" : "dword");
 }
 
 void _nmd_append_Eb(_nmd_string_info* const si)
@@ -378,7 +378,7 @@ void _nmd_append_Eb(_nmd_string_info* const si)
 		if (si->instruction->prefixes & NMD_X86_PREFIXES_REX_B)
 			_nmd_append_string(si, _nmd_regrx[si->instruction->modrm.fields.rm]), *si->buffer++ = 'b';
 		else
-			_nmd_append_string(si, (si->instruction->hasRex ? _nmd_reg8_x64 : _nmd_reg8)[si->instruction->modrm.fields.rm]);
+			_nmd_append_string(si, (si->instruction->has_rex ? _nmd_reg8_x64 : _nmd_reg8)[si->instruction->modrm.fields.rm]);
 	}
 	else
 		_nmd_append_modrm_upper(si, "byte");
@@ -410,7 +410,7 @@ void _nmd_append_Eq(_nmd_string_info* const si)
 
 void _nmd_append_Rv(_nmd_string_info* const si)
 {
-	_nmd_append_string(si, (si->instruction->operandSize64 ? _nmd_reg64 : (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? _nmd_reg16 : _nmd_reg32))[si->instruction->modrm.fields.rm]);
+	_nmd_append_string(si, (si->instruction->rex_w_prefix ? _nmd_reg64 : (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? _nmd_reg16 : _nmd_reg32))[si->instruction->modrm.fields.rm]);
 }
 
 void _nmd_append_Gv(_nmd_string_info* const si)
@@ -422,12 +422,12 @@ void _nmd_append_Gv(_nmd_string_info* const si)
 			*si->buffer++ = 'd';
 	}
 	else
-		_nmd_append_string(si, ((si->instruction->operandSize64) ? _nmd_reg64 : ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode != NMD_X86_MODE_16) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? _nmd_reg16 : _nmd_reg32))[si->instruction->modrm.fields.reg]);
+		_nmd_append_string(si, ((si->instruction->rex_w_prefix) ? _nmd_reg64 : ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode != NMD_X86_MODE_16) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? _nmd_reg16 : _nmd_reg32))[si->instruction->modrm.fields.reg]);
 }
 
 void _nmd_append_Gy(_nmd_string_info* const si)
 {
-	_nmd_append_string(si, (si->instruction->operandSize64 ? _nmd_reg64 : _nmd_reg32)[si->instruction->modrm.fields.reg]);
+	_nmd_append_string(si, (si->instruction->rex_w_prefix ? _nmd_reg64 : _nmd_reg32)[si->instruction->modrm.fields.reg]);
 }
 
 void _nmd_append_Gb(_nmd_string_info* const si)
@@ -435,7 +435,7 @@ void _nmd_append_Gb(_nmd_string_info* const si)
 	if (si->instruction->prefixes & NMD_X86_PREFIXES_REX_R)
 		_nmd_append_string(si, _nmd_regrx[si->instruction->modrm.fields.reg]), *si->buffer++ = 'b';
 	else
-		_nmd_append_string(si, (si->instruction->hasRex ? _nmd_reg8_x64 : _nmd_reg8)[si->instruction->modrm.fields.reg]);
+		_nmd_append_string(si, (si->instruction->has_rex ? _nmd_reg8_x64 : _nmd_reg8)[si->instruction->modrm.fields.reg]);
 }
 
 void _nmd_append_Gw(_nmd_string_info* const si)
@@ -454,23 +454,23 @@ void _nmd_append_W(_nmd_string_info* const si)
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX
 char* _nmd_format_operand_to_att(char* operand, _nmd_string_info* si)
 {
-	char* nextOperand = (char*)_nmd_strchr(operand, ',');
-	const char* operandEnd = nextOperand ? nextOperand : si->buffer;
+	char* next_operand = (char*)_nmd_strchr(operand, ',');
+	const char* operand_end = next_operand ? next_operand : si->buffer;
 
 	/* Memory operand. */
-	const char* memoryOperand = _nmd_strchr(operand, '[');
-	if (memoryOperand && memoryOperand < operandEnd)
+	const char* memory_operand = _nmd_strchr(operand, '[');
+	if (memory_operand && memory_operand < operand_end)
 	{
-		memoryOperand++;
-		const char* segReg = _nmd_strchr(operand, ':');
-		if (segReg)
+		memory_operand++;
+		const char* segment_reg = _nmd_strchr(operand, ':');
+		if (segment_reg)
 		{
-			if (segReg == operand + 2)
+			if (segment_reg == operand + 2)
 				_nmd_insert_char(operand, '%'), si->buffer++, operand += 4;
 			else
 			{
 				*operand++ = '%';
-				*operand++ = *(segReg - 2);
+				*operand++ = *(segment_reg - 2);
 				*operand++ = 's';
 				*operand++ = ':';
 			}
@@ -481,21 +481,21 @@ char* _nmd_format_operand_to_att(char* operand, _nmd_string_info* si)
 		do
 		{
 			displacement++;
-			displacement = (char*)_nmd_find_number(displacement, operandEnd);
-		} while (displacement && ((*(displacement - 1) != '+' && *(displacement - 1) != '-' && *(displacement - 1) != '[') || !_nmd_is_number(displacement, operandEnd - 2)));
+			displacement = (char*)_nmd_find_number(displacement, operand_end);
+		} while (displacement && ((*(displacement - 1) != '+' && *(displacement - 1) != '-' && *(displacement - 1) != '[') || !_nmd_is_number(displacement, operand_end - 2)));
 
-		bool isThereBaseOrIndex = true;
-		char memoryOperandBuffer[96];
+		bool is_there_base_or_index = true;
+		char memory_operand_buffer[96];
 
 		if (displacement)
 		{
 			if (*(displacement - 1) != '[')
 				displacement--;
 			else
-				isThereBaseOrIndex = false;
+				is_there_base_or_index = false;
 
-			char* i = (char*)memoryOperand;
-			char* j = memoryOperandBuffer;
+			char* i = (char*)memory_operand;
+			char* j = memory_operand_buffer;
 			for (; i < displacement; i++, j++)
 				*j = *i;
 			*j = '\0';
@@ -508,66 +508,66 @@ char* _nmd_format_operand_to_att(char* operand, _nmd_string_info* si)
 		}
 
 		/* Handle base, index and scale. */
-		if (isThereBaseOrIndex)
+		if (is_there_base_or_index)
 		{
 			*operand++ = '(';
 
-			char* baseOrIndex = operand;
+			char* base_or_index = operand;
 			if (displacement)
 			{
-				char* s = memoryOperandBuffer;
+				char* s = memory_operand_buffer;
 				for (; *s; s++, operand++)
 					*operand = *s;
 			}
 			else
 			{
-				for (; *memoryOperand != ']'; operand++, memoryOperand++)
-					*operand = *memoryOperand;
+				for (; *memory_operand != ']'; operand++, memory_operand++)
+					*operand = *memory_operand;
 			}
 
-			_nmd_insert_char(baseOrIndex, '%');
+			_nmd_insert_char(base_or_index, '%');
 			operand++;
 			*operand++ = ')';
 
-			for (; *baseOrIndex != ')'; baseOrIndex++)
+			for (; *base_or_index != ')'; base_or_index++)
 			{
-				if (*baseOrIndex == '+' || *baseOrIndex == '*')
+				if (*base_or_index == '+' || *base_or_index == '*')
 				{
-					if (*baseOrIndex == '+')
-						_nmd_insert_char(baseOrIndex + 1, '%'), operand++;
-					*baseOrIndex = ',';
+					if (*base_or_index == '+')
+						_nmd_insert_char(base_or_index + 1, '%'), operand++;
+					*base_or_index = ',';
 				}
 			}
 
-			operand = baseOrIndex;
+			operand = base_or_index;
 			operand++;
 		}
 
-		if (nextOperand)
+		if (next_operand)
 		{
 			/* Move second operand to the left until the comma. */
-			operandEnd = _nmd_strchr(operand, ',');
-			for (; *operandEnd != '\0'; operand++, operandEnd++)
-				*operand = *operandEnd;
+			operand_end = _nmd_strchr(operand, ',');
+			for (; *operand_end != '\0'; operand++, operand_end++)
+				*operand = *operand_end;
 
 			*operand = '\0';
 
-			operandEnd = operand;
-			while (*operandEnd != ',')
-				operandEnd--;
+			operand_end = operand;
+			while (*operand_end != ',')
+				operand_end--;
 		}
 		else
-			*operand = '\0', operandEnd = operand;
+			*operand = '\0', operand_end = operand;
 
 		si->buffer = operand;
 
-		return (char*)operandEnd;
+		return (char*)operand_end;
 	}
 	else /* Immediate or register operand. */
 	{
-		_nmd_insert_char(operand, _nmd_is_number(operand, operandEnd) ? '$' : '%');
+		_nmd_insert_char(operand, _nmd_is_number(operand, operand_end) ? '$' : '%');
 		si->buffer++;
-		return (char*)operandEnd + 1;
+		return (char*)operand_end + 1;
 	}
 }
 #endif /* NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX */
@@ -575,12 +575,12 @@ char* _nmd_format_operand_to_att(char* operand, _nmd_string_info* si)
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
 Parameters:
- - instruction    [in]  A pointer to a variable of type 'nmd_x86_instruction' describing the instruction to be formatted.
- - buffer         [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
- - runtimeAddress [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
- - formatFlags    [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
+ - instruction     [in]  A pointer to a variable of type 'nmd_x86_instruction' describing the instruction to be formatted.
+ - buffer          [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
+ - runtime_address [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
+ - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
-void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtimeAddress, uint32_t formatFlags)
+void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags)
 {
 	if (!instruction->valid)
 		return;
@@ -588,11 +588,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 	_nmd_string_info si;
 	si.buffer = buffer;
 	si.instruction = instruction;
-	si.runtimeAddress = runtimeAddress;
-	si.formatFlags = formatFlags;
+	si.runtime_address = runtime_address;
+	si.flags = flags;
 
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES
-	if (formatFlags & NMD_X86_FORMAT_FLAGS_BYTES)
+	if (flags & NMD_X86_FORMAT_FLAGS_BYTES)
 	{
 		size_t i = 0;
 		for (; i < instruction->length; i++)
@@ -604,8 +604,8 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			*si.buffer++ = ' ';
 		}
 
-		const size_t numPaddingBytes = instruction->length < NMD_X86_FORMATTER_NUM_PADDING_BYTES ? (NMD_X86_FORMATTER_NUM_PADDING_BYTES - instruction->length) : 0;
-		for (i = 0; i < numPaddingBytes * 3; i++)
+		const size_t num_padding_bytes = instruction->length < NMD_X86_FORMATTER_NUM_PADDING_BYTES ? (NMD_X86_FORMATTER_NUM_PADDING_BYTES - instruction->length) : 0;
+		for (i = 0; i < num_padding_bytes * 3; i++)
 			*si.buffer++ = ' ';
 	}
 #endif /* NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES */
@@ -613,16 +613,16 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 	const uint8_t op = instruction->opcode;
 
 	if (instruction->prefixes & (NMD_X86_PREFIXES_REPEAT | NMD_X86_PREFIXES_REPEAT_NOT_ZERO) && (instruction->prefixes & NMD_X86_PREFIXES_LOCK || ((op == 0x86 || op == 0x87) && instruction->modrm.fields.mod != 0b11)))
-		_nmd_append_string(&si, instruction->repeatPrefix ? "xrelease " : "xacquire ");
-	else if (instruction->prefixes & NMD_X86_PREFIXES_REPEAT_NOT_ZERO && (instruction->opcodeSize == 1 && (op == 0xc2 || op == 0xc3 || op == 0xe8 || op == 0xe9 || NMD_R(op) == 7 || (op == 0xff && (instruction->modrm.fields.reg == 0b010 || instruction->modrm.fields.reg == 0b100)))))
+		_nmd_append_string(&si, instruction->repeat_prefix ? "xrelease " : "xacquire ");
+	else if (instruction->prefixes & NMD_X86_PREFIXES_REPEAT_NOT_ZERO && (instruction->opcode_size == 1 && (op == 0xc2 || op == 0xc3 || op == 0xe8 || op == 0xe9 || NMD_R(op) == 7 || (op == 0xff && (instruction->modrm.fields.reg == 0b010 || instruction->modrm.fields.reg == 0b100)))))
 		_nmd_append_string(&si, "bnd ");
 
 	if (instruction->prefixes & NMD_X86_PREFIXES_LOCK)
 		_nmd_append_string(&si, "lock ");
 
-	const bool operandSize = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE;
+	const bool operand_size = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE;
 
-	if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_DEFAULT)
+	if (instruction->opcode_map == NMD_X86_OPCODE_MAP_DEFAULT)
 	{
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_EVEX
 		if (instruction->encoding == NMD_X86_ENCODING_EVEX)
@@ -813,12 +813,12 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					else if (op == 0x8c)
 					{
 						if (si.instruction->modrm.fields.mod == 0b11)
-							_nmd_append_string(&si, (si.instruction->operandSize64 ? _nmd_reg64 : (si.instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || instruction->mode == NMD_X86_MODE_16 ? _nmd_reg16 : _nmd_reg32))[si.instruction->modrm.fields.rm]);
+							_nmd_append_string(&si, (si.instruction->rex_w_prefix ? _nmd_reg64 : (si.instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || instruction->mode == NMD_X86_MODE_16 ? _nmd_reg16 : _nmd_reg32))[si.instruction->modrm.fields.rm]);
 						else
 							_nmd_append_modrm_upper(&si, "word");
 
 						*si.buffer++ = ',';
-						_nmd_append_string(&si, _nmd_segmentReg[instruction->modrm.fields.reg]);
+						_nmd_append_string(&si, _nmd_segment_reg[instruction->modrm.fields.reg]);
 					}
 				}
 				else if (op == 0x68 || op == 0x6A) /* push */
@@ -826,7 +826,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					_nmd_append_string(&si, "push ");
 					if (op == 0x6a)
 					{
-						if (formatFlags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
+						if (flags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
 							_nmd_append_signed_number_memory_view(&si);
 						else
 							_nmd_append_signed_number(&si, (int8_t)instruction->immediate, false);
@@ -836,16 +836,16 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				}
 				else if (op == 0xff) /* Opcode extensions Group 5 */
 				{
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp5[instruction->modrm.fields.reg]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp5[instruction->modrm.fields.reg]);
 					*si.buffer++ = ' ';
 					if (instruction->modrm.fields.mod == 0b11)
-						_nmd_append_string(&si, (si.instruction->operandSize64 ? _nmd_reg64 : (operandSize ? _nmd_reg16 : _nmd_reg32))[si.instruction->modrm.fields.rm]);
+						_nmd_append_string(&si, (si.instruction->rex_w_prefix ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32))[si.instruction->modrm.fields.rm]);
 					else
-						_nmd_append_modrm_upper(&si, (instruction->modrm.fields.reg == 0b011 || instruction->modrm.fields.reg == 0b101) ? "fword" : (instruction->mode == NMD_X86_MODE_64 && ((instruction->modrm.fields.reg >= 0b010 && instruction->modrm.fields.reg <= 0b110) || (instruction->prefixes & NMD_X86_PREFIXES_REX_W && instruction->modrm.fields.reg <= 0b010)) ? "qword" : (operandSize ? "word" : "dword")));
+						_nmd_append_modrm_upper(&si, (instruction->modrm.fields.reg == 0b011 || instruction->modrm.fields.reg == 0b101) ? "fword" : (instruction->mode == NMD_X86_MODE_64 && ((instruction->modrm.fields.reg >= 0b010 && instruction->modrm.fields.reg <= 0b110) || (instruction->prefixes & NMD_X86_PREFIXES_REX_W && instruction->modrm.fields.reg <= 0b010)) ? "qword" : (operand_size ? "word" : "dword")));
 				}
 				else if (NMD_R(op) < 4 && (NMD_C(op) < 6 || (NMD_C(op) >= 8 && NMD_C(op) < 0xE))) /* add,adc,and,xor,or,sbb,sub,cmp */
 				{
-					_nmd_append_string(&si, _nmd_op1OpcodeMapMnemonics[NMD_R((NMD_C(op) > 6 ? op + 0x40 : op))]);
+					_nmd_append_string(&si, _nmd_op1_opcode_map_mnemonics[NMD_R((NMD_C(op) > 6 ? op + 0x40 : op))]);
 					*si.buffer++ = ' ';
 
 					switch (op % 8)
@@ -875,7 +875,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 						_nmd_append_number(&si, instruction->immediate);
 						break;
 					case 5:
-						_nmd_append_string(&si, instruction->operandSize64 ? "rax" : (operandSize ? "ax" : "eax"));
+						_nmd_append_string(&si, instruction->rex_w_prefix ? "rax" : (operand_size ? "ax" : "eax"));
 						*si.buffer++ = ',';
 						_nmd_append_number(&si, instruction->immediate);
 						break;
@@ -884,11 +884,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				else if (NMD_R(op) == 4 || NMD_R(op) == 5) /* inc,dec,push,pop [0x40, 0x5f] */
 				{
 					_nmd_append_string(&si, NMD_C(op) < 8 ? (NMD_R(op) == 4 ? "inc " : "push ") : (NMD_R(op) == 4 ? "dec " : "pop "));
-					_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? _nmd_regrx : (instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? _nmd_reg64 : (operandSize ? _nmd_reg16 : _nmd_reg32)))[op % 8]);
+					_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? _nmd_regrx : (instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32)))[op % 8]);
 				}
 				else if (op >= 0x80 && op < 0x84) /* add,adc,and,xor,or,sbb,sub,cmp [80,83] */
 				{
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp1[instruction->modrm.fields.reg]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp1[instruction->modrm.fields.reg]);
 					*si.buffer++ = ' ';
 					if (op == 0x80 || op == 0x82)
 						_nmd_append_Eb(&si);
@@ -926,8 +926,8 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					}
 					else if (op == 0xa1)
 					{
-						_nmd_append_string(&si, instruction->operandSize64 ? "rax," : (operandSize ? "ax," : "eax,"));
-						_nmd_append_modrm_memory_prefix(&si, instruction->operandSize64 ? "qword" : (operandSize ? "word" : "dword"));
+						_nmd_append_string(&si, instruction->rex_w_prefix ? "rax," : (operand_size ? "ax," : "eax,"));
+						_nmd_append_modrm_memory_prefix(&si, instruction->rex_w_prefix ? "qword" : (operand_size ? "word" : "dword"));
 						*si.buffer++ = '[';
 						_nmd_append_number(&si, (instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE || instruction->mode == NMD_X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
 						*si.buffer++ = ']';
@@ -941,11 +941,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					}
 					else if (op == 0xa3)
 					{
-						_nmd_append_modrm_memory_prefix(&si, instruction->operandSize64 ? "qword" : (operandSize ? "word" : "dword"));
+						_nmd_append_modrm_memory_prefix(&si, instruction->rex_w_prefix ? "qword" : (operand_size ? "word" : "dword"));
 						*si.buffer++ = '[';
 						_nmd_append_number(&si, (instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE || instruction->mode == NMD_X86_MODE_16 ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & instruction->immediate);
 						_nmd_append_string(&si, "],");
-						_nmd_append_string(&si, instruction->operandSize64 ? "rax" : (operandSize ? "ax" : "eax"));
+						_nmd_append_string(&si, instruction->rex_w_prefix ? "rax" : (operand_size ? "ax" : "eax"));
 					}
 				}
 				else if(op == 0xcc) /* int3 */
@@ -961,14 +961,14 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				{
 					_nmd_append_string(&si, "pop ");
 					if (instruction->modrm.fields.mod == 0b11)
-						_nmd_append_string(&si, (operandSize ? _nmd_reg16 : _nmd_reg32)[instruction->modrm.fields.rm]);
+						_nmd_append_string(&si, (operand_size ? _nmd_reg16 : _nmd_reg32)[instruction->modrm.fields.rm]);
 					else
-						_nmd_append_modrm_upper(&si, instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? "qword" : (operandSize ? "word" : "dword"));
+						_nmd_append_modrm_upper(&si, instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? "qword" : (operand_size ? "word" : "dword"));
 				}
 				else if (NMD_R(op) == 7) /* conditional jump [70,7f]*/
 				{
 					*si.buffer++ = 'j';
-					_nmd_append_string(&si, _nmd_conditionSuffixes[NMD_C(op)]);
+					_nmd_append_string(&si, _nmd_condition_suffixes[NMD_C(op)]);
 					*si.buffer++ = ' ';
 					_nmd_append_relative_address8(&si);
 				}
@@ -979,7 +979,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				}
 				else if (op == 0xa9) /* test */
 				{
-					_nmd_append_string(&si, instruction->operandSize64 ? "test rax" : (operandSize ? "test ax" : "test eax"));
+					_nmd_append_string(&si, instruction->rex_w_prefix ? "test rax" : (operand_size ? "test ax" : "test eax"));
 					*si.buffer++ = ',';
 					_nmd_append_number(&si, instruction->immediate);
 				}
@@ -1000,7 +1000,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					if (instruction->prefixes & NMD_X86_PREFIXES_REX_B)
 						_nmd_append_string(&si, _nmd_regrx[op % 8]), * si.buffer++ = NMD_C(op) < 8 ? 'b' : 'd';
 					else
-						_nmd_append_string(&si, (NMD_C(op) < 8 ? (instruction->hasRex ? _nmd_reg8_x64 : _nmd_reg8) : (instruction->operandSize64 ? _nmd_reg64 : (operandSize ? _nmd_reg16 : _nmd_reg32)))[op % 8]);
+						_nmd_append_string(&si, (NMD_C(op) < 8 ? (instruction->has_rex ? _nmd_reg8_x64 : _nmd_reg8) : (instruction->rex_w_prefix ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32)))[op % 8]);
 					*si.buffer++ = ',';
 					_nmd_append_number(&si, instruction->immediate);
 				}
@@ -1011,7 +1011,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				}
 				else if (op == 0xf6 || op == 0xf7) /* test,test,not,neg,mul,imul,div,idiv */
 				{
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp3[instruction->modrm.fields.reg]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp3[instruction->modrm.fields.reg]);
 					*si.buffer++ = ' ';
 					if (op == 0xf6)
 						_nmd_append_Eb(&si);
@@ -1033,7 +1033,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					*si.buffer++ = ',';
 					if (op == 0x6b)
 					{
-						if (si.formatFlags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
+						if (si.flags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_MEMORY_VIEW && instruction->immediate >= 0x80)
 							_nmd_append_signed_number_memory_view(&si);
 						else
 							_nmd_append_signed_number(&si, (int8_t)instruction->immediate, false);
@@ -1060,7 +1060,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				else if (op == 0x8e)
 				{
 					_nmd_append_string(&si, "mov ");
-					_nmd_append_string(&si, _nmd_segmentReg[instruction->modrm.fields.reg]);
+					_nmd_append_string(&si, _nmd_segment_reg[instruction->modrm.fields.reg]);
 					*si.buffer++ = ',';
 					_nmd_append_Ew(&si);
 				}
@@ -1074,15 +1074,15 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 							*si.buffer++ = 'd';
 					}
 					else
-						_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? _nmd_reg64 : (operandSize ? _nmd_reg16 : _nmd_reg32))[NMD_C(op)]);
-					_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? ",rax" : (operandSize ? ",ax" : ",eax")));
+						_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32))[NMD_C(op)]);
+					_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? ",rax" : (operand_size ? ",ax" : ",eax")));
 				}
 				else if (op == 0x9A)
 				{
 					_nmd_append_string(&si, "call far ");
 					_nmd_append_number(&si, (uint64_t)(*(uint16_t*)((char*)(&instruction->immediate) + (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 2 : 4))));
 					*si.buffer++ = ':';
-					_nmd_append_number(&si, (uint64_t)(operandSize ? *((uint16_t*)(&instruction->immediate)) : *((uint32_t*)(&instruction->immediate))));
+					_nmd_append_number(&si, (uint64_t)(operand_size ? *((uint16_t*)(&instruction->immediate)) : *((uint32_t*)(&instruction->immediate))));
 				}
 				else if ((op >= 0x6c && op <= 0x6f) || (op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf))
 				{
@@ -1103,11 +1103,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					case 0xae: case 0xaf: str = "scas"; break;
 					}
 					_nmd_append_string(&si, str);
-					*si.buffer++ = (op % 2 == 0) ? 'b' : (operandSize ? 'w' : 'd');
+					*si.buffer++ = (op % 2 == 0) ? 'b' : (operand_size ? 'w' : 'd');
 				}
 				else if (op == 0xC0 || op == 0xC1 || (NMD_R(op) == 0xd && NMD_C(op) < 4))
 				{
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp2[instruction->modrm.fields.reg]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp2[instruction->modrm.fields.reg]);
 					*si.buffer++ = ' ';
 					if (op % 2 == 0)
 						_nmd_append_Eb(&si);
@@ -1155,7 +1155,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					if (instruction->mode == NMD_X86_MODE_64)
 					{
 						_nmd_append_string(&si, "movsxd ");
-						_nmd_append_string(&si, (instruction->mode == NMD_X86_MODE_64 ? (instruction->prefixes & NMD_X86_PREFIXES_REX_R ? _nmd_regrx : _nmd_reg64) : (operandSize ? _nmd_reg16 : _nmd_reg32))[instruction->modrm.fields.reg]);
+						_nmd_append_string(&si, (instruction->mode == NMD_X86_MODE_64 ? (instruction->prefixes & NMD_X86_PREFIXES_REX_R ? _nmd_regrx : _nmd_reg64) : (operand_size ? _nmd_reg16 : _nmd_reg32))[instruction->modrm.fields.reg]);
 						*si.buffer++ = ',';
 						if (instruction->modrm.fields.mod == 0b11)
 						{
@@ -1165,7 +1165,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 								_nmd_append_string(&si, ((instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && instruction->mode == NMD_X86_MODE_32) || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? _nmd_reg16 : _nmd_reg32)[instruction->modrm.fields.rm]);
 						}
 						else
-							_nmd_append_modrm_upper(&si, (instruction->operandSize64 && !(instruction->prefixes & NMD_X86_PREFIXES_REX_W)) ? "qword" : ((instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && instruction->mode == NMD_X86_MODE_32) || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? "word" : "dword"));
+							_nmd_append_modrm_upper(&si, (instruction->rex_w_prefix && !(instruction->prefixes & NMD_X86_PREFIXES_REX_W)) ? "qword" : ((instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && instruction->mode == NMD_X86_MODE_32) || (instruction->mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? "word" : "dword"));
 					}
 					else
 					{
@@ -1229,7 +1229,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 
 					if (instruction->modrm.modrm < 0xc0)
 					{
-						_nmd_append_string(&si, _nmd_escapeOpcodes[NMD_C(op) - 8][instruction->modrm.fields.reg]);
+						_nmd_append_string(&si, _nmd_escape_opcodes[NMD_C(op) - 8][instruction->modrm.fields.reg]);
 						*si.buffer++ = ' ';
 						switch (op)
 						{
@@ -1247,7 +1247,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 						switch (op)
 						{
 						case 0xd8:
-							_nmd_append_string(&si, _nmd_escapeOpcodesD8[(NMD_R(instruction->modrm.modrm) - 0xc) * 2 + (NMD_C(instruction->modrm.modrm) > 7 ? 1 : 0)]);
+							_nmd_append_string(&si, _nmd_escape_opcodesD8[(NMD_R(instruction->modrm.modrm) - 0xc) * 2 + (NMD_C(instruction->modrm.modrm) > 7 ? 1 : 0)]);
 							_nmd_append_string(&si, " st(0),st(");
 							*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8), * si.buffer++ = ')';
 							break;
@@ -1443,7 +1443,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				else if (op == 0xe4 || op == 0xe5)
 				{
 					_nmd_append_string(&si, "in ");
-					_nmd_append_string(&si, op == 0xe4 ? "al" : (operandSize ? "ax" : "eax"));
+					_nmd_append_string(&si, op == 0xe4 ? "al" : (operand_size ? "ax" : "eax"));
 					*si.buffer++ = ',';
 					_nmd_append_number(&si, instruction->immediate);
 				}
@@ -1452,25 +1452,25 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					_nmd_append_string(&si, "out ");
 					_nmd_append_number(&si, instruction->immediate);
 					*si.buffer++ = ',';
-					_nmd_append_string(&si, op == 0xe6 ? "al" : (operandSize ? "ax" : "eax"));
+					_nmd_append_string(&si, op == 0xe6 ? "al" : (operand_size ? "ax" : "eax"));
 				}				
 				else if (op == 0xec || op == 0xed)
 				{
 					_nmd_append_string(&si, "in ");
-					_nmd_append_string(&si, op == 0xec ? "al" : (operandSize ? "ax" : "eax"));
+					_nmd_append_string(&si, op == 0xec ? "al" : (operand_size ? "ax" : "eax"));
 					_nmd_append_string(&si, ",dx");
 				}
 				else if (op == 0xee || op == 0xef)
 				{
 					_nmd_append_string(&si, "out dx,");
-					_nmd_append_string(&si, op == 0xee ? "al" : (operandSize ? "ax" : "eax"));
+					_nmd_append_string(&si, op == 0xee ? "al" : (operand_size ? "ax" : "eax"));
 				}
 				else if (op == 0x62)
 				{
 					_nmd_append_string(&si, "bound ");
 					_nmd_append_Gv(&si);
 					*si.buffer++ = ',';
-					_nmd_append_modrm_upper(&si, operandSize ? "dword" : "qword");
+					_nmd_append_modrm_upper(&si, operand_size ? "dword" : "qword");
 				}
 				else /* Try to parse all opcodes not parsed by the checks above. */
 				{
@@ -1479,7 +1479,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					{
 					case 0x9c: 
 					{
-						if (operandSize)
+						if (operand_size)
 							str = (instruction->mode == NMD_X86_MODE_16) ? "pushfd" : "pushf";
 						else
 							str = (instruction->mode == NMD_X86_MODE_16) ? "pushf" : ((instruction->mode == NMD_X86_MODE_32) ? "pushfd" : "pushfq");
@@ -1487,7 +1487,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					}
 					case 0x9d:
 					{
-						if (operandSize)
+						if (operand_size)
 							str = (instruction->mode == NMD_X86_MODE_16) ? "popfd" : "popf";
 						else
 							str = (instruction->mode == NMD_X86_MODE_16) ? "popf" : ((instruction->mode == NMD_X86_MODE_32) ? "popfd" : "popfq");
@@ -1495,7 +1495,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					}
 					case 0x60:
 					case 0x61:
-						str = operandSize ? (instruction->opcode == 0x60 ? "pusha" : "popa") : (instruction->opcode == 0x60 ? "pushad" : "popad");
+						str = operand_size ? (instruction->opcode == 0x60 ? "pusha" : "popa") : (instruction->opcode == 0x60 ? "pushad" : "popad");
 						break;
 					case 0xcb: str = "retf"; break;
 					case 0xc9: str = "leave"; break;
@@ -1519,15 +1519,15 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					case 0x9f: str = "lahf"; break;
 					case 0xce: str = "into"; break;
 					case 0xcf:
-						if (instruction->operandSize64)
+						if (instruction->rex_w_prefix)
 							str = "iretq";
 						else if (instruction->mode == NMD_X86_MODE_16)
-							str = operandSize ? "iretd" : "iret";
+							str = operand_size ? "iretd" : "iret";
 						else
-							str = operandSize ? "iret" : "iretd";
+							str = operand_size ? "iret" : "iretd";
 						break;
-					case 0x98: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cdqe" : (operandSize ? "cbw" : "cwde")); break;
-					case 0x99: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cqo" : (operandSize ? "cwd" : "cdq")); break;
+					case 0x98: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cdqe" : (operand_size ? "cbw" : "cwde")); break;
+					case 0x99: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cqo" : (operand_size ? "cwd" : "cdq")); break;
 					case 0xd6: str = "salc"; break;
 					case 0xf8: str = "clc"; break;
 					case 0xf9: str = "stc"; break;
@@ -1541,12 +1541,12 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				}
 			}
 	}
-	else if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_0F)
+	else if (instruction->opcode_map == NMD_X86_OPCODE_MAP_0F)
 	{
 		if (NMD_R(op) == 8)
 		{
 			*si.buffer++ = 'j';
-			_nmd_append_string(&si, _nmd_conditionSuffixes[NMD_C(op)]);
+			_nmd_append_string(&si, _nmd_condition_suffixes[NMD_C(op)]);
 			*si.buffer++ = ' ';
 			_nmd_append_relative_address16_32(&si);
 		}
@@ -1557,7 +1557,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		else if (NMD_R(op) == 4)
 		{
 			_nmd_append_string(&si, "cmov");
-			_nmd_append_string(&si, _nmd_conditionSuffixes[NMD_C(op)]);
+			_nmd_append_string(&si, _nmd_condition_suffixes[NMD_C(op)]);
 			*si.buffer++ = ' ';
 			_nmd_append_Gv(&si);
 			*si.buffer++ = ',';
@@ -1565,11 +1565,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op >= 0x10 && op <= 0x17)
 		{
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 			{
-				const char* prefix66Mnemonics[] = { "movupd", "movupd", "movlpd", "movlpd", "unpcklpd", "unpckhpd", "movhpd", "movhpd" };
+				const char* prefix66_mnemonics[] = { "movupd", "movupd", "movlpd", "movlpd", "unpcklpd", "unpckhpd", "movhpd", "movhpd" };
 
-				_nmd_append_string(&si, prefix66Mnemonics[NMD_C(op)]);
+				_nmd_append_string(&si, prefix66_mnemonics[NMD_C(op)]);
 				*si.buffer++ = ' ';
 
 				switch (NMD_C(op))
@@ -1597,11 +1597,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					break;
 				}
 			}
-			else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+			else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 			{
-				const char* prefixF3Mnemonics[] = { "movss", "movss", "movsldup", 0, 0, 0, "movshdup" };
+				const char* prefixF3_mnemonics[] = { "movss", "movss", "movsldup", 0, 0, 0, "movshdup" };
 
-				_nmd_append_string(&si, prefixF3Mnemonics[NMD_C(op)]);
+				_nmd_append_string(&si, prefixF3_mnemonics[NMD_C(op)]);
 				*si.buffer++ = ' ';
 
 				switch (NMD_C(op))
@@ -1630,11 +1630,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					break;
 				}
 			}
-			else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
+			else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
 			{
-				const char* prefixF2Mnemonics[] = { "movsd", "movsd", "movddup" };
+				const char* prefixF2_mnemonics[] = { "movsd", "movsd", "movddup" };
 
-				_nmd_append_string(&si, prefixF2Mnemonics[NMD_C(op)]);
+				_nmd_append_string(&si, prefixF2_mnemonics[NMD_C(op)]);
 				*si.buffer++ = ' ';
 
 				switch (NMD_C(op))
@@ -1660,14 +1660,14 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				const char* noPrefixMnemonics[] = { "movups", "movups", "movlps", "movlps", "unpcklps", "unpckhps", "movhps", "movhps" };
+				const char* no_prefix_mnemonics[] = { "movups", "movups", "movlps", "movlps", "unpcklps", "unpckhps", "movhps", "movhps" };
 
 				if (op == 0x12 && instruction->modrm.fields.mod == 0b11)
 					_nmd_append_string(&si, "movhlps");
 				else if (op == 0x16 && instruction->modrm.fields.mod == 0b11)
 					_nmd_append_string(&si, "movlhps");
 				else
-					_nmd_append_string(&si, noPrefixMnemonics[NMD_C(op)]);
+					_nmd_append_string(&si, no_prefix_mnemonics[NMD_C(op)]);
 				*si.buffer++ = ' ';
 
 				switch (NMD_C(op))
@@ -1721,7 +1721,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			if (op == 0x6e)
 			{
 				_nmd_append_string(&si, "movd ");
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 					*si.buffer++ = 'x';
 				_nmd_append_Pq(&si);
 				*si.buffer++ = ',';
@@ -1732,17 +1732,17 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 				{
-					const char* prefix66Mnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw", "punpcklqdq", "punpckhqdq", "movd", "movdqa" };
+					const char* prefix66_mnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw", "punpcklqdq", "punpckhqdq", "movd", "movdqa" };
 
-					_nmd_append_string(&si, op == 0x74 ? "pcmpeqb" : (op == 0x75 ? "pcmpeqw" : (op == 0x76 ? "pcmpeqd" : prefix66Mnemonics[op % 0x10])));
+					_nmd_append_string(&si, op == 0x74 ? "pcmpeqb" : (op == 0x75 ? "pcmpeqw" : (op == 0x76 ? "pcmpeqd" : prefix66_mnemonics[op % 0x10])));
 					*si.buffer++ = ' ';
 					_nmd_append_Vdq(&si);
 					*si.buffer++ = ',';
 					_nmd_append_W(&si);
 				}
-				else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+				else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 				{
 					_nmd_append_string(&si, "movdqu ");
 					_nmd_append_Vdq(&si);
@@ -1751,9 +1751,9 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				}
 				else
 				{
-					const char* noPrefixMnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw", 0, 0, "movd", "movq" };
+					const char* no_prefix_mnemonics[] = { "punpcklbw", "punpcklwd", "punpckldq", "packsswb", "pcmpgtb", "pcmpgtw", "pcmpgtd", "packuswb", "punpckhbw", "punpckhwd", "punpckhdq", "packssdw", 0, 0, "movd", "movq" };
 
-					_nmd_append_string(&si, op == 0x74 ? "pcmpeqb" : (op == 0x75 ? "pcmpeqw" : (op == 0x76 ? "pcmpeqd" : noPrefixMnemonics[op % 0x10])));
+					_nmd_append_string(&si, op == 0x74 ? "pcmpeqb" : (op == 0x75 ? "pcmpeqw" : (op == 0x76 ? "pcmpeqd" : no_prefix_mnemonics[op % 0x10])));
 					*si.buffer++ = ' ';
 					_nmd_append_Pq(&si);
 					*si.buffer++ = ',';
@@ -1763,7 +1763,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0x00)
 		{
-			_nmd_append_string(&si, _nmd_opcodeExtensionsGrp6[instruction->modrm.fields.reg]);
+			_nmd_append_string(&si, _nmd_opcode_extensions_grp6[instruction->modrm.fields.reg]);
 			*si.buffer++ = ' ';
 			if (NMD_R(instruction->modrm.modrm) == 0xc)
 				_nmd_append_Ev(&si);
@@ -1775,14 +1775,14 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			if (instruction->modrm.fields.mod == 0b11)
 			{
 				if (instruction->modrm.fields.reg == 0b000)
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp7reg0[instruction->modrm.fields.rm]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp7_reg0[instruction->modrm.fields.rm]);
 				else if (instruction->modrm.fields.reg == 0b001)
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp7reg1[instruction->modrm.fields.rm]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp7_reg1[instruction->modrm.fields.rm]);
 				else if (instruction->modrm.fields.reg == 0b010)
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp7reg2[instruction->modrm.fields.rm]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp7_reg2[instruction->modrm.fields.rm]);
 				else if (instruction->modrm.fields.reg == 0b011)
 				{
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp7reg3[instruction->modrm.fields.rm]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp7_reg3[instruction->modrm.fields.rm]);
 					if (instruction->modrm.fields.rm == 0b000 || instruction->modrm.fields.rm == 0b010 || instruction->modrm.fields.rm == 0b111)
 						_nmd_append_string(&si, instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "ax" : "eax");
 
@@ -1790,7 +1790,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 						_nmd_append_string(&si, ",ecx");
 				}
 				else if (instruction->modrm.fields.reg == 0b100)
-					_nmd_append_string(&si, "smsw "), _nmd_append_string(&si, (instruction->operandSize64 ? _nmd_reg64 : (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? _nmd_reg16 : _nmd_reg32))[instruction->modrm.fields.rm]);
+					_nmd_append_string(&si, "smsw "), _nmd_append_string(&si, (instruction->rex_w_prefix ? _nmd_reg64 : (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? _nmd_reg16 : _nmd_reg32))[instruction->modrm.fields.rm]);
 				else if (instruction->modrm.fields.reg == 0b101)
 				{
 					if (instruction->prefixes & NMD_X86_PREFIXES_REPEAT)
@@ -1802,7 +1802,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					_nmd_append_string(&si, "lmsw "), _nmd_append_string(&si, _nmd_reg16[instruction->modrm.fields.rm]);
 				else if (instruction->modrm.fields.reg == 0b111)
 				{
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp7reg7[instruction->modrm.fields.rm]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp7_reg7[instruction->modrm.fields.rm]);
 					if (instruction->modrm.fields.rm == 0b100)
 						_nmd_append_string(&si, instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "ax" : "eax");
 				}
@@ -1816,7 +1816,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				}
 				else
 				{
-					_nmd_append_string(&si, _nmd_opcodeExtensionsGrp7[instruction->modrm.fields.reg]);
+					_nmd_append_string(&si, _nmd_opcode_extensions_grp7[instruction->modrm.fields.reg]);
 					*si.buffer++ = ' ';
 					if (si.instruction->modrm.fields.reg == 0b110)
 						_nmd_append_Ew(&si);
@@ -1832,7 +1832,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			_nmd_append_Gv(&si);
 			*si.buffer++ = ',';
 			if (si.instruction->modrm.fields.mod == 0b11)
-				_nmd_append_string(&si, (operandSize ? _nmd_reg16 : _nmd_reg32)[si.instruction->modrm.fields.rm]);
+				_nmd_append_string(&si, (operand_size ? _nmd_reg16 : _nmd_reg32)[si.instruction->modrm.fields.rm]);
 			else
 				_nmd_append_modrm_upper(&si, "word");
 		}
@@ -1897,11 +1897,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 					_nmd_append_string(&si, "bndmov");
-				else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+				else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 					_nmd_append_string(&si, "bndcl");
-				else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
+				else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
 					_nmd_append_string(&si, "bndcu");
 				else
 					_nmd_append_string(&si, "bndldx");
@@ -1909,7 +1909,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				_nmd_append_string(&si, " bnd");
 				*si.buffer++ = (char)('0' + instruction->modrm.fields.reg);
 				*si.buffer++ = ',';
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 					*si.buffer++ = 'q';
 				_nmd_append_Ev(&si);
 			}
@@ -1925,11 +1925,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 					_nmd_append_string(&si, "bndmov");
-				else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+				else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 					_nmd_append_string(&si, "bndmk");
-				else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
+				else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
 					_nmd_append_string(&si, "bndcn");
 				else
 					_nmd_append_string(&si, "bndstx");
@@ -1974,11 +1974,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op >= 0x28 && op <= 0x2f)
 		{
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 			{
-				const char* prefix66Mnemonics[] = { "movapd", "movapd", "cvtpi2pd", "movntpd", "cvttpd2pi", "cvtpd2pi", "ucomisd", "comisd" };
+				const char* prefix66_mnemonics[] = { "movapd", "movapd", "cvtpi2pd", "movntpd", "cvttpd2pi", "cvtpd2pi", "ucomisd", "comisd" };
 
-				_nmd_append_string(&si, prefix66Mnemonics[op % 8]);
+				_nmd_append_string(&si, prefix66_mnemonics[op % 8]);
 				*si.buffer++ = ' ';
 
 				switch (op % 8)
@@ -2023,11 +2023,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					break;
 				}
 			}
-			else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+			else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 			{
-				const char* prefixF3Mnemonics[] = { 0, 0, "cvtsi2ss", "movntss", "cvttss2si", "cvtss2si", 0, 0 };
+				const char* prefixF3_mnemonics[] = { 0, 0, "cvtsi2ss", "movntss", "cvttss2si", "cvtss2si", 0, 0 };
 
-				_nmd_append_string(&si, prefixF3Mnemonics[op % 8]);
+				_nmd_append_string(&si, prefixF3_mnemonics[op % 8]);
 				*si.buffer++ = ' ';
 
 				switch (op % 8)
@@ -2054,11 +2054,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 					break;
 				}
 			}
-			else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
+			else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
 			{
-				const char* prefixF2Mnemonics[] = { 0, 0, "cvtsi2sd", "movntsd", "cvttsd2si", "cvtsd2si", 0, 0 };
+				const char* prefixF2_mnemonics[] = { 0, 0, "cvtsi2sd", "movntsd", "cvttsd2si", "cvtsd2si", 0, 0 };
 
-				_nmd_append_string(&si, prefixF2Mnemonics[op % 8]);
+				_nmd_append_string(&si, prefixF2_mnemonics[op % 8]);
 				*si.buffer++ = ' ';
 
 				switch (op % 8)
@@ -2086,9 +2086,9 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				const char* noPrefixMnemonics[] = { "movaps", "movaps", "cvtpi2ps", "movntps", "cvttps2pi", "cvtps2pi", "ucomiss", "comiss" };
+				const char* no_prefix_mnemonics[] = { "movaps", "movaps", "cvtpi2ps", "movntps", "cvttps2pi", "cvtps2pi", "ucomiss", "comiss" };
 
-				_nmd_append_string(&si, noPrefixMnemonics[op % 8]);
+				_nmd_append_string(&si, no_prefix_mnemonics[op % 8]);
 				*si.buffer++ = ' ';
 
 				switch (op % 8)
@@ -2141,11 +2141,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (NMD_R(op) == 5)
 		{
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 			{
-				const char* prefix66Mnemonics[] = { "movmskpd", "sqrtpd", 0, 0, "andpd", "andnpd", "orpd", "xorpd", "addpd", "mulpd", "cvtpd2ps",  "cvtps2dq", "subpd", "minpd", "divpd", "maxpd" };
+				const char* prefix66_mnemonics[] = { "movmskpd", "sqrtpd", 0, 0, "andpd", "andnpd", "orpd", "xorpd", "addpd", "mulpd", "cvtpd2ps",  "cvtps2dq", "subpd", "minpd", "divpd", "maxpd" };
 
-				_nmd_append_string(&si, prefix66Mnemonics[op % 0x10]);
+				_nmd_append_string(&si, prefix66_mnemonics[op % 0x10]);
 				*si.buffer++ = ' ';
 				if (op == 0x50)
 					_nmd_append_string(&si, _nmd_reg32[instruction->modrm.fields.reg]);
@@ -2154,11 +2154,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				*si.buffer++ = ',';
 				_nmd_append_W(&si);
 			}
-			else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+			else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 			{
-				const char* prefixF3Mnemonics[] = { 0, "sqrtss", "rsqrtss", "rcpss", 0, 0, 0, 0, "addss", "mulss", "cvtss2sd", "cvttps2dq", "subss", "minss", "divss", "maxss" };
+				const char* prefixF3_mnemonics[] = { 0, "sqrtss", "rsqrtss", "rcpss", 0, 0, 0, 0, "addss", "mulss", "cvtss2sd", "cvttps2dq", "subss", "minss", "divss", "maxss" };
 
-				_nmd_append_string(&si, prefixF3Mnemonics[op % 0x10]);
+				_nmd_append_string(&si, prefixF3_mnemonics[op % 0x10]);
 				*si.buffer++ = ' ';
 				_nmd_append_Vdq(&si);
 				*si.buffer++ = ',';
@@ -2167,11 +2167,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				else
 					_nmd_append_modrm_upper(&si, op == 0x5b ? "xmmword" : "dword");
 			}
-			else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
+			else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
 			{
-				const char* prefixF2Mnemonics[] = { 0, "sqrtsd", 0, 0, 0, 0, 0, 0, "addsd", "mulsd", "cvtsd2ss", 0, "subsd", "minsd", "divsd", "maxsd" };
+				const char* prefixF2_mnemonics[] = { 0, "sqrtsd", 0, 0, 0, 0, 0, 0, "addsd", "mulsd", "cvtsd2ss", 0, "subsd", "minsd", "divsd", "maxsd" };
 
-				_nmd_append_string(&si, prefixF2Mnemonics[op % 0x10]);
+				_nmd_append_string(&si, prefixF2_mnemonics[op % 0x10]);
 				*si.buffer++ = ' ';
 				_nmd_append_Vdq(&si);
 				*si.buffer++ = ',';
@@ -2182,9 +2182,9 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				const char* noPrefixMnemonics[] = { "movmskps", "sqrtps", "rsqrtps", "rcpps", "andps", "andnps", "orps", "xorps", "addps", "mulps", "cvtps2pd",  "cvtdq2ps", "subps", "minps", "divps", "maxps" };
+				const char* no_prefix_mnemonics[] = { "movmskps", "sqrtps", "rsqrtps", "rcpps", "andps", "andnps", "orps", "xorps", "addps", "mulps", "cvtps2pd",  "cvtdq2ps", "subps", "minps", "divps", "maxps" };
 
-				_nmd_append_string(&si, noPrefixMnemonics[op % 0x10]);
+				_nmd_append_string(&si, no_prefix_mnemonics[op % 0x10]);
 				*si.buffer++ = ' ';
 				if (op == 0x50)
 				{
@@ -2205,7 +2205,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}		
 		else if (op == 0x70)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "pshufd" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "pshufhw" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO ? "pshuflw" : "pshufw")));
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "pshufd" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "pshufhw" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO ? "pshuflw" : "pshufw")));
 			*si.buffer++ = ' ';
 			if (!(instruction->prefixes & (NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE | NMD_X86_PREFIXES_REPEAT | NMD_X86_PREFIXES_REPEAT_NOT_ZERO)))
 			{
@@ -2235,7 +2235,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 
 			*si.buffer++ = ' ';
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 				_nmd_append_Udq(&si);
 			else
 				_nmd_append_Nq(&si);
@@ -2244,7 +2244,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0x78)
 		{
-			if (!instruction->simdPrefix)
+			if (!instruction->simd_prefix)
 			{
 				_nmd_append_string(&si, "vmread ");
 				_nmd_append_Ey(&si);
@@ -2253,7 +2253,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				if(instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if(instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 					_nmd_append_string(&si, "extrq ");
 				else
 				{ 
@@ -2270,7 +2270,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0x79)
 		{
-			if (!instruction->simdPrefix)
+			if (!instruction->simd_prefix)
 			{
 				_nmd_append_string(&si, "vmwrite ");
 				_nmd_append_Gy(&si);
@@ -2279,7 +2279,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "extrq " : "insertq ");
+				_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "extrq " : "insertq ");
 				_nmd_append_Vdq(&si);
 				*si.buffer++ = ',';
 				_nmd_append_Udq(&si);
@@ -2289,7 +2289,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		else if (op == 0x7c || op == 0x7d)
 		{
 			_nmd_append_string(&si, op == 0x7c ? "haddp" : "hsubp");
-			*si.buffer++ = instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 'd' : 's';
+			*si.buffer++ = instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 'd' : 's';
 			*si.buffer++ = ' ';
 			_nmd_append_Vdq(&si);
 			*si.buffer++ = ',';
@@ -2297,8 +2297,8 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0x7e)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "movq " : "movd ");
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "movq " : "movd ");
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 			{
 				_nmd_append_Vdq(&si);
 				*si.buffer++ = ',';
@@ -2314,7 +2314,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				else
 					_nmd_append_modrm_upper(&si, "dword");
 				*si.buffer++ = ',';
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 					_nmd_append_Vdq(&si);
 				else
 					_nmd_append_Pq(&si);
@@ -2322,7 +2322,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0x7f)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "movdqu" : (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "movdqa" : "movq"));
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "movdqu" : (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "movdqa" : "movq"));
 			*si.buffer++ = ' ';
 			if (instruction->prefixes & (NMD_X86_PREFIXES_REPEAT | NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE))
 			{
@@ -2343,7 +2343,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		else if (NMD_R(op) == 9)
 		{
 			_nmd_append_string(&si, "set");
-			_nmd_append_string(&si, _nmd_conditionSuffixes[NMD_C(op)]);
+			_nmd_append_string(&si, _nmd_condition_suffixes[NMD_C(op)]);
 			*si.buffer++ = ' ';
 			_nmd_append_Eb(&si);
 		}
@@ -2377,7 +2377,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0xbc || op == 0xbd)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? (op == 0xbc ? "tzcnt" : "lzcnt") : (op == 0xbc ? "bsf" : "bsr"));
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? (op == 0xbc ? "tzcnt" : "lzcnt") : (op == 0xbc ? "bsf" : "bsr"));
 			*si.buffer++ = ' ';
 			_nmd_append_Gv(&si);
 			*si.buffer++ = ',';
@@ -2397,9 +2397,9 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		{
 			if (instruction->modrm.fields.mod == 0b11)
 			{
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 					_nmd_append_string(&si, "pcommit");
-				else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+				else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 				{
 					_nmd_append_string(&si, "incsspd ");
 					_nmd_append_string(&si, _nmd_reg32[instruction->modrm.fields.rm]);
@@ -2412,12 +2412,12 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 				{
 					_nmd_append_string(&si, instruction->modrm.fields.reg == 0b110 ? "clwb " : "clflushopt ");
 					_nmd_append_modrm_upper(&si, "byte");
 				}
-				else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+				else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 				{
 					_nmd_append_string(&si, instruction->modrm.fields.reg == 0b100 ? "ptwrite " : "clrssbsy ");
 					_nmd_append_modrm_upper(&si, instruction->modrm.fields.reg == 0b100 ? "dword" : "qword");
@@ -2505,14 +2505,14 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0xc2)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "cmppd" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "cmpss" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO ? "cmpsd" : "cmpps")));
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "cmppd" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "cmpss" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO ? "cmpsd" : "cmpps")));
 			*si.buffer++ = ' ';
 			_nmd_append_Vdq(&si);
 			*si.buffer++ = ',';
 			if (si.instruction->modrm.fields.mod == 0b11)
 				_nmd_append_Udq(&si);
 			else
-				_nmd_append_modrm_upper(&si, instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "dword" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO ? "qword" : "xmmword"));
+				_nmd_append_modrm_upper(&si, instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "dword" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO ? "qword" : "xmmword"));
 			*si.buffer++ = ',';
 			_nmd_append_number(&si, instruction->immediate);
 		}
@@ -2526,7 +2526,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		else if (op == 0xc4)
 		{
 			_nmd_append_string(&si, "pinsrw ");
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 				_nmd_append_Vdq(&si);
 			else
 				_nmd_append_Pq(&si);
@@ -2543,7 +2543,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			_nmd_append_string(&si, "pextrw ");
 			_nmd_append_string(&si, _nmd_reg32[si.instruction->modrm.fields.reg]);
 			*si.buffer++ = ',';
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 				_nmd_append_Udq(&si);
 			else
 				_nmd_append_Nq(&si);
@@ -2553,7 +2553,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		else if (op == 0xc6)
 		{
 			_nmd_append_string(&si, "shufp");
-			*si.buffer++ = instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 'd' : 's';
+			*si.buffer++ = instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 'd' : 's';
 			*si.buffer++ = ' ';
 			_nmd_append_Vdq(&si);
 			*si.buffer++ = ',';
@@ -2584,7 +2584,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				}
 				else
 				{
-					_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "vmclear" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "vmxon" : "vmptrld"));
+					_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "vmclear" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "vmxon" : "vmptrld"));
 					*si.buffer++ = ' ';
 					_nmd_append_modrm_upper(&si, "qword");
 				}
@@ -2606,12 +2606,12 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		else if (op >= 0xc8 && op <= 0xcf)
 		{
 			_nmd_append_string(&si, "bswap ");
-			_nmd_append_string(&si, (operandSize ? _nmd_reg16 : _nmd_reg32)[op % 8]);
+			_nmd_append_string(&si, (operand_size ? _nmd_reg16 : _nmd_reg32)[op % 8]);
 		}
 		else if (op == 0xd0)
 		{
 			_nmd_append_string(&si, "addsubp");
-			*si.buffer++ = instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 'd' : 's';
+			*si.buffer++ = instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 'd' : 's';
 			*si.buffer++ = ' ';
 			_nmd_append_Vdq(&si);
 			*si.buffer++ = ',';
@@ -2619,15 +2619,15 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0xd6)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "movq" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "movq2dq" : "movdq2q"));
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "movq" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "movq2dq" : "movdq2q"));
 			*si.buffer++ = ' ';
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT)
 			{
 				_nmd_append_Vdq(&si);
 				*si.buffer++ = ',';
 				_nmd_append_Nq(&si);
 			}
-			else if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
+			else if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
 			{
 				_nmd_append_Pq(&si);
 				*si.buffer++ = ',';
@@ -2648,29 +2648,29 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			_nmd_append_string(&si, "pmovmskb ");
 			_nmd_append_string(&si, _nmd_reg32[instruction->modrm.fields.reg]);
 			*si.buffer++ = ',';
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 				_nmd_append_Udq(&si);
 			else
 				_nmd_append_Nq(&si);
 		}
 		else if (op == 0xe6)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "cvttpd2dq" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "cvtdq2pd" : "cvtpd2dq"));
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "cvttpd2dq" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "cvtdq2pd" : "cvtpd2dq"));
 			*si.buffer++ = ' ';
 			_nmd_append_Vdq(&si);
 			*si.buffer++ = ',';
 			if (si.instruction->modrm.fields.mod == 0b11)
 				_nmd_append_Udq(&si);
 			else
-				_nmd_append_modrm_upper(&si, instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "qword" : "xmmword");
+				_nmd_append_modrm_upper(&si, instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "qword" : "xmmword");
 		}
 		else if (op == 0xe7)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "movntdq" : "movntq");
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "movntdq" : "movntq");
 			*si.buffer++ = ' ';
-			_nmd_append_modrm_upper(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "xmmword" : "qword");
+			_nmd_append_modrm_upper(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "xmmword" : "qword");
 			*si.buffer++ = ',';
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 				_nmd_append_Vdq(&si);
 			else
 				_nmd_append_Pq(&si);
@@ -2684,8 +2684,8 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0xf7)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "maskmovdqu " : "maskmovq ");
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "maskmovdqu " : "maskmovq ");
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 			{
 				_nmd_append_Vdq(&si);
 				*si.buffer++ = ',';
@@ -2704,7 +2704,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			*si.buffer++ = 'p';
 			_nmd_append_string(&si, mnemonics[op - 0xd1]);
 			*si.buffer++ = ' ';
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 			{
 				_nmd_append_Vdq(&si);
 				*si.buffer++ = ',';
@@ -2756,7 +2756,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			_nmd_append_string(&si, str);
 		}
 	}
-	else if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_0F38)
+	else if (instruction->opcode_map == NMD_X86_OPCODE_MAP_0F38)
 	{
 		if ((NMD_R(op) == 2 || NMD_R(op) == 3) && NMD_C(op) <= 5)
 		{
@@ -2798,11 +2798,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0xf0 || op == 0xf1)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO ? "crc32" : "movbe");
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO ? "crc32" : "movbe");
 			*si.buffer++ = ' ';
 			if (op == 0xf0)
 			{
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
 				{
 					_nmd_append_string(&si, _nmd_reg32[instruction->modrm.fields.reg]);
 					*si.buffer++ = ',';
@@ -2817,11 +2817,11 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			}
 			else
 			{
-				if (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
+				if (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO)
 				{
 					_nmd_append_string(&si, _nmd_reg32[instruction->modrm.fields.reg]);
 					*si.buffer++ = ',';
-					if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+					if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 						_nmd_append_Ew(&si);
 					else
 						_nmd_append_Ey(&si);
@@ -2836,9 +2836,9 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0xf6)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "adcx" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "adox" : (instruction->operandSize64 ? "wrssq" : "wrssd")));
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "adcx" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "adox" : (instruction->rex_w_prefix ? "wrssq" : "wrssd")));
 			*si.buffer++ = ' ';
-			if (!instruction->simdPrefix)
+			if (!instruction->simd_prefix)
 			{
 				_nmd_append_Ey(&si);
 				*si.buffer++ = ',';
@@ -2853,14 +2853,14 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 		else if (op == 0xf5)
 		{
-			_nmd_append_string(&si, instruction->operandSize64 ? "wrussq " : "wrussd ");
-			_nmd_append_modrm_upper(&si, instruction->operandSize64 ? "qword" : "dword");
+			_nmd_append_string(&si, instruction->rex_w_prefix ? "wrussq " : "wrussd ");
+			_nmd_append_modrm_upper(&si, instruction->rex_w_prefix ? "qword" : "dword");
 			*si.buffer++ = ',';
-			_nmd_append_string(&si, (instruction->operandSize64 ? _nmd_reg64 : _nmd_reg32)[instruction->modrm.fields.reg]);
+			_nmd_append_string(&si, (instruction->rex_w_prefix ? _nmd_reg64 : _nmd_reg32)[instruction->modrm.fields.reg]);
 		}
 		else if (op == 0xf8)
 		{
-			_nmd_append_string(&si, instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "movdir64b" : (instruction->simdPrefix == NMD_X86_PREFIXES_REPEAT ? "enqcmd" : "enqcmds"));
+			_nmd_append_string(&si, instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? "movdir64b" : (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT ? "enqcmd" : "enqcmds"));
 			*si.buffer++ = ' ';
 			_nmd_append_string(&si, (instruction->mode == NMD_X86_MODE_64 ? _nmd_reg64 : (instruction->mode == NMD_X86_MODE_16 ? _nmd_reg16 : _nmd_reg32))[instruction->modrm.fields.rm]);
 			*si.buffer++ = ',';
@@ -2909,7 +2909,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				*si.buffer++ = op == 0x1c ? 'b' : (op == 0x1d ? 'w' : 'd');
 			}
 			*si.buffer++ = ' ';
-			if (instruction->simdPrefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
+			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 			{
 				_nmd_append_Vdq(&si);
 				*si.buffer++ = ',';
@@ -2924,7 +2924,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 		}
 
 	}
-	else if (instruction->opcodeMap == NMD_X86_OPCODE_MAP_0F3A)
+	else if (instruction->opcode_map == NMD_X86_OPCODE_MAP_0F3A)
 	{
 		if (NMD_R(op) == 1)
 		{
@@ -2932,7 +2932,7 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 			_nmd_append_string(&si, mnemonics[op - 0x14]);
 			*si.buffer++ = ' ';
 			if (instruction->modrm.fields.mod == 0b11)
-				_nmd_append_string(&si, (si.instruction->operandSize64 ? _nmd_reg64 : _nmd_reg32)[instruction->modrm.fields.rm]);
+				_nmd_append_string(&si, (si.instruction->rex_w_prefix ? _nmd_reg64 : _nmd_reg32)[instruction->modrm.fields.rm]);
 			else
 			{
 				if (op == 0x14)
@@ -3011,18 +3011,18 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 	}
 
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX
-	if (formatFlags & NMD_X86_FORMAT_FLAGS_ATT_SYNTAX)
+	if (flags & NMD_X86_FORMAT_FLAGS_ATT_SYNTAX)
 	{
 		*si.buffer = '\0';
 		char* operand = (char*)_nmd_reverse_strchr(buffer, ' ');
 		if (operand && *(operand - 1) != ' ') /* If the instruction has a ' '(space character) and the left character of 'operand' is not ' '(space) the instruction has operands. */
 		{
 			/* If there is a memory operand. */
-			const char* memoryOperand = _nmd_strchr(buffer, '[');
-			if (memoryOperand)
+			const char* memory_operand = _nmd_strchr(buffer, '[');
+			if (memory_operand)
 			{
 				/* If the memory operand has pointer size. */
-				char* tmp2 = (char*)memoryOperand - (*(memoryOperand - 1) == ':' ? 7 : 4);
+				char* tmp2 = (char*)memory_operand - (*(memory_operand - 1) == ':' ? 7 : 4);
 				if (_nmd_strstr(tmp2, "ptr") == tmp2)
 				{
 					/* Find the ' '(space) that is after two ' '(spaces). */
@@ -3033,62 +3033,62 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 				}
 			}
 
-			const char* const firstOperandConst = operand;
-			char* firstOperand = operand + 1;
-			char* secondOperand = 0;
+			const char* const first_operand_const = operand;
+			char* first_operand = operand + 1;
+			char* second_operand = 0;
 			/* Convert each operand to AT&T syntax. */
 			do
 			{
 				operand++;
 				operand = _nmd_format_operand_to_att(operand, &si);
 				if (*operand == ',')
-					secondOperand = operand;
+					second_operand = operand;
 			} while (*operand);
 
 			/* Swap operands. */
-			if (secondOperand) /* At least two operands. */
+			if (second_operand) /* At least two operands. */
 			{
-				/* Copy first operand to 'tmpBuffer'. */
-				char tmpBuffer[64];
-				char* i = tmpBuffer;
-				char* j = firstOperand;
-				for (; j < secondOperand; i++, j++)
+				/* Copy first operand to 'tmp_buffer'. */
+				char tmp_buffer[64];
+				char* i = tmp_buffer;
+				char* j = first_operand;
+				for (; j < second_operand; i++, j++)
 					*i = *j;
 
 				*i = '\0';
 
 				/* Copy second operand to first operand. */
-				for (i = secondOperand + 1; *i; firstOperand++, i++)
-					*firstOperand = *i;
+				for (i = second_operand + 1; *i; first_operand++, i++)
+					*first_operand = *i;
 
-				*firstOperand++ = ',';
+				*first_operand++ = ',';
 
-				/* 'firstOperand' is now the second operand. */
-				/* Copy 'tmpBuffer' to second operand. */
-				for (i = tmpBuffer; *firstOperand; i++, firstOperand++)
-					*firstOperand = *i;
+				/* 'first_operand' is now the second operand. */
+				/* Copy 'tmp_buffer' to second operand. */
+				for (i = tmp_buffer; *first_operand; i++, first_operand++)
+					*first_operand = *i;
 			}
 
 			/* Memory operands change the mnemonic string(e.g. 'mov eax, dword ptr [ebx]' -> 'movl (%ebx), %eax'). */
-			if (memoryOperand && !_nmd_strstr(firstOperandConst - 4, "lea"))
+			if (memory_operand && !_nmd_strstr(first_operand_const - 4, "lea"))
 			{
-				const char* r_char = _nmd_strchr(firstOperandConst, 'r');
-				const char* e_char = _nmd_strchr(firstOperandConst, 'e');
-				const char* call_str = _nmd_strstr(firstOperandConst - 5, "call");
-				const char* jmp_str = _nmd_strstr(firstOperandConst - 4, "jmp");
-				_nmd_insert_char(firstOperandConst, (instruction->mode == NMD_X86_MODE_64 && ((r_char && *(r_char - 1) == '%') || call_str || jmp_str)) ? 'q' : (instruction->mode == NMD_X86_MODE_32 && ((e_char && *(e_char - 1) == '%') || call_str || jmp_str) ? 'l' : 'b'));
+				const char* r_char = _nmd_strchr(first_operand_const, 'r');
+				const char* e_char = _nmd_strchr(first_operand_const, 'e');
+				const char* call_str = _nmd_strstr(first_operand_const - 5, "call");
+				const char* jmp_str = _nmd_strstr(first_operand_const - 4, "jmp");
+				_nmd_insert_char(first_operand_const, (instruction->mode == NMD_X86_MODE_64 && ((r_char && *(r_char - 1) == '%') || call_str || jmp_str)) ? 'q' : (instruction->mode == NMD_X86_MODE_32 && ((e_char && *(e_char - 1) == '%') || call_str || jmp_str) ? 'l' : 'b'));
 				si.buffer++;
 			}
 		}
 	}
 #endif /* NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX */
 
-	size_t stringLength = si.buffer - buffer;
+	size_t string_length = si.buffer - buffer;
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_UPPERCASE
-	if (formatFlags & NMD_X86_FORMAT_FLAGS_UPPERCASE)
+	if (flags & NMD_X86_FORMAT_FLAGS_UPPERCASE)
 	{
 		size_t i = 0;
-		for (; i < stringLength; i++)
+		for (; i < string_length; i++)
 		{
 			if (_NMD_IS_LOWERCASE(buffer[i]))
 				buffer[i] -= 0x20; /* Capitalize letter. */
@@ -3097,42 +3097,42 @@ void nmd_x86_format_instruction(const nmd_x86_instruction* instruction, char* bu
 #endif /* NMD_ASSEMBLY_DISABLE_FORMATTER_UPPERCASE */
 
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES
-	if (formatFlags & NMD_X86_FORMAT_FLAGS_COMMA_SPACES)
+	if (flags & NMD_X86_FORMAT_FLAGS_COMMA_SPACES)
 	{
 		size_t i = 0;
-		for (; i < stringLength; i++)
+		for (; i < string_length; i++)
 		{
 			if (buffer[i] == ',')
 			{
 				/* Move all characters after the comma one position to the right. */
-				size_t j = stringLength;
+				size_t j = string_length;
 				for (; j > i; j--)
 					buffer[j] = buffer[j - 1];
 
 				buffer[i + 1] = ' ';
-				si.buffer++, stringLength++;
+				si.buffer++, string_length++;
 			}
 		}
 	}
 #endif /* NMD_ASSEMBLY_DISABLE_FORMATTER_COMMA_SPACES */
 
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_OPERATOR_SPACES
-	if (formatFlags & NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES)
+	if (flags & NMD_X86_FORMAT_FLAGS_OPERATOR_SPACES)
 	{
 		size_t i = 0;
-		for (; i < stringLength; i++)
+		for (; i < string_length; i++)
 		{
 			if (buffer[i] == '+' || (buffer[i] == '-' && buffer[i - 1] != ' ' && buffer[i - 1] != '('))
 			{
 				/* Move all characters after the operator two positions to the right. */
-				size_t j = stringLength + 1;
+				size_t j = string_length + 1;
 				for (; j > i; j--)
 					buffer[j] = buffer[j - 2];
 
 				buffer[i + 1] = buffer[i];
 				buffer[i] = ' ';
 				buffer[i + 2] = ' ';
-				si.buffer += 2, stringLength += 2;
+				si.buffer += 2, string_length += 2;
 				i++;
 			}
 		}
