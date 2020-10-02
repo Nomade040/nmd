@@ -6,7 +6,7 @@ set of single-header libraries for C/C++
 
 - C89 x86 disassembler and length disassembler: [nmd_assembly.h](nmd_assembly.h)
 - C89 graphics library: [nmd_graphics.h](nmd_graphics.h)
-- C++ memory library for windows: [nmd_memory.hpp](nmd_memory.hpp)
+- C89 network library(sockets, SOCKS4/5): [nmd_network.h](nmd_network.h)
 
 **Each library's documentation is at the start of the file.**
 
