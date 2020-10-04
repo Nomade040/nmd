@@ -21,9 +21,9 @@ typedef struct
 
 #define _NMD_D3D9_CUSTOM_VERTEX_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)
 
-void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pD3D9Device)
+void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 p_d3d9_device)
 {
-    _nmd_d3d9.device = pD3D9Device;
+    _nmd_d3d9.device = p_d3d9_device;
 
     _nmd_d3d9.viewport.X;
     _nmd_d3d9.viewport.Y = 0;
@@ -34,7 +34,7 @@ void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 pD3D9Device)
     unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
     memset(pixels, 0xff, width * height * 4);
 
-    _nmd_context.drawList.font = nmd_d3d9_create_texture(pixels, width, height);
+    _nmd_context.draw_list.default_atlas.font_id = nmd_d3d9_create_texture(pixels, width, height);
 }
 
 nmd_tex_id nmd_d3d9_create_texture(void* pixels, int width, int height)
@@ -106,7 +106,7 @@ void _nmd_d3d9_set_render_state()
 void nmd_d3d9_render()
 {
     /* Create/recreate vertex buffer if it doesn't exist or more space is needed */
-    if (!_nmd_d3d9.vb || _nmd_d3d9.vb_size < _nmd_context.drawList.numVertices)
+    if (!_nmd_d3d9.vb || _nmd_d3d9.vb_size < _nmd_context.draw_list.num_vertices)
     {
         if (_nmd_d3d9.vb)
         {
@@ -114,7 +114,7 @@ void nmd_d3d9_render()
             _nmd_d3d9.vb = 0;
         }
 
-        _nmd_d3d9.vb_size = _nmd_context.drawList.numVertices + NMD_VERTEX_BUFFER_INITIAL_SIZE;
+        _nmd_d3d9.vb_size = _nmd_context.draw_list.num_vertices + NMD_VERTEX_BUFFER_INITIAL_SIZE;
         if (_nmd_d3d9.device->CreateVertexBuffer(_nmd_d3d9.vb_size * sizeof(_nmd_d3d9_custom_vertex), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, _NMD_D3D9_CUSTOM_VERTEX_FVF, D3DPOOL_DEFAULT, &_nmd_d3d9.vb, NULL) != D3D_OK)
             return;
 
@@ -124,7 +124,7 @@ void nmd_d3d9_render()
     }
 
     /* Create/recreate index buffer if it doesn't exist or more space is needed */
-    if (!_nmd_d3d9.ib || _nmd_d3d9.ib_size < _nmd_context.drawList.numIndices)
+    if (!_nmd_d3d9.ib || _nmd_d3d9.ib_size < _nmd_context.draw_list.num_indices)
     {
         if (_nmd_d3d9.ib)
         {
@@ -132,7 +132,7 @@ void nmd_d3d9_render()
             _nmd_d3d9.ib = 0;
         }
 
-        _nmd_d3d9.ib_size = _nmd_context.drawList.numIndices + NMD_INDEX_BUFFER_INITIAL_SIZE;
+        _nmd_d3d9.ib_size = _nmd_context.draw_list.num_indices + NMD_INDEX_BUFFER_INITIAL_SIZE;
         if (_nmd_d3d9.device->CreateIndexBuffer(_nmd_d3d9.ib_size * sizeof(nmd_index), D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, sizeof(nmd_index) == 2 ? D3DFMT_INDEX16 : D3DFMT_INDEX32, D3DPOOL_DEFAULT, &_nmd_d3d9.ib, NULL) < 0)
             return;
 
@@ -142,29 +142,29 @@ void nmd_d3d9_render()
     }
 
     /* Copy vertices to the gpu */
-    _nmd_d3d9_custom_vertex* pVertices = 0;
-    if (_nmd_d3d9.vb->Lock(0, (UINT)(_nmd_context.drawList.numVertices * sizeof(_nmd_d3d9_custom_vertex)), (void**)&pVertices, D3DLOCK_DISCARD) != D3D_OK)
+    _nmd_d3d9_custom_vertex* p_vertices = 0;
+    if (_nmd_d3d9.vb->Lock(0, (UINT)(_nmd_context.draw_list.num_vertices * sizeof(_nmd_d3d9_custom_vertex)), (void**)&p_vertices, D3DLOCK_DISCARD) != D3D_OK)
         return;
     size_t i = 0;
-    for (; i < _nmd_context.drawList.numVertices; i++)
+    for (; i < _nmd_context.draw_list.num_vertices; i++)
     {
-        pVertices[i].pos[0] = _nmd_context.drawList.vertices[i].pos.x;
-        pVertices[i].pos[1] = _nmd_context.drawList.vertices[i].pos.y;
-        pVertices[i].pos[2] = 0.0f;
+        p_vertices[i].pos[0] = _nmd_context.draw_list.vertices[i].pos.x;
+        p_vertices[i].pos[1] = _nmd_context.draw_list.vertices[i].pos.y;
+        p_vertices[i].pos[2] = 0.0f;
 
-        pVertices[i].uv[0] = _nmd_context.drawList.vertices[i].uv.x;
-        pVertices[i].uv[1] = _nmd_context.drawList.vertices[i].uv.y;
+        p_vertices[i].uv[0] = _nmd_context.draw_list.vertices[i].uv.x;
+        p_vertices[i].uv[1] = _nmd_context.draw_list.vertices[i].uv.y;
 
-        const nmd_color color = _nmd_context.drawList.vertices[i].color;
-        pVertices[i].color = D3DCOLOR_RGBA(color.r, color.g, color.b, color.a);
+        const nmd_color color = _nmd_context.draw_list.vertices[i].color;
+        p_vertices[i].color = D3DCOLOR_RGBA(color.r, color.g, color.b, color.a);
     }
     _nmd_d3d9.vb->Unlock();
 
     /* Copy indices to the gpu */
-    nmd_index* pIndices = 0;
-    if (_nmd_d3d9.ib->Lock(0, (UINT)(_nmd_context.drawList.numIndices * sizeof(nmd_index)), (void**)&pIndices, D3DLOCK_DISCARD) != D3D_OK)
+    nmd_index* p_indices = 0;
+    if (_nmd_d3d9.ib->Lock(0, (UINT)(_nmd_context.draw_list.num_indices * sizeof(nmd_index)), (void**)&p_indices, D3DLOCK_DISCARD) != D3D_OK)
         return;
-    memcpy(pIndices, _nmd_context.drawList.indices, _nmd_context.drawList.numIndices * sizeof(nmd_index));
+    memcpy(p_indices, _nmd_context.draw_list.indices, _nmd_context.draw_list.num_indices * sizeof(nmd_index));
     _nmd_d3d9.ib->Unlock();
     
 #ifndef NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE
@@ -184,26 +184,26 @@ void nmd_d3d9_render()
 #endif /* NMD_GRAPHICS_D3D9_OPTIMIZE_RENDER_STATE */
     
     /* Render draw commands */
-    size_t indexOffset = 0;
-    for (i = 0; i < _nmd_context.drawList.numDrawCommands; i++)
+    size_t index_offset = 0;
+    for (i = 0; i < _nmd_context.draw_list.num_draw_commands; i++)
     {
         /* Apply scissor rectangle */
         RECT r;
-        if (_nmd_context.drawList.drawCommands[i].rect.p1.x == -1.0f)
+        if (_nmd_context.draw_list.draw_commands[i].rect.p1.x == -1.0f)
             r = { (LONG)_nmd_d3d9.viewport.X, (LONG)_nmd_d3d9.viewport.Y, (LONG)_nmd_d3d9.viewport.Width, (LONG)_nmd_d3d9.viewport.Height };
         else
-            r = { (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p0.y, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.x, (LONG)_nmd_context.drawList.drawCommands[i].rect.p1.y };
+            r = { (LONG)_nmd_context.draw_list.draw_commands[i].rect.p0.x, (LONG)_nmd_context.draw_list.draw_commands[i].rect.p0.y, (LONG)_nmd_context.draw_list.draw_commands[i].rect.p1.x, (LONG)_nmd_context.draw_list.draw_commands[i].rect.p1.y };
         _nmd_d3d9.device->SetScissorRect(&r);
         
         /* Set texture */
-        const LPDIRECT3DTEXTURE9 texture = (LPDIRECT3DTEXTURE9)_nmd_context.drawList.drawCommands[i].userTextureId;
+        const LPDIRECT3DTEXTURE9 texture = (LPDIRECT3DTEXTURE9)_nmd_context.draw_list.draw_commands[i].user_texture_id;
         _nmd_d3d9.device->SetTexture(0, texture);
 
         /* Issue draw calls */
-        _nmd_d3d9.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, (UINT)_nmd_context.drawList.drawCommands[i].numVertices, indexOffset, _nmd_context.drawList.drawCommands[i].numIndices / 3);
+        _nmd_d3d9.device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 0, (UINT)_nmd_context.draw_list.draw_commands[i].num_vertices, index_offset, _nmd_context.draw_list.draw_commands[i].num_indices / 3);
         
         /* Update offsets */
-        indexOffset += _nmd_context.drawList.drawCommands[i].numIndices;
+        index_offset += _nmd_context.draw_list.draw_commands[i].num_indices;
     }
 
 #ifndef NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE

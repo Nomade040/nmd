@@ -27,99 +27,99 @@ nmd_context* nmd_get_context()
 /*
 Creates one or more draw commands for the unaccounted vertices and indices.
 Parameters:
- clipRect [opt/in] A pointer to a rect that specifies the clip area. This parameter can be null.
+ clip_rect [opt/in] A pointer to a rect that specifies the clip area. This parameter can be null.
 */
-void nmd_push_draw_command(const nmd_rect* clipRect)
+void nmd_push_draw_command(const nmd_rect* clip_rect)
 {
     /* Calculate the number of vertices and indices present in draw commands */
-    size_t numAccountedVertices = 0, numAccountedIndices = 0;
+    size_t num_accounted_vertices = 0, num_accounted_indices = 0;
     size_t i = 0;
-    for (; i < _nmd_context.drawList.numDrawCommands; i++)
+    for (; i < _nmd_context.draw_list.num_draw_commands; i++)
     {
-        numAccountedVertices += _nmd_context.drawList.drawCommands[i].numVertices;
-        numAccountedIndices += _nmd_context.drawList.drawCommands[i].numIndices;
+        num_accounted_vertices += _nmd_context.draw_list.draw_commands[i].num_vertices;
+        num_accounted_indices += _nmd_context.draw_list.draw_commands[i].num_indices;
     }
 
     /* Calculate the number of vertices and indices NOT present in draw commands */
-    size_t numUnaccountedIndices = _nmd_context.drawList.numIndices - numAccountedIndices;
+    size_t num_unaccounted_indices = _nmd_context.draw_list.num_indices - num_accounted_indices;
 
     /* Create draw commands until all vertices and indices are present in draw commands */
-    while (numUnaccountedIndices > 0)
+    while (num_unaccounted_indices > 0)
     {
         /* If the number of unaccounted indices is less than the maximum number of indices that can be hold by 'nmd_index'(usually 2^16) */
-        if (numUnaccountedIndices < (1 << (8 * sizeof(nmd_index))))
+        if (num_unaccounted_indices < (1 << (8 * sizeof(nmd_index))))
         {
             /* Add draw command */
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numVertices - numAccountedVertices;
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = _nmd_context.drawList.numIndices - numAccountedIndices;
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = _nmd_context.drawList.blank_tex_id;
-            if (clipRect)
-                _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect = *clipRect;
+            _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].num_vertices = _nmd_context.draw_list.num_vertices - num_accounted_vertices;
+            _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].num_indices = _nmd_context.draw_list.num_indices - num_accounted_indices;
+            _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].user_texture_id = _nmd_context.draw_list.blank_tex_id;
+            if (clip_rect)
+                _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].rect = *clip_rect;
             else
-                _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect.p1.x = -1.0f;
+                _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].rect.p1.x = -1.0f;
 
-            _nmd_context.drawList.numDrawCommands++;
+            _nmd_context.draw_list.num_draw_commands++;
             return;
         }
         else
         {
-            size_t numIndices = (1 << (8 * sizeof(nmd_index)));
-            nmd_index lastIndex = _nmd_context.drawList.indices[numIndices - 1];
+            size_t num_indices = (1 << (8 * sizeof(nmd_index)));
+            nmd_index last_index = _nmd_context.draw_list.indices[num_indices - 1];
 
-            bool isLastIndexReferenced = false;
+            bool is_last_index_referenced = false;
             do
             {
-                for (size_t i = numIndices; i < numUnaccountedIndices; i++)
+                for (size_t i = num_indices; i < num_unaccounted_indices; i++)
                 {
-                    if (_nmd_context.drawList.indices[i] == lastIndex)
+                    if (_nmd_context.draw_list.indices[i] == last_index)
                     {
-                        isLastIndexReferenced = true;
-                        numIndices -= 3;
-                        lastIndex = _nmd_context.drawList.indices[numIndices - 1];
+                        is_last_index_referenced = true;
+                        num_indices -= 3;
+                        last_index = _nmd_context.draw_list.indices[num_indices - 1];
                         break;
                     }
                 }
-            } while (isLastIndexReferenced);
+            } while (is_last_index_referenced);
 
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = lastIndex + 1;
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numIndices;
-            _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = _nmd_context.drawList.blank_tex_id;
+            _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].num_vertices = last_index + 1;
+            _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].num_indices = num_indices;
+            _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].user_texture_id = _nmd_context.draw_list.blank_tex_id;
 
-            _nmd_context.drawList.numDrawCommands++;
+            _nmd_context.draw_list.num_draw_commands++;
 
-            numUnaccountedIndices -= numIndices;
+            num_unaccounted_indices -= num_indices;
         }
     }
 }
 
-void nmd_push_texture_draw_command(nmd_tex_id userTextureId, const nmd_rect* clipRect)
+void nmd_push_texture_draw_command(nmd_tex_id user_texture_id, const nmd_rect* clip_rect)
 {
-    size_t numAccountedVertices = 0, numAccountedIndices = 0;
+    size_t num_accounted_vertices = 0, num_accounted_indices = 0;
     size_t i = 0;
-    for (; i < _nmd_context.drawList.numDrawCommands; i++)
+    for (; i < _nmd_context.draw_list.num_draw_commands; i++)
     {
-        numAccountedVertices += _nmd_context.drawList.drawCommands[i].numVertices;
-        numAccountedIndices += _nmd_context.drawList.drawCommands[i].numIndices;
+        num_accounted_vertices += _nmd_context.draw_list.draw_commands[i].num_vertices;
+        num_accounted_indices += _nmd_context.draw_list.draw_commands[i].num_indices;
     }
 
-    const size_t numUnaccountedIndices = _nmd_context.drawList.numIndices - numAccountedIndices;
+    const size_t num_unaccounted_indices = _nmd_context.draw_list.num_indices - num_accounted_indices;
 
-    _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numVertices = _nmd_context.drawList.numVertices - numAccountedVertices;
-    _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].numIndices = numUnaccountedIndices;
-    _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].userTextureId = userTextureId;
-    if (clipRect)
-        _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect = *clipRect;
+    _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].num_vertices = _nmd_context.draw_list.num_vertices - num_accounted_vertices;
+    _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].num_indices = num_unaccounted_indices;
+    _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].user_texture_id = user_texture_id;
+    if (clip_rect)
+        _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].rect = *clip_rect;
     else
-        _nmd_context.drawList.drawCommands[_nmd_context.drawList.numDrawCommands].rect.p1.x = -1.0f;
-    _nmd_context.drawList.numDrawCommands++;
+        _nmd_context.draw_list.draw_commands[_nmd_context.draw_list.num_draw_commands].rect.p1.x = -1.0f;
+    _nmd_context.draw_list.num_draw_commands++;
 }
 
-void _nmd_calculate_circle_segments(float maxError)
+void _nmd_calculate_circle_segments(float max_error)
 {
     for (size_t i = 0; i < 64; i++)
     {
-        const uint8_t segment_count = NMD_CIRCLE_AUTO_SEGMENT_CALC(i + 1.0f, maxError);
-        _nmd_context.drawList.cachedCircleSegmentCounts64[i] = NMD_MIN(segment_count, 255);
+        const uint8_t segment_count = NMD_CIRCLE_AUTO_SEGMENT_CALC(i + 1.0f, max_error);
+        _nmd_context.draw_list.cached_circle_segment_counts64[i] = NMD_MIN(segment_count, 255);
     }
 }
 
@@ -137,30 +137,30 @@ void nmd_new_frame()
     {
         _nmd_initialized = true;
 
-        _nmd_context.drawList.lineAntiAliasing = true;
-        _nmd_context.drawList.fillAntiAliasing = true;
+        _nmd_context.draw_list.line_anti_aliasing = true;
+        _nmd_context.draw_list.fill_anti_aliasing = true;
 
         for (size_t i = 0; i < 12; i++)
         {
             const float angle = (i / 12.0f) * NMD_2PI;
-            _nmd_context.drawList.cachedCircleVertices12[i].x = NMD_COS(angle);
-            _nmd_context.drawList.cachedCircleVertices12[i].y = NMD_SIN(angle);
+            _nmd_context.draw_list.cached_circle_vertices12[i].x = NMD_COS(angle);
+            _nmd_context.draw_list.cached_circle_vertices12[i].y = NMD_SIN(angle);
         }
         
         _nmd_calculate_circle_segments(1.6f);
 
         /* Allocate buffers */
-        _nmd_context.drawList.path = (nmd_vec2*)NMD_ALLOC(NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2));
-        _nmd_context.drawList.pathCapacity = NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2);
+        _nmd_context.draw_list.path = (nmd_vec2*)NMD_ALLOC(NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2));
+        _nmd_context.draw_list.path_capacity = NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2);
 
-        _nmd_context.drawList.vertices = (nmd_vertex*)NMD_ALLOC(NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex));
-        _nmd_context.drawList.verticesCapacity = NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex);
+        _nmd_context.draw_list.vertices = (nmd_vertex*)NMD_ALLOC(NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex));
+        _nmd_context.draw_list.vertices_capacity = NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex);
 
-        _nmd_context.drawList.indices = (nmd_index*)NMD_ALLOC(NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index));
-        _nmd_context.drawList.indicesCapacity = NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index);
+        _nmd_context.draw_list.indices = (nmd_index*)NMD_ALLOC(NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index));
+        _nmd_context.draw_list.indices_capacity = NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index);
 
-        _nmd_context.drawList.drawCommands = (nmd_draw_command*)NMD_ALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
-        _nmd_context.drawList.drawCommandsCapacity = NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command);
+        _nmd_context.draw_list.draw_commands = (nmd_draw_command*)NMD_ALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
+        _nmd_context.draw_list.draw_commands_capacity = NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command);
 
         _nmd_context.gui.num_windows = 0;
         _nmd_context.gui.windows = (nmd_window*)NMD_ALLOC(NMD_WINDOWS_BUFFER_INITIAL_SIZE * sizeof(nmd_window));
@@ -170,9 +170,9 @@ void nmd_new_frame()
         _nmd_context.gui.window_pos.y = 60;
     }
 
-    _nmd_context.drawList.numVertices = 0;
-    _nmd_context.drawList.numIndices = 0;
-    _nmd_context.drawList.numDrawCommands = 0;
+    _nmd_context.draw_list.num_vertices = 0;
+    _nmd_context.draw_list.num_indices = 0;
+    _nmd_context.draw_list.num_draw_commands = 0;
 
 #ifdef _WIN32
     POINT point;
@@ -212,9 +212,9 @@ bool nmd_bake_font_from_memory(const void* font_data, nmd_atlas* atlas, float si
     return true;
 }
 
-bool nmd_bake_font(const char* fontPath, nmd_atlas* atlas, float size)
+bool nmd_bake_font(const char* font_path, nmd_atlas* atlas, float size)
 {
-    FILE* f = fopen(fontPath, "rb");
+    FILE* f = fopen(font_path, "rb");
 
     /* Get file size*/
     fseek(f, 0L, SEEK_END);
