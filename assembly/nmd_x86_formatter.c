@@ -8,13 +8,13 @@ typedef struct
 	uint32_t flags;
 } _nmd_string_info;
 
-void _nmd_append_string(_nmd_string_info* const si, const char* source)
+NMD_ASSEMBLY_API void _nmd_append_string(_nmd_string_info* const si, const char* source)
 {
 	while (*source)
 		*si->buffer++ = *source++;
 }
 
-size_t _nmd_get_num_digits(uint64_t n, bool hex)
+NMD_ASSEMBLY_API size_t _nmd_get_num_digits(uint64_t n, bool hex)
 {
 	size_t num_digits = 0;
 	while ((n /= (hex ? 16 : 10)) > 0)
@@ -23,7 +23,7 @@ size_t _nmd_get_num_digits(uint64_t n, bool hex)
 	return num_digits;
 }
 
-void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
+NMD_ASSEMBLY_API void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
 {
 	size_t num_digits = _nmd_get_num_digits(n, si->flags & NMD_X86_FORMAT_FLAGS_HEX);
 	size_t buffer_offset = num_digits + 1;
@@ -53,7 +53,7 @@ void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
 	si->buffer += buffer_offset;
 }
 
-void _nmd_append_signed_number(_nmd_string_info* const si, int64_t n, bool show_positive_sign)
+NMD_ASSEMBLY_API void _nmd_append_signed_number(_nmd_string_info* const si, int64_t n, bool show_positive_sign)
 {
 	if (n >= 0)
 	{
@@ -69,7 +69,7 @@ void _nmd_append_signed_number(_nmd_string_info* const si, int64_t n, bool show_
 	}
 }
 
-void _nmd_append_signed_number_memory_view(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_signed_number_memory_view(_nmd_string_info* const si)
 {
 	_nmd_append_number(si, (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? 0xFF00 : (si->instruction->mode == NMD_X86_MODE_64 ? 0xFFFFFFFFFFFFFF00 : 0xFFFFFF00)) | si->instruction->immediate);
 	if (si->flags & NMD_X86_FORMAT_FLAGS_SIGNED_NUMBER_HINT_HEX)
@@ -89,7 +89,7 @@ void _nmd_append_signed_number_memory_view(_nmd_string_info* const si)
 	}
 }
 
-void _nmd_append_relative_address8(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_relative_address8(_nmd_string_info* const si)
 {
 	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
@@ -109,7 +109,7 @@ void _nmd_append_relative_address8(_nmd_string_info* const si)
 	}
 }
 
-void _nmd_append_relative_address16_32(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_relative_address16_32(_nmd_string_info* const si)
 {
 	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
@@ -123,7 +123,7 @@ void _nmd_append_relative_address16_32(_nmd_string_info* const si)
 		));
 }
 
-void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* addr_specifier_reg)
+NMD_ASSEMBLY_API void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* addr_specifier_reg)
 {
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE
 	if (si->flags & NMD_X86_FORMAT_FLAGS_POINTER_SIZE)
@@ -144,7 +144,7 @@ void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* add
 	}
 }
 
-void _nmd_append_modrm16_upper(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_modrm16_upper(_nmd_string_info* const si)
 {
 	*si->buffer++ = '[';
 
@@ -177,7 +177,7 @@ void _nmd_append_modrm16_upper(_nmd_string_info* const si)
 	*si->buffer++ = ']';
 }
 
-void _nmd_append_modrm32_upper(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 {
 	*si->buffer++ = '[';
 
@@ -252,7 +252,7 @@ void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 	*si->buffer++ = ']';
 }
 
-void _nmd_append_modrm_upper(_nmd_string_info* const si, const char* addr_specifier_reg)
+NMD_ASSEMBLY_API void _nmd_append_modrm_upper(_nmd_string_info* const si, const char* addr_specifier_reg)
 {
 	_nmd_append_modrm_memory_prefix(si, addr_specifier_reg);
 
@@ -262,7 +262,7 @@ void _nmd_append_modrm_upper(_nmd_string_info* const si, const char* addr_specif
 		_nmd_append_modrm32_upper(si);
 }
 
-void _nmd_append_modrm_upper_without_address_specifier(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_modrm_upper_without_address_specifier(_nmd_string_info* const si)
 {
 	if ((si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE)) || (si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32))
 		_nmd_append_modrm16_upper(si);
@@ -270,25 +270,25 @@ void _nmd_append_modrm_upper_without_address_specifier(_nmd_string_info* const s
 		_nmd_append_modrm32_upper(si);
 }
 
-void _nmd_append_Nq(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Nq(_nmd_string_info* const si)
 {
 	*si->buffer++ = 'm', *si->buffer++ = 'm';
 	*si->buffer++ = (char)('0' + si->instruction->modrm.fields.rm);
 }
 
-void _nmd_append_Pq(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Pq(_nmd_string_info* const si)
 {
 	*si->buffer++ = 'm', *si->buffer++ = 'm';
 	*si->buffer++ = (char)('0' + si->instruction->modrm.fields.reg);
 }
 
-void _nmd_append_avx_register_reg(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_avx_register_reg(_nmd_string_info* const si)
 {
 	*si->buffer++ = si->instruction->vex.L ? 'y' : 'x';
 	_nmd_append_Pq(si);
 }
 
-void _nmd_append_avx_vvvv_register(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_avx_vvvv_register(_nmd_string_info* const si)
 {
 	*si->buffer++ = si->instruction->vex.L ? 'y' : 'x';
 	*si->buffer++ = 'm', *si->buffer++ = 'm';
@@ -298,19 +298,19 @@ void _nmd_append_avx_vvvv_register(_nmd_string_info* const si)
 		*si->buffer++ = (char)('0' + (15 - si->instruction->vex.vvvv));
 }
 
-void _nmd_append_Vdq(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Vdq(_nmd_string_info* const si)
 {
 	*si->buffer++ = 'x';
 	_nmd_append_Pq(si);
 }
 
-void _nmd_append_Vqq(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Vqq(_nmd_string_info* const si)
 {
 	*si->buffer++ = 'y';
 	_nmd_append_Pq(si);
 }
 
-void _nmd_append_Vx(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Vx(_nmd_string_info* const si)
 {
 	if (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		_nmd_append_Vdq(si);
@@ -318,19 +318,19 @@ void _nmd_append_Vx(_nmd_string_info* const si)
 		_nmd_append_Vqq(si);
 }
 
-void _nmd_append_Udq(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Udq(_nmd_string_info* const si)
 {
 	*si->buffer++ = 'x';
 	_nmd_append_Nq(si);
 }
 
-void _nmd_append_Uqq(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Uqq(_nmd_string_info* const si)
 {
 	*si->buffer++ = 'y';
 	_nmd_append_Nq(si);
 }
 
-void _nmd_append_Ux(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Ux(_nmd_string_info* const si)
 {
 	if (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		_nmd_append_Udq(si);
@@ -338,7 +338,7 @@ void _nmd_append_Ux(_nmd_string_info* const si)
 		_nmd_append_Uqq(si);
 }
 
-void _nmd_append_Qq(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Qq(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
 		_nmd_append_Nq(si);
@@ -346,7 +346,7 @@ void _nmd_append_Qq(_nmd_string_info* const si)
 		_nmd_append_modrm_upper(si, "qword");
 }
 
-void _nmd_append_Ev(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Ev(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
 	{
@@ -363,7 +363,7 @@ void _nmd_append_Ev(_nmd_string_info* const si)
 		_nmd_append_modrm_upper(si, (si->instruction->rex_w_prefix) ? "qword" : ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode != NMD_X86_MODE_16) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? "word" : "dword"));
 }
 
-void _nmd_append_Ey(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Ey(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
 		_nmd_append_string(si, (si->instruction->rex_w_prefix ? _nmd_reg64 : _nmd_reg32)[si->instruction->modrm.fields.rm]);
@@ -371,7 +371,7 @@ void _nmd_append_Ey(_nmd_string_info* const si)
 		_nmd_append_modrm_upper(si, si->instruction->rex_w_prefix ? "qword" : "dword");
 }
 
-void _nmd_append_Eb(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Eb(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
 	{
@@ -384,7 +384,7 @@ void _nmd_append_Eb(_nmd_string_info* const si)
 		_nmd_append_modrm_upper(si, "byte");
 }
 
-void _nmd_append_Ew(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Ew(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
 		_nmd_append_string(si, _nmd_reg16[si->instruction->modrm.fields.rm]);
@@ -392,7 +392,7 @@ void _nmd_append_Ew(_nmd_string_info* const si)
 		_nmd_append_modrm_upper(si, "word");
 }
 
-void _nmd_append_Ed(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Ed(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
 		_nmd_append_string(si, _nmd_reg32[si->instruction->modrm.fields.rm]);
@@ -400,7 +400,7 @@ void _nmd_append_Ed(_nmd_string_info* const si)
 		_nmd_append_modrm_upper(si, "dword");
 }
 
-void _nmd_append_Eq(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Eq(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
 		_nmd_append_string(si, _nmd_reg64[si->instruction->modrm.fields.rm]);
@@ -408,12 +408,12 @@ void _nmd_append_Eq(_nmd_string_info* const si)
 		_nmd_append_modrm_upper(si, "qword");
 }
 
-void _nmd_append_Rv(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Rv(_nmd_string_info* const si)
 {
 	_nmd_append_string(si, (si->instruction->rex_w_prefix ? _nmd_reg64 : (si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? _nmd_reg16 : _nmd_reg32))[si->instruction->modrm.fields.rm]);
 }
 
-void _nmd_append_Gv(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Gv(_nmd_string_info* const si)
 {
 	if (si->instruction->prefixes & NMD_X86_PREFIXES_REX_R)
 	{
@@ -425,12 +425,12 @@ void _nmd_append_Gv(_nmd_string_info* const si)
 		_nmd_append_string(si, ((si->instruction->rex_w_prefix) ? _nmd_reg64 : ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode != NMD_X86_MODE_16) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? _nmd_reg16 : _nmd_reg32))[si->instruction->modrm.fields.reg]);
 }
 
-void _nmd_append_Gy(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Gy(_nmd_string_info* const si)
 {
 	_nmd_append_string(si, (si->instruction->rex_w_prefix ? _nmd_reg64 : _nmd_reg32)[si->instruction->modrm.fields.reg]);
 }
 
-void _nmd_append_Gb(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Gb(_nmd_string_info* const si)
 {
 	if (si->instruction->prefixes & NMD_X86_PREFIXES_REX_R)
 		_nmd_append_string(si, _nmd_regrx[si->instruction->modrm.fields.reg]), *si->buffer++ = 'b';
@@ -438,12 +438,12 @@ void _nmd_append_Gb(_nmd_string_info* const si)
 		_nmd_append_string(si, (si->instruction->has_rex ? _nmd_reg8_x64 : _nmd_reg8)[si->instruction->modrm.fields.reg]);
 }
 
-void _nmd_append_Gw(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_Gw(_nmd_string_info* const si)
 {
 	_nmd_append_string(si, _nmd_reg16[si->instruction->modrm.fields.reg]);
 }
 
-void _nmd_append_W(_nmd_string_info* const si)
+NMD_ASSEMBLY_API void _nmd_append_W(_nmd_string_info* const si)
 {
 	if (si->instruction->modrm.fields.mod == 0b11)
 		_nmd_append_string(si, "xmm"), *si->buffer++ = (char)('0' + si->instruction->modrm.fields.rm);
@@ -452,7 +452,7 @@ void _nmd_append_W(_nmd_string_info* const si)
 }
 
 #ifndef NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX
-char* _nmd_format_operand_to_att(char* operand, _nmd_string_info* si)
+NMD_ASSEMBLY_API char* _nmd_format_operand_to_att(char* operand, _nmd_string_info* si)
 {
 	char* next_operand = (char*)_nmd_strchr(operand, ',');
 	const char* operand_end = next_operand ? next_operand : si->buffer;
@@ -580,7 +580,7 @@ Parameters:
  - runtime_address [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
  - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
-void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags)
+NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags)
 {
 	if (!instruction->valid)
 		return;

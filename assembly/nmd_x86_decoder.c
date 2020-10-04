@@ -1,6 +1,6 @@
 #include "nmd_common.h"
 
-void _nmd_decode_operand_segment_reg(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_segment_reg(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	if (instruction->segment_override)
 		operand->fields.reg = (uint8_t)(NMD_X86_REG_ES + _nmd_get_bit_index(instruction->segment_override));
@@ -8,7 +8,7 @@ void _nmd_decode_operand_segment_reg(const nmd_x86_instruction* instruction, nmd
 		operand->fields.reg = (uint8_t)(!(instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (instruction->modrm.fields.rm == 0b100 || instruction->modrm.fields.rm == 0b101) ? NMD_X86_REG_SS : NMD_X86_REG_DS);
 }
 
-void _nmd_decode_modrm_upper32(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_modrm_upper32(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_MEMORY;
 
@@ -47,7 +47,7 @@ void _nmd_decode_modrm_upper32(const nmd_x86_instruction* instruction, nmd_x86_o
 	operand->size += (uint8_t)(instruction->disp_mask);
 }
 
-void _nmd_decode_memory_operand(const nmd_x86_instruction* instruction, nmd_x86_operand* operand, uint8_t mod11base_reg)
+NMD_ASSEMBLY_API void _nmd_decode_memory_operand(const nmd_x86_instruction* instruction, nmd_x86_operand* operand, uint8_t mod11base_reg)
 {
 	/* At least one byte is used for ModR/M. */
 	operand->size = 1;
@@ -61,58 +61,58 @@ void _nmd_decode_memory_operand(const nmd_x86_instruction* instruction, nmd_x86_
 		_nmd_decode_modrm_upper32(instruction, operand);
 }
 
-void _nmd_decode_operand_Eb(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Eb(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	_nmd_decode_memory_operand(instruction, operand, NMD_X86_REG_AL);
 }
 
-void _nmd_decode_operand_Ew(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Ew(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	_nmd_decode_memory_operand(instruction, operand, NMD_X86_REG_AX);
 }
 
-void _nmd_decode_operand_Ev(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Ev(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	_nmd_decode_memory_operand(instruction, operand, (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
 }
 
-void _nmd_decode_operand_Ey(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Ey(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	_nmd_decode_memory_operand(instruction, operand, (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
 }
 
-void _nmd_decode_operand_Qq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Qq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	_nmd_decode_memory_operand(instruction, operand, NMD_X86_REG_MM0);
 }
 
-void _nmd_decode_operand_Wdq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Wdq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	_nmd_decode_memory_operand(instruction, operand, NMD_X86_REG_XMM0);
 }
 
-void _nmd_decode_operand_Gb(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Gb(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_AL + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Gd(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Gd(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_EAX + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Gw(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Gw(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_AX + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Gv(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Gv(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	if (instruction->prefixes & NMD_X86_PREFIXES_REX_B)
@@ -122,7 +122,7 @@ void _nmd_decode_operand_Gv(const nmd_x86_instruction* instruction, nmd_x86_oper
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Rv(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Rv(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	if (instruction->prefixes & NMD_X86_PREFIXES_REX_R)
@@ -132,42 +132,42 @@ void _nmd_decode_operand_Rv(const nmd_x86_instruction* instruction, nmd_x86_oper
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Gy(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Gy(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = (uint8_t)((instruction->mode == NMD_X86_MODE_64 ? NMD_X86_REG_RAX : NMD_X86_REG_EAX) + instruction->modrm.fields.reg);
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Pq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Pq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_MM0 + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Nq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Nq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_MM0 + instruction->modrm.fields.rm;
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Vdq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Vdq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_XMM0 + instruction->modrm.fields.reg;
 	operand->size = 1;
 }
 
-void _nmd_decode_operand_Udq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
+NMD_ASSEMBLY_API void _nmd_decode_operand_Udq(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
 	operand->type = NMD_X86_OPERAND_TYPE_REGISTER;
 	operand->fields.reg = NMD_X86_REG_XMM0 + instruction->modrm.fields.rm;
 	operand->size = 1;
 }
 
-void _nmd_decode_conditional_flag(nmd_x86_instruction* instruction, const uint8_t condition)
+NMD_ASSEMBLY_API void _nmd_decode_conditional_flag(nmd_x86_instruction* instruction, const uint8_t condition)
 {
 	switch (condition)
 	{
@@ -191,7 +191,7 @@ void _nmd_decode_conditional_flag(nmd_x86_instruction* instruction, const uint8_
 }
 
 /* 'remaningSize' in the context of this function is the number of bytes the instruction takes not counting prefixes and opcode. */
-bool _nmd_decode_modrm(const uint8_t** b, nmd_x86_instruction* const instruction, const size_t remaining_size)
+NMD_ASSEMBLY_API bool _nmd_decode_modrm(const uint8_t** b, nmd_x86_instruction* const instruction, const size_t remaining_size)
 {
 	if (remaining_size == 0)
 		return false;
@@ -262,7 +262,7 @@ Parameters:
  - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
 */
-bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags)
+NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags)
 {
 	if (buffer_size == 0)
 		return false;

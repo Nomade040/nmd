@@ -1,6 +1,6 @@
 #include "nmd_common.h"
 
-bool _nmd_ldisasm_parse_modrm(const uint8_t** b, bool address_prefix, NMD_X86_MODE mode, nmd_x86_modrm* const p_modrm, size_t remaining_size)
+NMD_ASSEMBLY_API bool _nmd_ldisasm_parse_modrm(const uint8_t** b, bool address_prefix, NMD_X86_MODE mode, nmd_x86_modrm* const p_modrm, size_t remaining_size)
 {
 	if (remaining_size == 0)
 		return false;
@@ -66,7 +66,7 @@ Parameters:
  - buffer_size [in] The size of the buffer in bytes.
  - mode        [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
 */
-size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode)
+NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode)
 {
 	const uint8_t* b = (const uint8_t*)(buffer);
 
