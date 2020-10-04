@@ -17,6 +17,8 @@ Using absolutely no headers/dependencies:
 Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
 Be aware: This feature uses platform dependent macros.
 
+You may define the 'NMD_ASSEMBLY_PRIVATE' macro to mark all functions as static so that they're not visible to other translation units.
+
 Interfaces(i.e the functions you call from your application):
  - The assembler is represented by the following function:
     Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using the '\n'(new line) character.
@@ -194,6 +196,17 @@ typedef unsigned long long uint64_t;
 #define NMD_X86_INVALID_RUNTIME_ADDRESS -1
 #define NMD_X86_MAXIMUM_INSTRUCTION_LENGTH 15
 #define NMD_X86_MAXIMUM_NUM_OPERANDS 4
+
+/* Define the api macro to potentially change functions's attributes. */
+#ifndef NMD_ASSEMBLY_API
+
+#ifdef NMD_ASSEMBLY_PRIVATE
+	#define NMD_ASSEMBLY_API static
+#else
+	#define NMD_ASSEMBLY_API
+#endif /* NMD_ASSEMBLY_PRIVATE */
+
+#endif /* NMD_ASSEMBLY_API */
 
 /* These flags specify how the formatter should work. */
 enum NMD_X86_FORMATTER_FLAGS
@@ -2514,7 +2527,7 @@ Parameters:
  - mode            [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - count           [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be zero.
 */
-size_t nmd_x86_assemble(const char* string, void* buffer, size_t buffer_size, uint64_t runtime_address, NMD_X86_MODE mode, size_t* count);
+NMD_ASSEMBLY_API size_t nmd_x86_assemble(const char* string, void* buffer, size_t buffer_size, uint64_t runtime_address, NMD_X86_MODE mode, size_t* count);
 
 /*
 Decodes an instruction. Returns true if the instruction is valid, false otherwise.
@@ -2525,7 +2538,7 @@ Parameters:
  - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
 */
-bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
+NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
@@ -2535,7 +2548,7 @@ Parameters:
  - runtime_address [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
  - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
-void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags);
+NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags);
 
 /*
 Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
@@ -2551,7 +2564,7 @@ Parameters:
  - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
  - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count);
+NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count);
 
 /*
 Returns the instruction's length if it's valid, zero otherwise.
@@ -2560,6 +2573,6 @@ Parameters:
  - buffer_size [in] The buffer's size in bytes.
  - mode        [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
 */
-size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode);
+NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode);
 
 #endif /* NMD_ASSEMBLY_H */

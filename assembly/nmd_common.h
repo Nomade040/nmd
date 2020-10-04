@@ -16,74 +16,74 @@
 #define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? c + 0x20 : c)
 #define _NMD_IS_DECIMAL_NUMBER(c) (c >= '0' && c <= '9')
 
-const char* const _nmd_reg8[8];
-const char* const _nmd_reg8_x64[8];
-const char* const _nmd_reg16[8];
-const char* const _nmd_reg32[8];
-const char* const _nmd_reg64[8];
-const char* const _nmd_regrx[8];
-const char* const _nmd_regrxd[8];
-const char* const _nmd_regrxw[8];
-const char* const _nmd_regrxb[8];
-const char* const _nmd_segment_reg[6];
+NMD_ASSEMBLY_API const char* const _nmd_reg8[8];
+NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[8];
+NMD_ASSEMBLY_API const char* const _nmd_reg16[8];
+NMD_ASSEMBLY_API const char* const _nmd_reg32[8];
+NMD_ASSEMBLY_API const char* const _nmd_reg64[8];
+NMD_ASSEMBLY_API const char* const _nmd_regrx[8];
+NMD_ASSEMBLY_API const char* const _nmd_regrxd[8];
+NMD_ASSEMBLY_API const char* const _nmd_regrxw[8];
+NMD_ASSEMBLY_API const char* const _nmd_regrxb[8];
+NMD_ASSEMBLY_API const char* const _nmd_segment_reg[6];
 
-const char* const _nmd_condition_suffixes[16];
+NMD_ASSEMBLY_API const char* const _nmd_condition_suffixes[16];
 
-const char* const _nmd_op1_opcode_map_mnemonics[8];
-const char* const _nmd_opcode_extensions_grp1[8];
-const char* const _nmd_opcode_extensions_grp2[8];
-const char* const _nmd_opcode_extensions_grp3[8];
-const char* const _nmd_opcode_extensions_grp5[7];
-const char* const _nmd_opcode_extensions_grp6[6];
-const char* const _nmd_opcode_extensions_grp7[8];
-const char* const _nmd_opcode_extensions_grp7_reg0[6];
-const char* const _nmd_opcode_extensions_grp7_reg1[8];
-const char* const _nmd_opcode_extensions_grp7_reg2[8];
-const char* const _nmd_opcode_extensions_grp7_reg3[8];
-const char* const _nmd_opcode_extensions_grp7_reg7[6];
+NMD_ASSEMBLY_API const char* const _nmd_op1_opcode_map_mnemonics[8];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp1[8];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp2[8];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp3[8];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp5[7];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp6[6];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp7[8];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp7_reg0[6];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp7_reg1[8];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp7_reg2[8];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp7_reg3[8];
+NMD_ASSEMBLY_API const char* const _nmd_opcode_extensions_grp7_reg7[6];
 
-const char* const _nmd_escape_opcodesD8[8];
-const char* const _nmd_escape_opcodesD9[8];
-const char* const _nmd_escape_opcodesDA_DE[8];
-const char* const _nmd_escape_opcodesDB[8];
-const char* const _nmd_escape_opcodesDC[8];
-const char* const _nmd_escape_opcodesDD[8];
-const char* const _nmd_escape_opcodesDF[8];
-const char* const* _nmd_escape_opcodes[8];
+NMD_ASSEMBLY_API const char* const _nmd_escape_opcodesD8[8];
+NMD_ASSEMBLY_API const char* const _nmd_escape_opcodesD9[8];
+NMD_ASSEMBLY_API const char* const _nmd_escape_opcodesDA_DE[8];
+NMD_ASSEMBLY_API const char* const _nmd_escape_opcodesDB[8];
+NMD_ASSEMBLY_API const char* const _nmd_escape_opcodesDC[8];
+NMD_ASSEMBLY_API const char* const _nmd_escape_opcodesDD[8];
+NMD_ASSEMBLY_API const char* const _nmd_escape_opcodesDF[8];
+NMD_ASSEMBLY_API const char* const* _nmd_escape_opcodes[8];
 
-const uint8_t _nmd_op1_modrm[16];
-const uint8_t _nmd_op1_imm8[13];
-const uint8_t _nmd_op1_imm32[7];
-const uint8_t _nmd_invalid_op2[7];
-const uint8_t _nmd_two_opcodes[6];
-const uint8_t _nmd_valid_3DNow_opcodes[24];
+NMD_ASSEMBLY_API const uint8_t _nmd_op1_modrm[16];
+NMD_ASSEMBLY_API const uint8_t _nmd_op1_imm8[13];
+NMD_ASSEMBLY_API const uint8_t _nmd_op1_imm32[7];
+NMD_ASSEMBLY_API const uint8_t _nmd_invalid_op2[7];
+NMD_ASSEMBLY_API const uint8_t _nmd_two_opcodes[6];
+NMD_ASSEMBLY_API const uint8_t _nmd_valid_3DNow_opcodes[24];
 
-bool _nmd_find_byte(const uint8_t* arr, const size_t N, const uint8_t x);
+NMD_ASSEMBLY_API bool _nmd_find_byte(const uint8_t* arr, const size_t N, const uint8_t x);
 
 /* Returns a pointer to the first occurrence of 'c' in 's', or a null pointer if 'c' is not present. */
-const char* _nmd_strchr(const char* s, char c);
+NMD_ASSEMBLY_API const char* _nmd_strchr(const char* s, char c);
 
 /* Returns a pointer to the last occurrence of 'c' in 's', or a null pointer if 'c' is not present. */
-const char* _nmd_reverse_strchr(const char* s, char c);
+NMD_ASSEMBLY_API const char* _nmd_reverse_strchr(const char* s, char c);
 
 /* Returns a pointer to the first occurrence of 's2' in 's', or a null pointer if 's2' is not present. */
-const char* _nmd_strstr(const char* s, const char* s2);
+NMD_ASSEMBLY_API const char* _nmd_strstr(const char* s, const char* s2);
 
 /* Returns a pointer to the first occurrence of 's2' in 's', or a null pointer if 's2' is not present. If 's3_opt' is not null it receives the address of the next byte in 's'. */
-const char* _nmd_strstr_ex(const char* s, const char* s2, const char** s3_opt);
+NMD_ASSEMBLY_API const char* _nmd_strstr_ex(const char* s, const char* s2, const char** s3_opt);
 
 /* Inserts 'c' at 's'. */
-void _nmd_insert_char(const char* s, char c);
+NMD_ASSEMBLY_API void _nmd_insert_char(const char* s, char c);
 
 /* Returns true if there is only a number between 's1' and 's2', false otherwise. */
-bool _nmd_is_number(const char* s1, const char* s2);
+NMD_ASSEMBLY_API bool _nmd_is_number(const char* s1, const char* s2);
 
 /* Returns a pointer to the first occurence of a number between 's1' and 's2', zero otherwise. */
-const char* _nmd_find_number(const char* s1, const char* s2);
+NMD_ASSEMBLY_API const char* _nmd_find_number(const char* s1, const char* s2);
 
 /* Returns true if s1 matches s2 exactly. */
-bool _nmd_strcmp(const char* s1, const char* s2);
+NMD_ASSEMBLY_API bool _nmd_strcmp(const char* s1, const char* s2);
 
-size_t _nmd_get_bit_index(uint32_t mask);
+NMD_ASSEMBLY_API size_t _nmd_get_bit_index(uint32_t mask);
 
 #endif /* NMD_COMMON_H */

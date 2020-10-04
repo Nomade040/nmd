@@ -2,7 +2,7 @@
 
 #define NMD_EMULATOR_RESOLVE_VA(va) ((void*)((uint64_t)cpu.physical_memory + (va - cpu.virtual_address)))
 
-bool _nmd_check_jump_condition(nmd_x86_cpu* const cpu, uint8_t opcode_condition)
+NMD_ASSEMBLY_API bool _nmd_check_jump_condition(nmd_x86_cpu* const cpu, uint8_t opcode_condition)
 {
 	switch (opcode_condition)
 	{
@@ -30,7 +30,7 @@ bool _nmd_check_jump_condition(nmd_x86_cpu* const cpu, uint8_t opcode_condition)
 Checks if the number of set bits in an 8-bit number is even.
 Credits: https://stackoverflow.com/questions/21617970/how-to-check-if-value-has-even-parity-of-bits-or-odd
 */
-bool _nmd_is_parity_even8(uint8_t x)
+NMD_ASSEMBLY_API bool _nmd_is_parity_even8(uint8_t x)
 {
 	x ^= x >> 4;
 	x ^= x >> 2;
@@ -38,7 +38,7 @@ bool _nmd_is_parity_even8(uint8_t x)
 	return !(x & 1);
 }
 
-void _nmd_copy_by_mode(void* dst, void* src, NMD_X86_MODE mode)
+NMD_ASSEMBLY_API void _nmd_copy_by_mode(void* dst, void* src, NMD_X86_MODE mode)
 {
 	if (mode == NMD_X86_MODE_32)
 		*(int32_t*)(dst) = *(int32_t*)(src);
@@ -48,7 +48,7 @@ void _nmd_copy_by_mode(void* dst, void* src, NMD_X86_MODE mode)
 		*(int16_t*)(dst) = *(int16_t*)(src);
 }
 
-void _nmd_copy_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void _nmd_copy_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
 {
 	if(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		*(int16_t*)(dst) = *(int16_t*)(src);
@@ -56,7 +56,7 @@ void _nmd_copy_by_operand_size(void* dst, void* src, nmd_x86_instruction* instru
 		*(int32_t*)(dst) = *(int32_t*)(src);
 }
 
-void _nmd_add_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void _nmd_add_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
 {
 	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		*(int16_t*)(dst) += *(int16_t*)(src);
@@ -64,7 +64,7 @@ void _nmd_add_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruc
 		*(int32_t*)(dst) += *(int32_t*)(src);
 }
 
-void _nmd_or_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void _nmd_or_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
 {
 	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		*(int16_t*)(dst) |= *(int16_t*)(src);
@@ -72,7 +72,7 @@ void _nmd_or_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruct
 		*(int32_t*)(dst) |= *(int32_t*)(src);
 } 
 
-void _nmd_adc_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void _nmd_adc_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
 {
 	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		*(int16_t*)(dst) += *(int16_t*)(src) + cpu->flags.fields.CF;
@@ -80,7 +80,7 @@ void _nmd_adc_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_in
 		*(int32_t*)(dst) += *(int32_t*)(src) + cpu->flags.fields.CF;
 }
 
-void _nmd_sbb_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void _nmd_sbb_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
 {
 	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		*(int16_t*)(dst) -= *(int16_t*)(src) + cpu->flags.fields.CF;
@@ -88,7 +88,7 @@ void _nmd_sbb_by_operand_size(void* dst, void* src, nmd_x86_cpu* cpu, nmd_x86_in
 		*(int32_t*)(dst) -= *(int32_t*)(src) + cpu->flags.fields.CF;
 }
 
-void _nmd_and_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void _nmd_and_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
 {
 	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		*(int16_t*)(dst) &= *(int16_t*)(src);
@@ -96,7 +96,7 @@ void _nmd_and_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruc
 		*(int32_t*)(dst) &= *(int32_t*)(src);
 }
 
-void _nmd_sub_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void _nmd_sub_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
 {
 	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		*(int16_t*)(dst) -= *(int16_t*)(src);
@@ -104,7 +104,7 @@ void _nmd_sub_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruc
 		*(int32_t*)(dst) -= *(int32_t*)(src);
 }
 
-void _nmd_xor_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void _nmd_xor_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruction)
 {
 	if (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 		*(int16_t*)(dst) &= *(int16_t*)(src);
@@ -118,7 +118,7 @@ void _nmd_xor_by_operand_size(void* dst, void* src, nmd_x86_instruction* instruc
 #define _NMD_IN_BOUNDARIES(address) (address >= cpu->physical_memory && address < end_physical_memory)
 /* #define NMD_TEST(value, bit) ((value&(1<<bit))==(1<<bit)) */
 
-void* _nmd_resolve_memory_operand(nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API void* _nmd_resolve_memory_operand(nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
 {
 	if (instruction->modrm.fields.mod == 0b11)
 		return &_NMD_GET_GREG(instruction->modrm.fields.rm)->l64;
@@ -137,7 +137,7 @@ void* _nmd_resolve_memory_operand(nmd_x86_cpu* cpu, nmd_x86_instruction* instruc
 	}
 }
 
-int64_t _nmd_resolve_memory_operand_va(nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
+NMD_ASSEMBLY_API int64_t _nmd_resolve_memory_operand_va(nmd_x86_cpu* cpu, nmd_x86_instruction* instruction)
 {
 	int64_t va_expr; /* virtual address expression */
 
@@ -163,7 +163,7 @@ Parameters:
  - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
  - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
+NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 {
 	const uint64_t end_virtual_address = cpu->virtual_address + cpu->physical_memory_size;
 	const void* end_physical_memory = (uint8_t*)cpu->physical_memory + cpu->physical_memory_size;

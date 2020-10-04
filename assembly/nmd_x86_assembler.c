@@ -16,7 +16,7 @@ enum _NMD_NUMBER_BASE
 	_NMD_NUMBER_BASE_BINARY = 2
 };
 
-size_t _nmd_assemble_reg(_nmd_assemble_info* ai, uint8_t base_byte)
+NMD_ASSEMBLY_API size_t _nmd_assemble_reg(_nmd_assemble_info* ai, uint8_t base_byte)
 {
 	uint8_t i = 0;
 	if (ai->mode == NMD_X86_MODE_64)
@@ -65,7 +65,7 @@ size_t _nmd_assemble_reg(_nmd_assemble_info* ai, uint8_t base_byte)
 	return 0;
 }
 
-uint8_t _nmd_encode_segment_reg(NMD_X86_REG segment_reg)
+NMD_ASSEMBLY_API uint8_t _nmd_encode_segment_reg(NMD_X86_REG segment_reg)
 {
 	switch (segment_reg)
 	{
@@ -79,7 +79,7 @@ uint8_t _nmd_encode_segment_reg(NMD_X86_REG segment_reg)
 	}
 }
 
-bool _nmd_parse_number(const char* string, int64_t* p_num, size_t* p_num_digits)
+NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size_t* p_num_digits)
 {
 	if (*string == '\0')
 		return false;
@@ -171,7 +171,7 @@ bool _nmd_parse_number(const char* string, int64_t* p_num, size_t* p_num_digits)
 	return true;
 }
 
-size_t _nmd_append_prefix_by_reg_size(uint8_t* b, const char* s, size_t* num_prefixes, size_t* index)
+NMD_ASSEMBLY_API size_t _nmd_append_prefix_by_reg_size(uint8_t* b, const char* s, size_t* num_prefixes, size_t* index)
 {
 	size_t i;
 	
@@ -272,7 +272,7 @@ operand[out]: Describes the memory operand.
 size[out]: The size of the pointer. byte ptr:1, dword ptr:4, etc.. or zero if unknown.
 Return value: True if success, false otherwise.
 */
-bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* operand, size_t* size)
+NMD_ASSEMBLY_API bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* operand, size_t* size)
 {
 	const char* s = *string;
 	size_t num_bytes = 0;
@@ -413,7 +413,7 @@ bool _nmd_parse_memory_operand(const char** string, nmd_x86_memory_operand* oper
 	return true;
 }
 
-size_t _nmd_assemble_single(_nmd_assemble_info* ai)
+NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 {
 	size_t i = 0;
 
@@ -906,7 +906,7 @@ Parameters:
  - mode            [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - count           [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be 0(zero).
 */
-size_t nmd_x86_assemble(const char* string, void* buffer, size_t buffer_size, uint64_t runtime_address, NMD_X86_MODE mode, size_t* count)
+NMD_ASSEMBLY_API size_t nmd_x86_assemble(const char* string, void* buffer, size_t buffer_size, uint64_t runtime_address, NMD_X86_MODE mode, size_t* count)
 {
 	char parsed_string[128];
 	const uint8_t* const buffer_end = (uint8_t*)buffer + buffer_size;
