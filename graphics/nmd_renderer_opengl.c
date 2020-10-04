@@ -125,7 +125,7 @@ bool _nmd_opengl_create_objects()
     int width = 16, height = 16;
     char* pixels = malloc(width * height * 4);
     memset(pixels, 255, width * height * 4);
-    _nmd_context.drawList.font = nmd_opengl_create_texture(pixels, width, height);
+    _nmd_context.draw_list.font = nmd_opengl_create_texture(pixels, width, height);
 
     /* Restore modified GL state */
     glBindTexture(GL_TEXTURE_2D, last_texture);
@@ -236,28 +236,28 @@ void nmd_opengl_render()
     _nmd_opengl_set_render_state();
 
     /* Copy vertices and indices and to the GPU */
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)_nmd_context.drawList.numVertices * (int)sizeof(nmd_vertex), (const GLvoid*)_nmd_context.drawList.vertices, GL_STREAM_DRAW);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)_nmd_context.drawList.numIndices * (int)sizeof(nmd_index), (const GLvoid*)_nmd_context.drawList.indices, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)_nmd_context.draw_list.num_vertices * (int)sizeof(nmd_vertex), (const GLvoid*)_nmd_context.draw_list.vertices, GL_STREAM_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)_nmd_context.draw_list.num_indices * (int)sizeof(nmd_index), (const GLvoid*)_nmd_context.draw_list.indices, GL_STREAM_DRAW);
 
     /* Render command buffers */
     size_t i = 0;
-    size_t indexOffset = 0;
-    for (; i < _nmd_context.drawList.numDrawCommands; i++)
+    size_t index_offset = 0;
+    for (; i < _nmd_context.draw_list.num_draw_commands; i++)
     {
         /* Apply scissor rectangle */
-        if (_nmd_context.drawList.drawCommands[i].rect.p1.x == -1.0f)
+        if (_nmd_context.draw_list.draw_commands[i].rect.p1.x == -1.0f)
             glScissor(0, 0, (GLsizei)_nmd_opengl.width, (GLsizei)_nmd_opengl.height);
         else
-            glScissor((GLint)_nmd_context.drawList.drawCommands[i].rect.p0.x, (GLint)_nmd_context.drawList.drawCommands[i].rect.p0.y, (GLsizei)_nmd_context.drawList.drawCommands[i].rect.p1.x, (GLsizei)_nmd_context.drawList.drawCommands[i].rect.p1.y);
+            glScissor((GLint)_nmd_context.draw_list.draw_commands[i].rect.p0.x, (GLint)_nmd_context.draw_list.draw_commands[i].rect.p0.y, (GLsizei)_nmd_context.draw_list.draw_commands[i].rect.p1.x, (GLsizei)_nmd_context.draw_list.draw_commands[i].rect.p1.y);
         
         /* Set texture */
-        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)_nmd_context.drawList.drawCommands[i].userTextureId);
+        glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)_nmd_context.draw_list.draw_commands[i].user_texture_id);
 
         /* Issue draw call */
-        glDrawElements(GL_TRIANGLES, (GLsizei)_nmd_context.drawList.drawCommands[i].numIndices, sizeof(nmd_index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(indexOffset * sizeof(nmd_index)));
+        glDrawElements(GL_TRIANGLES, (GLsizei)_nmd_context.draw_list.draw_commands[i].num_indices, sizeof(nmd_index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(index_offset * sizeof(nmd_index)));
         
         /* Update offset */
-        indexOffset += _nmd_context.drawList.drawCommands[i].numIndices;
+        index_offset += _nmd_context.draw_list.draw_commands[i].num_indices;
     }
 
 #ifndef NMD_GRAPHICS_OPENGL_DONT_BACKUP_RENDER_STATE

@@ -147,7 +147,7 @@ bool nmd_begin(const char* window_name)
     nmd_add_rect_filled(window->rect.p0.x, window->rect.p0.y, window->rect.p1.x, window->rect.p0.y + 18.0f, NMD_COLOR_GUI_MAIN, 5.0f, window->collapsed ? NMD_CORNER_ALL : NMD_CORNER_TOP);
     
     /* Add window name */
-    nmd_add_text(&_nmd_context.drawList.default_atlas, window->rect.p0.x + (window->allow_collapse ? 20 : 0), window->rect.p0.y + 13, window_name, 0, NMD_COLOR_WHITE);
+    nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + (window->allow_collapse ? 20 : 0), window->rect.p0.y + 13, window_name, 0, NMD_COLOR_WHITE);
 
     /* Check if window can be collapsed and if the mouse is over the collapse/expand triangle */
     if (window->allow_collapse && _nmd_context.io.mouse_pos.x >= window->rect.p0.x + 1 && _nmd_context.io.mouse_pos.x < window->rect.p0.x + 17 && _nmd_context.io.mouse_pos.y >= window->rect.p0.y + 1 && _nmd_context.io.mouse_pos.y < window->rect.p0.y + 17)
@@ -236,7 +236,7 @@ void nmd_text(const char* fmt, ...)
     const int size = vsprintf(_nmd_context.gui.fmt_buffer, fmt, args);
     va_end(args);
 
-    nmd_add_text(&_nmd_context.drawList.default_atlas, window->rect.p0.x + 6, window->y_offset + 10, _nmd_context.gui.fmt_buffer, _nmd_context.gui.fmt_buffer + size, NMD_COLOR_WHITE);
+    nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6, window->y_offset + 10, _nmd_context.gui.fmt_buffer, _nmd_context.gui.fmt_buffer + size, NMD_COLOR_WHITE);
 
     window->y_offset += 10 + 5;
 }
@@ -249,7 +249,7 @@ bool nmd_button(const char* label)
         return false;
 
     nmd_vec2 size;
-    nmd_get_text_size(&_nmd_context.drawList.default_atlas, label, 0, &size);
+    nmd_get_text_size(&_nmd_context.draw_list.default_atlas, label, 0, &size);
 
     const bool is_mouse_hovering = _nmd_context.io.mouse_pos.x >= window->rect.p0.x + 6 && _nmd_context.io.mouse_pos.x < window->rect.p0.x + 6 + size.x + 8 && _nmd_context.io.mouse_pos.y >= window->y_offset && _nmd_context.io.mouse_pos.y < window->y_offset + 16;
 
@@ -258,7 +258,7 @@ bool nmd_button(const char* label)
     /* Add background filled rect */
     nmd_add_rect_filled(window->rect.p0.x + 6, window->y_offset, window->rect.p0.x + 6 + size.x + 8, window->y_offset + 16, is_mouse_hovering ? NMD_COLOR_GUI_BUTTON_HOVER : NMD_COLOR_GUI_BUTTON_BACKGROUND, 0, 0);
     
-    nmd_add_text(&_nmd_context.drawList.default_atlas, window->rect.p0.x + 6 + 4, window->y_offset + 11, label, 0, NMD_COLOR_WHITE);
+    nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6 + 4, window->y_offset + 11, label, 0, NMD_COLOR_WHITE);
 
     window->y_offset += 16 + 5;
 
@@ -291,7 +291,7 @@ bool nmd_checkbox(const char* label, bool* checked)
 
     window->y_offset += 16 + 4;
 
-    nmd_add_text(&_nmd_context.drawList.default_atlas, window->rect.p0.x + 6 + 16 + 4, window->y_offset - 9, label, 0, NMD_COLOR_WHITE);
+    nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6 + 16 + 4, window->y_offset - 9, label, 0, NMD_COLOR_WHITE);
 
     return state_changed;
 }
@@ -352,10 +352,10 @@ bool nmd_slider_float(const char* label, float* value, float min_value, float ma
 
     /* Add value text */
     const int size = sprintf(_nmd_context.gui.fmt_buffer, "%.3f", *value);
-    nmd_add_text(&_nmd_context.drawList.default_atlas, window->rect.p0.x + 6 + (_NMD_SLIDER_WIDTH/2-15), window->y_offset + 12, _nmd_context.gui.fmt_buffer, _nmd_context.gui.fmt_buffer + size, NMD_COLOR_WHITE);
+    nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6 + (_NMD_SLIDER_WIDTH/2-15), window->y_offset + 12, _nmd_context.gui.fmt_buffer, _nmd_context.gui.fmt_buffer + size, NMD_COLOR_WHITE);
 
     /* Add label text */
-    nmd_add_text(&_nmd_context.drawList.default_atlas, window->rect.p0.x + 6 + _NMD_SLIDER_WIDTH + 4, window->y_offset + 12, label, 0, NMD_COLOR_WHITE);
+    nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6 + _NMD_SLIDER_WIDTH + 4, window->y_offset + 12, label, 0, NMD_COLOR_WHITE);
 
     window->y_offset += 16 + 5;
 

@@ -1,54 +1,54 @@
 #include "nmd_common.h"
 
-bool _nmd_reserve(size_t numNewVertices, size_t numNewIndices)
+bool _nmd_reserve(size_t num_new_vertices, size_t num_new_indices)
 {
     /* Check vertices */
-    size_t futureSize = (_nmd_context.drawList.numVertices + numNewVertices) * sizeof(nmd_vertex);
-    if (futureSize > _nmd_context.drawList.verticesCapacity)
+    size_t future_size = (_nmd_context.draw_list.num_vertices + num_new_vertices) * sizeof(nmd_vertex);
+    if (future_size > _nmd_context.draw_list.vertices_capacity)
     {
-        const size_t newCapacity = NMD_MAX(_nmd_context.drawList.verticesCapacity * 2, futureSize);
-        void* mem = NMD_ALLOC(newCapacity);
+        const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.vertices_capacity * 2, future_size);
+        void* mem = NMD_ALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.drawList.vertices, _nmd_context.drawList.verticesCapacity);
-        NMD_FREE(_nmd_context.drawList.vertices);
+        memcpy(mem, _nmd_context.draw_list.vertices, _nmd_context.draw_list.vertices_capacity);
+        NMD_FREE(_nmd_context.draw_list.vertices);
 
-        _nmd_context.drawList.vertices = (nmd_vertex*)mem;
-        _nmd_context.drawList.verticesCapacity = newCapacity;
+        _nmd_context.draw_list.vertices = (nmd_vertex*)mem;
+        _nmd_context.draw_list.vertices_capacity = new_capacity;
     }
 
     /* Check indices */
-    futureSize = (_nmd_context.drawList.numIndices + numNewIndices) * sizeof(nmd_index);
-    if (futureSize > _nmd_context.drawList.indicesCapacity)
+    future_size = (_nmd_context.draw_list.num_indices + num_new_indices) * sizeof(nmd_index);
+    if (future_size > _nmd_context.draw_list.indices_capacity)
     {
-        const size_t newCapacity = NMD_MAX(_nmd_context.drawList.indicesCapacity * 2, futureSize);
-        void* mem = NMD_ALLOC(newCapacity);
+        const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.indices_capacity * 2, future_size);
+        void* mem = NMD_ALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.drawList.indices, _nmd_context.drawList.indicesCapacity);
-        NMD_FREE(_nmd_context.drawList.indices);
+        memcpy(mem, _nmd_context.draw_list.indices, _nmd_context.draw_list.indices_capacity);
+        NMD_FREE(_nmd_context.draw_list.indices);
 
-        mem, _nmd_context.drawList.indices = (nmd_index*)mem;
-        _nmd_context.drawList.indicesCapacity = newCapacity;
+        _nmd_context.draw_list.indices = (nmd_index*)mem;
+        _nmd_context.draw_list.indices_capacity = new_capacity;
     }
 
     return true;
 }
 
-bool _nmd_reserve_points(size_t numNewPoints)
+bool _nmd_reserve_points(size_t num_new_points)
 {
-    const size_t futureSize = (_nmd_context.drawList.numPoints + numNewPoints) * sizeof(nmd_vec2);
-    if (futureSize > _nmd_context.drawList.pathCapacity)
+    const size_t future_size = (_nmd_context.draw_list.num_points + num_new_points) * sizeof(nmd_vec2);
+    if (future_size > _nmd_context.draw_list.path_capacity)
     {
-        const size_t newCapacity = NMD_MAX(_nmd_context.drawList.pathCapacity * 2, futureSize);
-        void* mem = NMD_ALLOC(newCapacity);
+        const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.path_capacity * 2, future_size);
+        void* mem = NMD_ALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.drawList.path, _nmd_context.drawList.pathCapacity);
-        NMD_FREE(_nmd_context.drawList.path);
+        memcpy(mem, _nmd_context.draw_list.path, _nmd_context.draw_list.path_capacity);
+        NMD_FREE(_nmd_context.draw_list.path);
 
-        _nmd_context.drawList.path = (nmd_vec2*)mem;
-        _nmd_context.drawList.pathCapacity = newCapacity;
+        _nmd_context.draw_list.path = (nmd_vec2*)mem;
+        _nmd_context.draw_list.path_capacity = new_capacity;
     }
 
     return true;
@@ -57,38 +57,38 @@ bool _nmd_reserve_points(size_t numNewPoints)
 #define NMD_NORMALIZE2F_OVER_ZERO(VX,VY) { float d2 = VX*VX + VY*VY; if (d2 > 0.0f) { float inv_len = 1.0f / NMD_SQRT(d2); VX *= inv_len; VY *= inv_len; } }
 #define NMD_FIXNORMAL2F(VX,VY) { float d2 = VX*VX + VY*VY; if (d2 < 0.5f) d2 = 0.5f; float inv_lensq = 1.0f / d2; VX *= inv_lensq; VY *= inv_lensq; }
 
-void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color, bool closed, float thickness)
+void nmd_add_polyline(const nmd_vec2* points, size_t num_points, nmd_color color, bool closed, float thickness)
 {
-    const size_t numSegments = closed ? numPoints : numPoints - 1;
+    const size_t num_segments = closed ? num_points : num_points - 1;
 
     const bool thick_line = thickness > 1.0f;
     nmd_color col_trans;
-    if (numPoints < 2)
+    if (num_points < 2)
         return;
 
     col_trans = color;
     col_trans.a = 0;
 
-    if (_nmd_context.drawList.lineAntiAliasing)
+    if (_nmd_context.draw_list.line_anti_aliasing)
     {
         const float AA_SIZE = 1.0f;
 
         size_t i1 = 0;
 
-        const size_t idx_count = thick_line ? (numSegments * 18) : (numSegments * 12);
-        const size_t vtx_count = thick_line ? (numPoints * 4) : (numPoints * 3);
+        const size_t idx_count = thick_line ? (num_segments * 18) : (num_segments * 12);
+        const size_t vtx_count = thick_line ? (num_points * 4) : (num_points * 3);
         if (!_nmd_reserve(vtx_count, idx_count))
             return;
 
         size_t size;
         nmd_vec2* normals, * temp;
-        normals = (nmd_vec2*)NMD_ALLOCA(sizeof(nmd_vec2) * ((thick_line) ? 5 : 3) * numPoints);
+        normals = (nmd_vec2*)NMD_ALLOCA(sizeof(nmd_vec2) * ((thick_line) ? 5 : 3) * num_points);
 
-        temp = normals + numPoints;
+        temp = normals + num_points;
 
         /* Calculate normals */
-        for (i1 = 0; i1 < numSegments; ++i1) {
-            const int i2 = (i1 + 1) == numPoints ? 0 : i1 + 1;
+        for (i1 = 0; i1 < num_segments; ++i1) {
+            const int i2 = (i1 + 1) == num_points ? 0 : i1 + 1;
             float dx = points[i2].x - points[i1].x;
             float dy = points[i2].y - points[i1].y;
             NMD_NORMALIZE2F_OVER_ZERO(dx, dy);
@@ -97,7 +97,7 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
         }
 
         if (!closed)
-            normals[numPoints - 1] = normals[numPoints - 2];
+            normals[num_points - 1] = normals[num_points - 2];
 
         if (!thick_line) {
             size_t idx1, i;
@@ -110,23 +110,23 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
                 temp[1].x = points[0].x - normals[0].x * AA_SIZE;
                 temp[1].y = points[0].y - normals[0].y * AA_SIZE;
 
-                d.x = normals[numPoints - 1].x * AA_SIZE;
-                d.y = normals[numPoints - 1].y * AA_SIZE;
+                d.x = normals[num_points - 1].x * AA_SIZE;
+                d.y = normals[num_points - 1].y * AA_SIZE;
 
-                temp[(numPoints - 1) * 2 + 0].x = points[numPoints - 1].x + d.x;
-                temp[(numPoints - 1) * 2 + 0].y = points[numPoints - 1].y + d.y;
+                temp[(num_points - 1) * 2 + 0].x = points[num_points - 1].x + d.x;
+                temp[(num_points - 1) * 2 + 0].y = points[num_points - 1].y + d.y;
 
-                temp[(numPoints - 1) * 2 + 1].x = points[numPoints - 1].x - d.x;
-                temp[(numPoints - 1) * 2 + 1].y = points[numPoints - 1].y - d.y;
+                temp[(num_points - 1) * 2 + 1].x = points[num_points - 1].x - d.x;
+                temp[(num_points - 1) * 2 + 1].y = points[num_points - 1].y - d.y;
             }
 
             /* Fill elements */
-            idx1 = _nmd_context.drawList.numVertices;
-            for (i1 = 0; i1 < numSegments; i1++) {
+            idx1 = _nmd_context.draw_list.num_vertices;
+            for (i1 = 0; i1 < num_segments; i1++) {
                 nmd_vec2 dm;
                 float dmr2;
-                size_t i2 = ((i1 + 1) == numPoints) ? 0 : (i1 + 1);
-                size_t idx2 = ((i1 + 1) == numPoints) ? _nmd_context.drawList.numVertices : (idx1 + 3);
+                size_t i2 = ((i1 + 1) == num_points) ? 0 : (i1 + 1);
+                size_t idx2 = ((i1 + 1) == num_points) ? _nmd_context.draw_list.num_vertices : (idx1 + 3);
 
                 /* Average normals */
                 dm.x = (normals[i1].x + normals[i2].x) * 0.5f;
@@ -151,25 +151,25 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
                 temp[i2 * 2 + 1].x = points[i2].x - dm.x;
                 temp[i2 * 2 + 1].y = points[i2].y - dm.y;
 
-                nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+                nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
                 indices[0]  = idx2 + 0; indices[1]  = idx1 + 0;
                 indices[2]  = idx1 + 2; indices[3]  = idx1 + 2;
                 indices[4]  = idx2 + 2; indices[5]  = idx2 + 0;
                 indices[6]  = idx2 + 1; indices[7]  = idx1 + 1;
                 indices[8]  = idx1 + 0; indices[9]  = idx1 + 0;
                 indices[10] = idx2 + 0; indices[11] = idx2 + 1;
-                _nmd_context.drawList.numIndices += 12;
+                _nmd_context.draw_list.num_indices += 12;
 
                 idx1 = idx2;
             }
 
             /* Fill vertices */
-            for (i = 0; i < numPoints; ++i) {
-                nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+            for (i = 0; i < num_points; ++i) {
+                nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
                 vertices[0].pos = points[i];       vertices[0].color = color;
                 vertices[1].pos = temp[i * 2 + 0]; vertices[1].color = col_trans;
                 vertices[2].pos = temp[i * 2 + 1]; vertices[2].color = col_trans;
-                _nmd_context.drawList.numVertices += 3;
+                _nmd_context.draw_list.num_vertices += 3;
             }
         }
         else {
@@ -196,31 +196,31 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
                 temp[3].x = points[0].x - d1.x;
                 temp[3].y = points[0].y - d1.y;
         
-                d1.x = normals[numPoints - 1].x * (half_inner_thickness + AA_SIZE);
-                d1.y = normals[numPoints - 1].y * (half_inner_thickness + AA_SIZE);
+                d1.x = normals[num_points - 1].x * (half_inner_thickness + AA_SIZE);
+                d1.y = normals[num_points - 1].y * (half_inner_thickness + AA_SIZE);
 
-                d2.x = normals[numPoints - 1].x * half_inner_thickness;
-                d2.y = normals[numPoints - 1].y * half_inner_thickness;
+                d2.x = normals[num_points - 1].x * half_inner_thickness;
+                d2.y = normals[num_points - 1].y * half_inner_thickness;
         
-                temp[(numPoints - 1) * 4 + 0].x = points[numPoints - 1].x + d1.x;
-                temp[(numPoints - 1) * 4 + 0].y = points[numPoints - 1].y + d1.y;
+                temp[(num_points - 1) * 4 + 0].x = points[num_points - 1].x + d1.x;
+                temp[(num_points - 1) * 4 + 0].y = points[num_points - 1].y + d1.y;
 
-                temp[(numPoints - 1) * 4 + 1].x = points[numPoints - 1].x + d2.x;
-                temp[(numPoints - 1) * 4 + 1].y = points[numPoints - 1].y + d2.y;
+                temp[(num_points - 1) * 4 + 1].x = points[num_points - 1].x + d2.x;
+                temp[(num_points - 1) * 4 + 1].y = points[num_points - 1].y + d2.y;
 
-                temp[(numPoints - 1) * 4 + 2].x = points[numPoints - 1].x - d2.x;
-                temp[(numPoints - 1) * 4 + 2].y = points[numPoints - 1].y - d2.y;
+                temp[(num_points - 1) * 4 + 2].x = points[num_points - 1].x - d2.x;
+                temp[(num_points - 1) * 4 + 2].y = points[num_points - 1].y - d2.y;
 
-                temp[(numPoints - 1) * 4 + 3].x = points[numPoints - 1].x - d1.x;
-                temp[(numPoints - 1) * 4 + 3].y = points[numPoints - 1].y - d1.y;
+                temp[(num_points - 1) * 4 + 3].x = points[num_points - 1].x - d1.x;
+                temp[(num_points - 1) * 4 + 3].y = points[num_points - 1].y - d1.y;
             }
         
             /* Add all elements */
-            idx1 = _nmd_context.drawList.numVertices;
-            for (i1 = 0; i1 < numSegments; ++i1) {
+            idx1 = _nmd_context.draw_list.num_vertices;
+            for (i1 = 0; i1 < num_segments; ++i1) {
                 nmd_vec2 dm_out, dm_in;
-                const size_t i2 = ((i1 + 1) == numPoints) ? 0 : (i1 + 1);
-                size_t idx2 = ((i1 + 1) == numPoints) ? _nmd_context.drawList.numVertices : (idx1 + 4);
+                const size_t i2 = ((i1 + 1) == num_points) ? 0 : (i1 + 1);
+                size_t idx2 = ((i1 + 1) == num_points) ? _nmd_context.draw_list.num_vertices : (idx1 + 4);
         
                 /* Average normals */
                 nmd_vec2 dm;
@@ -254,7 +254,7 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
                 temp[i2 * 4 + 3].x = points[i2].x - dm_out.x;
                 temp[i2 * 4 + 3].y = points[i2].y - dm_out.y;
         
-                nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+                nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
                 indices[0]  = idx2 + 1; indices[1]  = idx1 + 1;
                 indices[2]  = idx1 + 2; indices[3]  = idx1 + 2;
                 indices[4]  = idx2 + 2; indices[5]  = idx2 + 1;
@@ -264,33 +264,33 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
                 indices[12] = idx2 + 2; indices[13] = idx1 + 2;
                 indices[14] = idx1 + 3; indices[15] = idx1 + 3;
                 indices[16] = idx2 + 3; indices[17] = idx2 + 2;
-                _nmd_context.drawList.numIndices += 18;
+                _nmd_context.draw_list.num_indices += 18;
 
                 idx1 = idx2;                
             }
         
             /* Add vertices */
-            for (i = 0; i < numPoints; i++) {
-                nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+            for (i = 0; i < num_points; i++) {
+                nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
                 vertices[0].pos = temp[i * 4 + 0]; vertices[0].color = col_trans;
                 vertices[1].pos = temp[i * 4 + 1]; vertices[1].color = color;
                 vertices[2].pos = temp[i * 4 + 2]; vertices[2].color = color;
                 vertices[3].pos = temp[i * 4 + 3]; vertices[3].color = col_trans;
-                _nmd_context.drawList.numVertices += 4;
+                _nmd_context.draw_list.num_vertices += 4;
             }
         }
     }
     else /* Non anti-alised */
     {
-        const size_t numIndices = numSegments * 6;
-        const size_t numVertices = numSegments * 4;
+        const size_t num_indices = num_segments * 6;
+        const size_t num_vertices = num_segments * 4;
         
-        if (!_nmd_reserve(numVertices, numIndices))
+        if (!_nmd_reserve(num_vertices, num_indices))
             return;
 
-        for (size_t i = 0; i < numSegments; i++)
+        for (size_t i = 0; i < num_segments; i++)
         {
-            const size_t j = (i + 1) == numPoints ? 0 : i + 1;
+            const size_t j = (i + 1) == num_points ? 0 : i + 1;
             const nmd_vec2* p0 = &points[i];
             const nmd_vec2* p1 = &points[j];
 
@@ -301,19 +301,19 @@ void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color,
             dx *= (thickness * 0.5f);
             dy *= (thickness * 0.5f);
 
-            const size_t offset = _nmd_context.drawList.numVertices;
+            const size_t offset = _nmd_context.draw_list.num_vertices;
 
-            nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+            nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
             indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
             indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
-            _nmd_context.drawList.numIndices += 6;
+            _nmd_context.draw_list.num_indices += 6;
 
-            nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+            nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
             vertices[0].pos.x = p0->x + dy; vertices[0].pos.y = p0->y - dx; vertices[0].color = color;
             vertices[1].pos.x = p1->x + dy; vertices[1].pos.y = p1->y - dx; vertices[1].color = color;
             vertices[2].pos.x = p1->x - dy; vertices[2].pos.y = p1->y + dx; vertices[2].color = color;
             vertices[3].pos.x = p0->x - dy; vertices[3].pos.y = p0->y + dx; vertices[3].color = color;
-            _nmd_context.drawList.numVertices += 4;
+            _nmd_context.draw_list.num_vertices += 4;
         }
     }
 }
@@ -323,25 +323,25 @@ void nmd_path_to(float x0, float y0)
     if (!_nmd_reserve_points(1))
         return;
 
-    _nmd_context.drawList.path[_nmd_context.drawList.numPoints].x = x0;
-    _nmd_context.drawList.path[_nmd_context.drawList.numPoints].y = y0;
-    _nmd_context.drawList.numPoints++;
+    _nmd_context.draw_list.path[_nmd_context.draw_list.num_points].x = x0;
+    _nmd_context.draw_list.path[_nmd_context.draw_list.num_points].y = y0;
+    _nmd_context.draw_list.num_points++;
 }
 
 void nmd_path_fill_convex(nmd_color color)
 {
-    nmd_add_convex_polygon_filled(_nmd_context.drawList.path, _nmd_context.drawList.numPoints, color);
+    nmd_add_convex_polygon_filled(_nmd_context.draw_list.path, _nmd_context.draw_list.num_points, color);
 
     /* Clear points in 'path' */
-    _nmd_context.drawList.numPoints = 0;
+    _nmd_context.draw_list.num_points = 0;
 }
 
 void nmd_path_stroke(nmd_color color, bool closed, float thickness)
 {
-    nmd_add_polyline(_nmd_context.drawList.path, _nmd_context.drawList.numPoints, color, closed, thickness);
+    nmd_add_polyline(_nmd_context.draw_list.path, _nmd_context.draw_list.num_points, color, closed, thickness);
 
     /* Clear points in 'path' */
-    _nmd_context.drawList.numPoints = 0;
+    _nmd_context.draw_list.num_points = 0;
 }
 
 /*
@@ -353,8 +353,8 @@ void PathBezierToCasteljau(float x1, float y1, float x2, float y2, float x3, flo
     float d3 = ((x3 - x4) * dy - (y3 - y4) * dx);
     d2 = (d2 >= 0) ? d2 : -d2;
     d3 = (d3 >= 0) ? d3 : -d3;
-    if ((d2 + d3) * (d2 + d3) < GetContext().drawList.curveTessellationTolerance * (dx * dx + dy * dy))
-        GetContext().drawList.path.emplace_back(x4, y4);
+    if ((d2 + d3) * (d2 + d3) < GetContext().draw_list.curve_tessellation_tolerance * (dx * dx + dy * dy))
+        GetContext().draw_list.path.emplace_back(x4, y4);
     else if (level < 10)
     {
         const float x12 = (x1 + x2) * 0.5f, y12 = (y1 + y2) * 0.5f;
@@ -391,8 +391,8 @@ void _nmd_shade_verts_linear_uv(int vert_start_idx, int vert_end_idx, float x0, 
     const float scale_x = size_x != 0.0f ? (uv_size_x / size_x) : 0.0f;
     const float scale_y = size_y != 0.0f ? (uv_size_y / size_y) : 0.0f;
 
-    nmd_vertex* vert_start = _nmd_context.drawList.vertices + vert_start_idx;
-    nmd_vertex* vert_end = _nmd_context.drawList.vertices + vert_end_idx;
+    nmd_vertex* vert_start = _nmd_context.draw_list.vertices + vert_start_idx;
+    nmd_vertex* vert_end = _nmd_context.draw_list.vertices + vert_end_idx;
     if (clamp)
     {
         const float min_x = NMD_MIN(uv_x0, uv_x1);
@@ -416,24 +416,24 @@ void _nmd_shade_verts_linear_uv(int vert_start_idx, int vert_end_idx, float x0, 
     }
 }
 
-void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags, float thickness)
+void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t corner_flags, float thickness)
 {
     if (!color.a || thickness == 0.0f)
         return;
     
-    nmd_path_rect(x0, y0, x1, y1, rounding, cornerFlags);
+    nmd_path_rect(x0, y0, x1, y1, rounding, corner_flags);
 
     nmd_path_stroke(color, true, thickness);
 }
 
-void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags)
+void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t corner_flags)
 {
     if (!color.a)
         return;
 
     if (rounding > 0.0f)
     {
-        nmd_path_rect(x0, y0, x1, y1, rounding, cornerFlags);
+        nmd_path_rect(x0, y0, x1, y1, rounding, corner_flags);
         nmd_path_fill_convex(color);
     }
     else
@@ -441,40 +441,40 @@ void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color
         if (!_nmd_reserve(4, 6))
             return;
 
-        const size_t offset = _nmd_context.drawList.numVertices;
+        const size_t offset = _nmd_context.draw_list.num_vertices;
 
-        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
         indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
         indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
-        _nmd_context.drawList.numIndices += 6;
+        _nmd_context.draw_list.num_indices += 6;
 
-        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+        nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
         vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].color = color;
         vertices[1].pos.x = x1; vertices[1].pos.y = y0; vertices[1].color = color;
         vertices[2].pos.x = x1; vertices[2].pos.y = y1; vertices[2].color = color;
         vertices[3].pos.x = x0; vertices[3].pos.y = y1; vertices[3].color = color;
-        _nmd_context.drawList.numVertices += 4;
+        _nmd_context.draw_list.num_vertices += 4;
     }
 }
 
-void nmd_add_rect_filled_multi_color(float x0, float y0, float x1, float y1, nmd_color colorUpperLeft, nmd_color colorUpperRight, nmd_color colorBottomRight, nmd_color colorBottomLeft)
+void nmd_add_rect_filled_multi_color(float x0, float y0, float x1, float y1, nmd_color color_upper_left, nmd_color color_upper_right, nmd_color color_bottom_right, nmd_color color_bottom_left)
 {
     if (!_nmd_reserve(4, 6))
         return;
 
-    const size_t offset = _nmd_context.drawList.numVertices;
+    const size_t offset = _nmd_context.draw_list.num_vertices;
 
-    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
     indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
     indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
-    _nmd_context.drawList.numIndices += 6;
+    _nmd_context.draw_list.num_indices += 6;
 
-    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
-    vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].color = colorUpperLeft;
-    vertices[1].pos.x = x1; vertices[1].pos.y = y0; vertices[1].color = colorUpperRight;
-    vertices[2].pos.x = x1; vertices[2].pos.y = y1; vertices[2].color = colorBottomRight;
-    vertices[3].pos.x = x0; vertices[3].pos.y = y1; vertices[3].color = colorBottomLeft;
-    _nmd_context.drawList.numVertices += 4;
+    nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
+    vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].color = color_upper_left;
+    vertices[1].pos.x = x1; vertices[1].pos.y = y0; vertices[1].color = color_upper_right;
+    vertices[2].pos.x = x1; vertices[2].pos.y = y1; vertices[2].color = color_bottom_right;
+    vertices[3].pos.x = x0; vertices[3].pos.y = y1; vertices[3].color = color_bottom_left;
+    _nmd_context.draw_list.num_vertices += 4;
 }
 
 void nmd_add_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color, float thickness)
@@ -527,65 +527,65 @@ void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, f
     nmd_path_fill_convex(color);
 }
 
-void nmd_add_circle(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness)
+void nmd_add_circle(float x0, float y0, float radius, nmd_color color, size_t num_segments, float thickness)
 {
     if (!color.a || radius <= 0.0f)
         return;
 
-    if (numSegments == 0)
-        numSegments = (radius - 1 < 64) ? _nmd_context.drawList.cachedCircleSegmentCounts64[(int)radius - 1] : NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, 1.6f);
+    if (num_segments == 0)
+        num_segments = (radius - 1 < 64) ? _nmd_context.draw_list.cached_circle_segment_counts64[(int)radius - 1] : NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, 1.6f);
     else
-        numSegments = NMD_CLAMP(numSegments, 3, NMD_CIRCLE_AUTO_SEGMENT_MAX);
+        num_segments = NMD_CLAMP(num_segments, 3, NMD_CIRCLE_AUTO_SEGMENT_MAX);
 
-    if (numSegments == 12)
+    if (num_segments == 12)
         nmd_path_arc_to_cached(x0, y0, radius - 0.5f, 0, 12, false);
     else
-        nmd_path_arc_to(x0, y0, radius - 0.5f, 0.0f, NMD_2PI * ((numSegments - 1) / (float)numSegments), numSegments - 1, false);
+        nmd_path_arc_to(x0, y0, radius - 0.5f, 0.0f, NMD_2PI * ((num_segments - 1) / (float)num_segments), num_segments - 1, false);
 
     nmd_path_stroke(color, true, thickness);
 }
 
-void nmd_add_circle_filled(float x0, float y0, float radius, nmd_color color, size_t numSegments)
+void nmd_add_circle_filled(float x0, float y0, float radius, nmd_color color, size_t num_segments)
 {
     if (!color.a || radius <= 0.0f)
         return;
 
-    if (numSegments <= 0)
-        numSegments = (radius - 1 < 64) ? _nmd_context.drawList.cachedCircleSegmentCounts64[(int)radius - 1] : NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, 1.6f);
+    if (num_segments <= 0)
+        num_segments = (radius - 1 < 64) ? _nmd_context.draw_list.cached_circle_segment_counts64[(int)radius - 1] : NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, 1.6f);
     else
-        numSegments = NMD_CLAMP(numSegments, 3, NMD_CIRCLE_AUTO_SEGMENT_MAX);
+        num_segments = NMD_CLAMP(num_segments, 3, NMD_CIRCLE_AUTO_SEGMENT_MAX);
 
-    if (numSegments == 12)
+    if (num_segments == 12)
         nmd_path_arc_to_cached(x0, y0, radius, 0, 12, false);
     else
-        nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((numSegments - 1.0f) / (float)numSegments), numSegments - 1, false);
+        nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((num_segments - 1.0f) / (float)num_segments), num_segments - 1, false);
         
     nmd_path_fill_convex(color);
 }
 
-void nmd_add_ngon(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness)
+void nmd_add_ngon(float x0, float y0, float radius, nmd_color color, size_t num_segments, float thickness)
 {
-    if (!color.a || numSegments < 3)
+    if (!color.a || num_segments < 3)
         return;
 
     /* remove one(1) from numSegment because it's a closed shape. */
-    nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((numSegments - 1) / (float)numSegments), numSegments - 1, false);
+    nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((num_segments - 1) / (float)num_segments), num_segments - 1, false);
     nmd_path_stroke(color, true, thickness);
 }
 
-void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size_t numSegments)
+void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size_t num_segments)
 {
-    if (!color.a || numSegments < 3)
+    if (!color.a || num_segments < 3)
         return;
 
     /* remove one(1) from numSegment because it's a closed shape. */
-    nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((numSegments - 1) / (float)numSegments), numSegments - 1, false);
+    nmd_path_arc_to(x0, y0, radius, 0.0f, NMD_2PI * ((num_segments - 1) / (float)num_segments), num_segments - 1, false);
     nmd_path_fill_convex(color);
 }
 
-void nmd_path_rect(float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags)
+void nmd_path_rect(float x0, float y0, float x1, float y1, float rounding, uint32_t corner_flags)
 {
-    if (rounding == 0.0f || cornerFlags == 0)
+    if (rounding == 0.0f || corner_flags == 0)
     {
         nmd_path_to(x0, y0);
         nmd_path_to(x1, y0);
@@ -594,74 +594,74 @@ void nmd_path_rect(float x0, float y0, float x1, float y1, float rounding, uint3
     }
     else
     {
-        const float roundingTopLeft = (cornerFlags & NMD_CORNER_TOP_LEFT) ? rounding : 0.0f;
-        const float roundingTopRight = (cornerFlags & NMD_CORNER_TOP_RIGHT) ? rounding : 0.0f;
-        const float roundingBottomRight = (cornerFlags & NMD_CORNER_BOTTOM_RIGHT) ? rounding : 0.0f;
-        const float roundingBottomLeft = (cornerFlags & NMD_CORNER_BOTTOM_LEFT) ? rounding : 0.0f;
-        nmd_path_arc_to_cached(x0 + roundingTopLeft, y0 + roundingTopLeft, roundingTopLeft, 6, 9, false);
-        nmd_path_arc_to_cached(x1 - roundingTopRight, y0 + roundingTopRight, roundingTopRight, 9, 12, false);
-        nmd_path_arc_to_cached(x1 - roundingBottomRight, y1 - roundingBottomRight, roundingBottomRight, 0, 3, false);
-        nmd_path_arc_to_cached(x0 + roundingBottomLeft, y1 - roundingBottomLeft, roundingBottomLeft, 3, 6, false);
+        const float rounding_top_left = (corner_flags & NMD_CORNER_TOP_LEFT) ? rounding : 0.0f;
+        const float rounding_top_right = (corner_flags & NMD_CORNER_TOP_RIGHT) ? rounding : 0.0f;
+        const float rounding_bottom_right = (corner_flags & NMD_CORNER_BOTTOM_RIGHT) ? rounding : 0.0f;
+        const float rounding_bottom_left = (corner_flags & NMD_CORNER_BOTTOM_LEFT) ? rounding : 0.0f;
+        nmd_path_arc_to_cached(x0 + rounding_top_left, y0 + rounding_top_left, rounding_top_left, 6, 9, false);
+        nmd_path_arc_to_cached(x1 - rounding_top_right, y0 + rounding_top_right, rounding_top_right, 9, 12, false);
+        nmd_path_arc_to_cached(x1 - rounding_bottom_right, y1 - rounding_bottom_right, rounding_bottom_right, 0, 3, false);
+        nmd_path_arc_to_cached(x0 + rounding_bottom_left, y1 - rounding_bottom_left, rounding_bottom_left, 3, 6, false);
     }
 }
 
-void nmd_path_arc_to(float x0, float y0, float radius, float startAngle, float endAngle, size_t numSegments, bool startAtCenter)
+void nmd_path_arc_to(float x0, float y0, float radius, float start_angle, float end_angle, size_t num_segments, bool start_at_center)
 {
-    if (!_nmd_reserve_points((startAtCenter ? 1 : 0) + numSegments))
+    if (!_nmd_reserve_points((start_at_center ? 1 : 0) + num_segments))
         return;
 
-    nmd_vec2* path = _nmd_context.drawList.path + _nmd_context.drawList.numPoints;
+    nmd_vec2* path = _nmd_context.draw_list.path + _nmd_context.draw_list.num_points;
 
-    if (startAtCenter)
+    if (start_at_center)
     {
         path->x = x0, path->y = y0;
         path++;
     }
 
-    for (size_t i = 0; i <= numSegments; i++)
+    for (size_t i = 0; i <= num_segments; i++)
     {
-        const float angle = startAngle + (i / (float)numSegments) * (endAngle - startAngle);
+        const float angle = start_angle + (i / (float)num_segments) * (end_angle - start_angle);
         path[i].x = x0 + NMD_COS(angle) * radius;
         path[i].y = y0 + NMD_SIN(angle) * radius;
     }
 
-    _nmd_context.drawList.numPoints = (startAtCenter ? 1 : 0) + numSegments + 1;
+    _nmd_context.draw_list.num_points = (start_at_center ? 1 : 0) + num_segments + 1;
 }
 
-void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t startAngleOf12, size_t endAngleOf12, bool startAtCenter)
+void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t start_angle_of12, size_t end_angle_of12, bool start_at_center)
 {
-    if (!_nmd_reserve_points((startAtCenter ? 1 : 0) + (endAngleOf12 - startAngleOf12)))
+    if (!_nmd_reserve_points((start_at_center ? 1 : 0) + (end_angle_of12 - start_angle_of12)))
         return;
 
-    nmd_vec2* path = _nmd_context.drawList.path + _nmd_context.drawList.numPoints;
+    nmd_vec2* path = _nmd_context.draw_list.path + _nmd_context.draw_list.num_points;
 
-    if (startAtCenter)
+    if (start_at_center)
     {
         path->x = x0, path->y = y0;
         path++;
     }
 
-    for (size_t angle = startAngleOf12; angle <= endAngleOf12; angle++)
+    for (size_t angle = start_angle_of12; angle <= end_angle_of12; angle++)
     {
-        const nmd_vec2* point = &_nmd_context.drawList.cachedCircleVertices12[angle % 12];
+        const nmd_vec2* point = &_nmd_context.draw_list.cached_circle_vertices12[angle % 12];
         path->x = x0 + point->x * radius;
         path->y = y0 + point->y * radius;
         path++;
     }
 
-    _nmd_context.drawList.numPoints = path - _nmd_context.drawList.path;
+    _nmd_context.draw_list.num_points = path - _nmd_context.draw_list.path;
 }
 
 /*
-void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, size_t numSegments)
+void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, size_t num_segments)
 {
     const nmd_vec2& p1 = path.back();
-    if (numSegments == 0)
+    if (num_segments == 0)
         PathBezierToCasteljau(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, 0);
     else
     {
-        const float tStep = 1.0f / static_cast<float>(numSegments);
-        for (size_t iStep = 1; iStep <= numSegments; iStep++)
+        const float tStep = 1.0f / static_cast<float>(num_segments);
+        for (size_t iStep = 1; iStep <= num_segments; iStep++)
             path.push_back(BezierCalc(p1, p2, p3, p4, tStep * iStep));
     }
 }
@@ -669,36 +669,36 @@ void DrawList::PathBezierCurveTo(const nmd_vec2& p2, const nmd_vec2& p3, const n
 
 void nmd_prim_rect_uv(float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color)
 {
-    const size_t offset = _nmd_context.drawList.numVertices;
+    const size_t offset = _nmd_context.draw_list.num_vertices;
 
-    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
     indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
     indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
-    _nmd_context.drawList.numIndices += 6;
+    _nmd_context.draw_list.num_indices += 6;
 
-    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
     vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].uv.x = uv_x0; vertices[0].uv.y = uv_y0; vertices[0].color = color;
     vertices[1].pos.x = x1; vertices[1].pos.y = y0; vertices[1].uv.x = uv_x1; vertices[1].uv.y = uv_y0; vertices[1].color = color;
     vertices[2].pos.x = x1; vertices[2].pos.y = y1; vertices[2].uv.x = uv_x1; vertices[2].uv.y = uv_y1; vertices[2].color = color;
     vertices[3].pos.x = x0; vertices[3].pos.y = y1; vertices[3].uv.x = uv_x0; vertices[3].uv.y = uv_y1; vertices[3].color = color;
-    _nmd_context.drawList.numVertices += 4;
+    _nmd_context.draw_list.num_vertices += 4;
 }
 
 void nmd_prim_quad_uv(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color)
 {
-    const size_t offset = _nmd_context.drawList.numVertices;
+    const size_t offset = _nmd_context.draw_list.num_vertices;
 
-    nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+    nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
     indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
     indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
-    _nmd_context.drawList.numIndices += 6;
+    _nmd_context.draw_list.num_indices += 6;
 
-    nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+    nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
     vertices[0].pos.x = x0; vertices[0].pos.y = y0; vertices[0].uv.x = uv_x0; vertices[0].uv.y = uv_y0; vertices[0].color = color;
     vertices[1].pos.x = x1; vertices[1].pos.y = y1; vertices[1].uv.x = uv_x1; vertices[1].uv.y = uv_y1; vertices[1].color = color;
     vertices[2].pos.x = x2; vertices[2].pos.y = y2; vertices[2].uv.x = uv_x2; vertices[2].uv.y = uv_y2; vertices[2].color = color;
     vertices[3].pos.x = x3; vertices[3].pos.y = y3; vertices[3].uv.x = uv_x3; vertices[3].uv.y = uv_y3; vertices[3].color = color;
-    _nmd_context.drawList.numVertices += 4;
+    _nmd_context.draw_list.num_vertices += 4;
 }
 
 void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float thickness)
@@ -711,36 +711,36 @@ void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float
     nmd_path_stroke(color, false, thickness);
 }
 
-void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color)
+void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t num_points, nmd_color color)
 {
-    if (numPoints < 3)
+    if (num_points < 3)
         return;
 
-    if (_nmd_context.drawList.fillAntiAliasing)
+    if (_nmd_context.draw_list.fill_anti_aliasing)
     {
         /* Anti-aliased fill */
         const float AA_SIZE = 1.0f;
         nmd_color col_trans = color;
         col_trans.a = 0;
 
-        const int idx_count = (numPoints - 2) * 3 + numPoints * 6;
-        const int vtx_count = (numPoints * 2);
+        const int idx_count = (num_points - 2) * 3 + num_points * 6;
+        const int vtx_count = (num_points * 2);
         if (!_nmd_reserve(vtx_count, idx_count))
             return;
 
         /* Add indexes for fill */
-        unsigned int vtx_inner_idx = _nmd_context.drawList.numVertices;
-        unsigned int vtx_outer_idx = _nmd_context.drawList.numVertices + 1;
-        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
-        for (int i = 2; i < numPoints; i++)
+        unsigned int vtx_inner_idx = _nmd_context.draw_list.num_vertices;
+        unsigned int vtx_outer_idx = _nmd_context.draw_list.num_vertices + 1;
+        nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
+        for (int i = 2; i < num_points; i++)
         {
             indices[0] = vtx_inner_idx; indices[1] = vtx_inner_idx + ((i - 1) << 1); indices[2] = vtx_inner_idx + (i << 1);
             indices += 3;
         }
 
         /* Compute normals */
-        nmd_vec2* temp_normals = (nmd_vec2*)NMD_ALLOCA(numPoints * sizeof(nmd_vec2));
-        for (int i0 = numPoints - 1, i1 = 0; i1 < numPoints; i0 = i1++)
+        nmd_vec2* temp_normals = (nmd_vec2*)NMD_ALLOCA(num_points * sizeof(nmd_vec2));
+        for (int i0 = num_points - 1, i1 = 0; i1 < num_points; i0 = i1++)
         {
             const nmd_vec2* p0 = &points[i0];
             const nmd_vec2* p1 = &points[i1];
@@ -751,8 +751,8 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
             temp_normals[i0].y = -dx;
         }
 
-        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
-        for (int i0 = numPoints - 1, i1 = 0; i1 < numPoints; i0 = i1++)
+        nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
+        for (int i0 = num_points - 1, i1 = 0; i1 < num_points; i0 = i1++)
         {
             /* Average normals */
             const nmd_vec2* n0 = &temp_normals[i0];
@@ -773,25 +773,24 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd
             indices[3] = vtx_outer_idx + (i0 << 1); indices[4] = vtx_outer_idx + (i1 << 1); indices[5] = vtx_inner_idx + (i1 << 1);
             indices += 6;
         }
-        _nmd_context.drawList.numVertices = vertices - _nmd_context.drawList.vertices;
-        _nmd_context.drawList.numIndices = indices - _nmd_context.drawList.indices;
+        _nmd_context.draw_list.num_vertices = vertices - _nmd_context.draw_list.vertices;
+        _nmd_context.draw_list.num_indices = indices - _nmd_context.draw_list.indices;
     }
     else
     {
-
-        if (!_nmd_reserve(numPoints, (numPoints - 2) * 3))
+        if (!_nmd_reserve(num_points, (num_points - 2) * 3))
             return;
 
-        const size_t offset = _nmd_context.drawList.numVertices;
-        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
-        for (size_t i = 2; i < numPoints; i++)
+        const size_t offset = _nmd_context.draw_list.num_vertices;
+        nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
+        for (size_t i = 2; i < num_points; i++)
             indices[(i - 2) * 3 + 0] = offset, indices[(i - 2) * 3 + 1] = offset + (i - 1), indices[(i - 2) * 3 + 2] = offset + i;
-        _nmd_context.drawList.numIndices += (numPoints - 2) * 3;
+        _nmd_context.draw_list.num_indices += (num_points - 2) * 3;
 
-        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
-        for (size_t i = 0; i < numPoints; i++)
+        nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
+        for (size_t i = 0; i < num_points; i++)
             vertices[i].pos.x = points[i].x, vertices[i].pos.y = points[i].y, vertices[i].color = color;
-        _nmd_context.drawList.numVertices += numPoints;
+        _nmd_context.draw_list.num_vertices += num_points;
     }
 }
 
@@ -981,77 +980,77 @@ void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_co
 #endif /* NMD_GRAPHICS_ENABLE_DUMMY_TEXT_API */
 
 /*
-void DrawList::AddBezierCurve(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, Color color, float thickness, size_t numSegments)
+void DrawList::AddBezierCurve(const nmd_vec2& p1, const nmd_vec2& p2, const nmd_vec2& p3, const nmd_vec2& p4, Color color, float thickness, size_t num_segments)
 {
     if (!color.a)
         return;
 
     PathLineTo(p1);
-    PathBezierCurveTo(p2, p3, p4, numSegments);
+    PathBezierCurveTo(p2, p3, p4, num_segments);
     PathStroke(color, false, thickness);
 }
 void nmd_add_text(float x, float y, const char* text, nmd_color color)
 {
-    nmd_add_text(_nmd_context.drawList.defaultFont, x, y, text, color);
+    nmd_add_text(_nmd_context.draw_list.defaultFont, x, y, text, color);
 }
 */
 
-void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* textEnd, nmd_color color)
+void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* text_end, nmd_color color)
 {
     if (!color.a)
         return;
 
-    if (!textEnd)
-        textEnd = text + strlen(text);
+    if (!text_end)
+        text_end = text + strlen(text);
 
-    if (!_nmd_reserve((textEnd - text) * 4, (textEnd - text) * 6))
+    if (!_nmd_reserve((text_end - text) * 4, (text_end - text) * 6))
         return;
 
     nmd_push_draw_command(0);
 
     stbtt_aligned_quad q;
-    for(; text < textEnd; text++)
+    for(; text < text_end; text++)
     {
         stbtt_GetBakedQuad((stbtt_bakedchar*)font->baked_chars, 512, 512, *text - 32, &x, &y, &q, 1);
 
-        const size_t offset = _nmd_context.drawList.numVertices;
+        const size_t offset = _nmd_context.draw_list.num_vertices;
 
-        nmd_index* indices = _nmd_context.drawList.indices + _nmd_context.drawList.numIndices;
+        nmd_index* indices = _nmd_context.draw_list.indices + _nmd_context.draw_list.num_indices;
         indices[0] = offset + 0; indices[1] = offset + 1; indices[2] = offset + 2;
         indices[3] = offset + 0; indices[4] = offset + 2; indices[5] = offset + 3;
-        _nmd_context.drawList.numIndices += 6;
+        _nmd_context.draw_list.num_indices += 6;
         
-        nmd_vertex* vertices = _nmd_context.drawList.vertices + _nmd_context.drawList.numVertices;
+        nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
         vertices[0].pos.x = q.x0; vertices[0].pos.y = q.y0; vertices[0].uv.x = q.s0; vertices[0].uv.y = q.t0; vertices[0].color = color;
         vertices[1].pos.x = q.x1; vertices[1].pos.y = q.y0; vertices[1].uv.x = q.s1; vertices[1].uv.y = q.t0; vertices[1].color = color;
         vertices[2].pos.x = q.x1; vertices[2].pos.y = q.y1; vertices[2].uv.x = q.s1; vertices[2].uv.y = q.t1; vertices[2].color = color;
         vertices[3].pos.x = q.x0; vertices[3].pos.y = q.y1; vertices[3].uv.x = q.s0; vertices[3].uv.y = q.t1; vertices[3].color = color;
-        _nmd_context.drawList.numVertices += 4;
+        _nmd_context.draw_list.num_vertices += 4;
     }
 
     nmd_push_texture_draw_command(font->font_id, 0);
 }
 
-void nmd_get_text_size(const nmd_atlas* font, const char* text, const char* textEnd, nmd_vec2* size_out)
+void nmd_get_text_size(const nmd_atlas* font, const char* text, const char* text_end, nmd_vec2* size_out)
 {
-    if (!textEnd)
-        textEnd = text + strlen(text);
+    if (!text_end)
+        text_end = text + strlen(text);
     
     stbtt_aligned_quad q;
     float x = 0, y = 0;
-    for (; text < textEnd; text++)
+    for (; text < text_end; text++)
         stbtt_GetBakedQuad((stbtt_bakedchar*)font->baked_chars, 512, 512, *text - 32, &x, &y, &q, 1);
 
     size_out->x = q.x1;
     size_out->y = q.y1 - q.y0;
 }
 
-void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color)
+void nmd_add_image(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, nmd_color color)
 {
-    nmd_add_image_uv(userTextureId, x0, y0, x1, y1, 0.0f, 0.0f, 1.0f, 1.0f, color);
+    nmd_add_image_uv(user_texture_id, x0, y0, x1, y1, 0.0f, 0.0f, 1.0f, 1.0f, color);
 }
 
-void nmd_add_image_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color)
+void nmd_add_image_uv(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color)
 {
     if (!color.a)
         return;
@@ -1060,15 +1059,15 @@ void nmd_add_image_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, fl
 
     nmd_prim_rect_uv(x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, color);
     
-    nmd_push_texture_draw_command(userTextureId, 0);
+    nmd_push_texture_draw_command(user_texture_id, 0);
 }
 
-void nmd_add_image_quad(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color)
+void nmd_add_image_quad(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color)
 {
-    nmd_add_image_quad_uv(userTextureId, x0, y0, x1, y1, x2, y2, x3, y3, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, color);
+    nmd_add_image_quad_uv(user_texture_id, x0, y0, x1, y1, x2, y2, x3, y3, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, color);
 }
 
-void nmd_add_image_quad_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color)
+void nmd_add_image_quad_uv(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color)
 {
     if (!color.a)
         return;
@@ -1077,32 +1076,32 @@ void nmd_add_image_quad_uv(nmd_tex_id userTextureId, float x0, float y0, float x
 
     nmd_prim_quad_uv(x0, y0, x1, y1, x2, y2, x3, y3, uv_x0, uv_y0, uv_x1, uv_y1, uv_x2, uv_y2, uv_x3, uv_y3, color);
 
-    nmd_push_texture_draw_command(userTextureId, 0);
+    nmd_push_texture_draw_command(user_texture_id, 0);
 }
 
-void nmd_add_image_rounded(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags, nmd_color color)
+void nmd_add_image_rounded(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float rounding, uint32_t corner_flags, nmd_color color)
 {
-    nmd_add_image_rounded_uv(userTextureId, x0, y0, x1, y1, rounding, cornerFlags, 0.0f, 0.0f, 1.0f, 1.0f, color);
+    nmd_add_image_rounded_uv(user_texture_id, x0, y0, x1, y1, rounding, corner_flags, 0.0f, 0.0f, 1.0f, 1.0f, color);
 }
 
-void nmd_add_image_rounded_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color)
+void nmd_add_image_rounded_uv(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float rounding, uint32_t corner_flags, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color)
 {
     if (!color.a)
         return;
 
-    if (rounding <= 0.0f || !cornerFlags)
-        nmd_add_image_uv(userTextureId, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, color);
+    if (rounding <= 0.0f || !corner_flags)
+        nmd_add_image_uv(user_texture_id, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, color);
     else
     {
         nmd_push_draw_command(0);
 
-        const int vert_start_idx = _nmd_context.drawList.numVertices;
-        nmd_path_rect(x0, y0, x1, y1, rounding, cornerFlags);
+        const int vert_start_idx = _nmd_context.draw_list.num_vertices;
+        nmd_path_rect(x0, y0, x1, y1, rounding, corner_flags);
         nmd_path_fill_convex(color);
-        const int vert_end_idx = _nmd_context.drawList.numVertices;
+        const int vert_end_idx = _nmd_context.draw_list.num_vertices;
 
         _nmd_shade_verts_linear_uv(vert_start_idx, vert_end_idx, x0, y0, x1, y1, uv_x0, uv_y0, uv_x1, uv_y1, true);
 
-        nmd_push_texture_draw_command(userTextureId, 0);
+        nmd_push_texture_draw_command(user_texture_id, 0);
     }
 }

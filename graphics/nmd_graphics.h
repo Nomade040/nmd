@@ -1,7 +1,8 @@
 /* This is a C89 platform independent 2D immediate mode graphics library.
 
 This library just generates triangles(represented by vertices and indices) from functions like nmd_add_rect_filled().
-There's no GUI or IO.
+There's a GUI component. There're helper functions to handle input on the following platforms:
+ - Windows: nmd_win32_wnd_proc
 
 Setup:
 Define the 'NMD_GRAPHICS_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
@@ -248,11 +249,11 @@ typedef struct
 
 typedef struct
 {
-    /* 'numVertices' has the type 'nmd_index' because the number of vertices is always less or equal the number of indices. */
-    nmd_index numVertices; 
+    /* 'num_vertices' has the type 'nmd_index' because the number of vertices is always less or equal the number of indices. */
+    nmd_index num_vertices; 
 
-    nmd_index numIndices;
-    nmd_tex_id userTextureId;
+    nmd_index num_indices;
+    nmd_tex_id user_texture_id;
 
     nmd_rect rect;
     
@@ -283,34 +284,34 @@ typedef struct
 
 typedef struct
 {
-    bool lineAntiAliasing; /* If true, all lines will have AA applied to them. */
-    bool fillAntiAliasing; /* If true, all filled polygons will have AA applied to them. */
+    bool line_anti_aliasing; /* If true, all lines will have AA applied to them. */
+    bool fill_anti_aliasing; /* If true, all filled polygons will have AA applied to them. */
 
-    nmd_vec2 cachedCircleVertices12[12];
-    uint8_t cachedCircleSegmentCounts64[64];
-    float curveTessellationTolerance;
+    nmd_vec2 cached_circle_vertices12[12];
+    uint8_t cached_circle_segment_counts64[64];
+    float curve_tessellation_tolerance;
 
     nmd_vec2* path;
-    size_t numPoints; /* number of points('nmd_vec2') in the 'path' buffer. */
-    size_t pathCapacity; /* size of the 'path' buffer in bytes. */
+    size_t num_points; /* number of points('nmd_vec2') in the 'path' buffer. */
+    size_t path_capacity; /* size of the 'path' buffer in bytes. */
 
     nmd_vertex* vertices;
-    size_t numVertices; /* number of vertices in the 'vertices' buffer. */
-    size_t verticesCapacity; /* size of the 'vertices' buffer in bytes. */
+    size_t num_vertices; /* number of vertices in the 'vertices' buffer. */
+    size_t vertices_capacity; /* size of the 'vertices' buffer in bytes. */
 
     nmd_index* indices;
-    size_t numIndices; /* number of indices in the 'indices' buffer. */
-    size_t indicesCapacity; /* size of the 'indices' buffer in bytes. */
+    size_t num_indices; /* number of indices in the 'indices' buffer. */
+    size_t indices_capacity; /* size of the 'indices' buffer in bytes. */
 
-    nmd_draw_command* drawCommands;
-    size_t numDrawCommands; /* number of draw commands in the 'drawCommands' buffer. */
-    size_t drawCommandsCapacity; /* size of the 'drawCommands' buffer in bytes. */
+    nmd_draw_command* draw_commands;
+    size_t num_draw_commands; /* number of draw commands in the 'draw_commands' buffer. */
+    size_t draw_commands_capacity; /* size of the 'draw_commands' buffer in bytes. */
 
     nmd_atlas default_atlas;
     nmd_tex_id blank_tex_id;
 
     /*
-    void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t numSegments);*/
+    void PathBezierCurveTo(const Vec2& p2, const Vec2& p3, const Vec2& p4, size_t num_segments);*/
 } nmd_drawlist;
 
 typedef struct
@@ -362,7 +363,7 @@ typedef struct
 
 typedef struct
 {
-    nmd_drawlist drawList; /* Vertices, indices, draw commands */
+    nmd_drawlist draw_list; /* Vertices, indices, draw commands */
     nmd_io io; /* IO data */
     nmd_gui gui; /* Windows, gui related data */
 
@@ -376,23 +377,23 @@ void nmd_win32_set_hwnd(HWND hWnd);
 #endif /* _WIN32*/
 
 void nmd_path_to(float x0, float y0);
-void nmd_path_rect(float x0, float y0, float x1, float y1, float rounding, uint32_t roundingCorners);
+void nmd_path_rect(float x0, float y0, float x1, float y1, float rounding, uint32_t rounding_corners);
 
 /*
-'startAtCenter' places the first vertex at the center, this can be used to create a pie chart when using nmd_path_fill_convex().
+'start_at_center' places the first vertex at the center, this can be used to create a pie chart when using nmd_path_fill_convex().
 This functions uses twelve(12) chached vertices initialized during startup, it should be faster than PathArcTo.
 */
-void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t startAngleOf12, size_t endAngleOf12, bool startAtCenter);
-void nmd_path_arc_to(float x0, float y0, float radius, float startAngle, float endAngle, size_t numSegments, bool startAtCenter);
+void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t start_angle_of12, size_t end_angle_of12, bool start_at_center);
+void nmd_path_arc_to(float x0, float y0, float radius, float start_angle, float end_angle, size_t num_segments, bool start_at_center);
 
 void nmd_path_fill_convex(nmd_color color);
 void nmd_path_stroke(nmd_color color, bool closed, float thickness);
 
 void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float thickness);
 
-void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags, float thickness);
-void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t cornerFlags);
-void nmd_add_rect_filled_multi_color(float x0, float y0, float x1, float y1, nmd_color colorUpperLeft, nmd_color colorUpperRight, nmd_color colorBottomRight, nmd_color colorBottomLeft);
+void nmd_add_rect(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t corner_flags, float thickness);
+void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color, float rounding, uint32_t corner_flags);
+void nmd_add_rect_filled_multi_color(float x0, float y0, float x1, float y1, nmd_color color_upper_left, nmd_color color_upper_right, nmd_color color_bottom_right, nmd_color color_bottom_left);
 
 void nmd_add_quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color, float thickness);
 void nmd_add_quad_filled(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color);
@@ -403,31 +404,31 @@ void nmd_add_triangle_filled(float x0, float y0, float x1, float y1, float x2, f
 void nmd_add_dummy_text(float x, float y, const char* text, float height, nmd_color color, float spacing);
 
 /*
-Set numSegments to zero if you want the function to automatically determine the number of segmnts.
-numSegments = 12
+Set num_segments to zero if you want the function to automatically determine the number of segmnts.
+num_segments = 12
 */
-void nmd_add_circle(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness);
-void nmd_add_circle_filled(float x0, float y0, float radius, nmd_color color, size_t numSegments);
+void nmd_add_circle(float x0, float y0, float radius, nmd_color color, size_t num_segments, float thickness);
+void nmd_add_circle_filled(float x0, float y0, float radius, nmd_color color, size_t num_segments);
 
-void nmd_add_ngon(float x0, float y0, float radius, nmd_color color, size_t numSegments, float thickness);
-void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size_t numSegments);
+void nmd_add_ngon(float x0, float y0, float radius, nmd_color color, size_t num_segments, float thickness);
+void nmd_add_ngon_filled(float x0, float y0, float radius, nmd_color color, size_t num_segments);
 
-void nmd_add_polyline(const nmd_vec2* points, size_t numPoints, nmd_color color, bool closed, float thickness);
-void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t numPoints, nmd_color color);
-/*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t numSegments);*/
+void nmd_add_polyline(const nmd_vec2* points, size_t num_points, nmd_color color, bool closed, float thickness);
+void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t num_points, nmd_color color);
+/*void nmd_add_bezier_curve(nmd_vec2 p0, nmd_vec2 p1, nmd_vec2 p2, nmd_vec2 p3, nmd_color color, float thickness, size_t num_segments);*/
 
 /*void nmd_add_text(float x, float y, const char* text, nmd_color color);*/
-void nmd_get_text_size(const nmd_atlas* font, const char* text, const char* textEnd, nmd_vec2* size_out);
-void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* textEnd, nmd_color color);
+void nmd_get_text_size(const nmd_atlas* font, const char* text, const char* text_end, nmd_vec2* size_out);
+void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, const char* text_end, nmd_color color);
 
-void nmd_add_image(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, nmd_color color);
-void nmd_add_image_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
+void nmd_add_image(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, nmd_color color);
+void nmd_add_image_uv(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
 
-void nmd_add_image_quad(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color);
-void nmd_add_image_quad_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color);
+void nmd_add_image_quad(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, nmd_color color);
+void nmd_add_image_quad_uv(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color);
 
-void nmd_add_image_rounded(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags, nmd_color color);
-void nmd_add_image_rounded_uv(nmd_tex_id userTextureId, float x0, float y0, float x1, float y1, float rounding, uint32_t cornerFlags, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
+void nmd_add_image_rounded(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float rounding, uint32_t corner_flags, nmd_color color);
+void nmd_add_image_rounded_uv(nmd_tex_id user_texture_id, float x0, float y0, float x1, float y1, float rounding, uint32_t corner_flags, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
 
 void nmd_prim_rect_uv(float x0, float y0, float x1, float y1, float uv_x0, float uv_y0, float uv_x1, float uv_y1, nmd_color color);
 void nmd_prim_quad_uv(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, float uv_x0, float uv_y0, float uv_x1, float uv_y1, float uv_x2, float uv_y2, float uv_x3, float uv_y3, nmd_color color);
@@ -464,11 +465,11 @@ void nmd_end_frame();
 /*
 Creates one or more draw commands for the unaccounted vertices and indices.
 Parameters:
- clipRect [opt/in] A pointer to a rect that specifies the clip area. This parameter can be null.
+ clip_rect [opt/in] A pointer to a rect that specifies the clip area. This parameter can be null.
 */
-void nmd_push_draw_command(const nmd_rect* clipRect);
+void nmd_push_draw_command(const nmd_rect* clip_rect);
 
-void nmd_push_texture_draw_command(nmd_tex_id userTextureId, const nmd_rect* clipRect);
+void nmd_push_texture_draw_command(nmd_tex_id user_texture_id, const nmd_rect* clip_rect);
 
 bool nmd_bake_font_from_memory(const void* font_data, nmd_atlas* atlas, float size);
 
