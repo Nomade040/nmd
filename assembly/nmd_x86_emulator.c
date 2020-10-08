@@ -178,8 +178,8 @@ NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 		const bool valid_buffer = _NMD_IN_BOUNDARIES(buffer);
 		if (!valid_buffer || !nmd_x86_decode(buffer, (size_t)(end_virtual_address - cpu->rip), &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
 		{
-			if (cpu->callback)
-				cpu->callback(cpu, &instruction, valid_buffer ? NMD_X86_EMULATOR_EXCEPTION_BAD_INSTRUCTION : NMD_X86_EMULATOR_EXCEPTION_BAD_MEMORY);
+			if (cpu->interrupt_handler)
+				cpu->interrupt_handler(cpu, &instruction, valid_buffer ? NMD_X86_EXCEPTION_INVALID_OPCODE : NMD_X86_EXCEPTION_PAGE_FAULT);
 			cpu->running = false;
 			return false;
 		}
@@ -198,8 +198,8 @@ NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 					addr = _NMD_GET_PHYSICAL_ADDRESS(x);
 					if (!_NMD_IN_BOUNDARIES(addr))
 					{
-						if (cpu->callback)
-							cpu->callback(cpu, &instruction, NMD_X86_EMULATOR_EXCEPTION_BAD_MEMORY);
+						if (cpu->interrupt_handler)
+							cpu->interrupt_handler(cpu, &instruction, NMD_X86_EXCEPTION_PAGE_FAULT);
 						cpu->running = false;
 						return false;
 					}
@@ -444,23 +444,23 @@ NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 				cpu->rax.l8 = cpu->flags.l8;
 			else if (instruction.opcode == 0xcc) /* int3 */
 			{
-				if (cpu->callback)
-					cpu->callback(cpu, &instruction, NMD_X86_EMULATOR_EXCEPTION_BREAKPOINT);
+				if (cpu->interrupt_handler)
+					cpu->interrupt_handler(cpu, &instruction, NMD_X86_EXCEPTION_BREAKPOINT);
 			}
 			else if (instruction.opcode == 0xf1) /* int1 */
 			{
-				if (cpu->callback)
-					cpu->callback(cpu, &instruction, NMD_X86_EMULATOR_EXCEPTION_DEBUG);
+				if (cpu->interrupt_handler)
+					cpu->interrupt_handler(cpu, &instruction, NMD_X86_EXCEPTION_DEBUG);
 			}
 			else if (instruction.opcode == 0xce) /* into */
 			{
-				if (cpu->callback)
-					cpu->callback(cpu, &instruction, NMD_X86_EMULATOR_EXCEPTION_OVERFLOW);
+				if (cpu->interrupt_handler)
+					cpu->interrupt_handler(cpu, &instruction, NMD_X86_EXCEPTION_OVERFLOW);
 			}
 			else if (instruction.opcode == 0xcd) /* int n */
 			{
-				if (cpu->callback)
-					cpu->callback(cpu, &instruction, NMD_X86_EMULATOR_EXCEPTION_GENERAL_PROTECTION);
+				if (cpu->interrupt_handler)
+					cpu->interrupt_handler(cpu, &instruction, NMD_X86_EXCEPTION_GENERAL_PROTECTION);
 			}
 			else if (instruction.opcode == 0xf4) /* hlt */
 			{
@@ -564,8 +564,8 @@ NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 		*//* OF,SF,CF*/
 
 
-		if (cpu->flags.fields.TF && cpu->callback)
-			cpu->callback(cpu, &instruction, NMD_X86_EMULATOR_EXCEPTION_STEP);
+		if (cpu->flags.fields.TF && cpu->interrupt_handler)
+			cpu->interrupt_handler(cpu, &instruction, NMD_X86_EXCEPTION_DEBUG);
 
 		cpu->rip += instruction.length;
 
