@@ -21,7 +21,7 @@ set of single-header libraries for C/C++
  - Ensure C89 compatibility.
  - Every identifier uses snake case.
  - Enums and macros are uppercase, every other identifier is lowercase.
- - Non-internal identifiers start with the 'NMD_' prefix. e.g. `nmd_x86_decode()`.
- - Internal identifiers start with the '_NMD_' prefix. e.g. `_nmd_append_string()`.
+ - Non-internal identifiers start with the `NMD_` prefix. e.g. `nmd_x86_decode()`.
+ - Internal identifiers start with the `_NMD_` prefix. e.g. `_nmd_append_string()`.
 
 Repository inspired by [nothings/stb](https://github.com/nothings/stb).
