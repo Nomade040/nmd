@@ -18,6 +18,7 @@ set of single-header libraries for C/C++
  - [CVEAC-2020](https://github.com/thesecretclub/CVEAC-2020)
 
 # Code guidelines
+ - Ensure C89 compatibility.
  - Every identifier uses snake case.
  - Enums and macros are uppercase, every other identifier is lowercase.
  - Non-internal identifiers start with the 'NMD_' prefix. e.g. `nmd_x86_decode()`.
