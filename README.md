@@ -1,5 +1,4 @@
-![Build nmd_assembly.h](https://github.com/Nomade040/nmd/workflows/Build%20nmd_assembly.h/badge.svg)
-![Test nmd_assembly.h](https://github.com/Nomade040/nmd/workflows/Test%20nmd_assembly.h/badge.svg)
+![Build nmd_assembly.h](https://github.com/Nomade040/nmd/workflows/Build%20nmd_assembly.h/badge.svg) ![Test nmd_assembly.h](https://github.com/Nomade040/nmd/workflows/Test%20nmd_assembly.h/badge.svg) [![Discord](https://img.shields.io/badge/chat-on%20Discord-green.svg)](https://discord.gg/VF4rVxA)
 
 # nmd
 set of single-header libraries for C/C++
