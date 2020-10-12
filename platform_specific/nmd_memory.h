@@ -91,7 +91,7 @@ enum NMD_INJECTION_METHOD
 
 /* Taken from x64dbg */
 
-typedef struct _PEB_LDR_DATA
+typedef struct _NMD_PEB_LDR_DATA
 {
     ULONG Length;
     BOOLEAN Initialized;
@@ -102,7 +102,7 @@ typedef struct _PEB_LDR_DATA
     PVOID EntryInProgress;
     BOOLEAN ShutdownInProgress;
     HANDLE ShutdownThreadId;
-} PEB_LDR_DATA, *PPEB_LDR_DATA;
+} NMD_PEB_LDR_DATA, *NMD_PPEB_LDR_DATA;
 
 #ifndef _WIN64
 #define GDI_HANDLE_BUFFER_SIZE 34
@@ -111,14 +111,14 @@ typedef struct _PEB_LDR_DATA
 #endif
 typedef ULONG GDI_HANDLE_BUFFER[GDI_HANDLE_BUFFER_SIZE];
 
-typedef struct _UNICODE_STRING
+typedef struct _NMD_UNICODE_STRING
 {
     USHORT Length;
     USHORT MaximumLength;
     PWSTR Buffer;
-} UNICODE_STRING, * PUNICODE_STRING;
+} NMD_UNICODE_STRING, *NMD_PUNICODE_STRING;
 
-typedef struct _PEB
+typedef struct _NMD_PEB
 {
     BOOLEAN InheritedAddressSpace;
     BOOLEAN ReadImageFileExecOptions;
@@ -142,7 +142,7 @@ typedef struct _PEB
     HANDLE Mutant;
 
     PVOID ImageBaseAddress;
-    PPEB_LDR_DATA Ldr;
+    NMD_PPEB_LDR_DATA Ldr;
     PVOID ProcessParameters; // PRTL_USER_PROCESS_PARAMETERS
     PVOID SubSystemData;
     PVOID ProcessHeap;
@@ -225,7 +225,7 @@ typedef struct _PEB
     PVOID pShimData;
     PVOID AppCompatInfo; // APPCOMPAT_EXE_DATA
 
-    UNICODE_STRING CSDVersion;
+    NMD_UNICODE_STRING CSDVersion;
 
     PVOID ActivationContextData; // ACTIVATION_CONTEXT_DATA
     PVOID ProcessAssemblyStorageMap; // ASSEMBLY_STORAGE_MAP
@@ -261,7 +261,7 @@ typedef struct _PEB
     PVOID WaitOnAddressHashTable[128];
     PVOID TelemetryCoverageHeader; // REDSTONE3
     ULONG CloudFileFlags;
-} PEB, *PPEB;
+} NMD_PEB, *NMD_PPEB;
 
 /* Returns the last error code set. */
 uint32_t nmd_get_error_code();
@@ -273,6 +273,7 @@ Parameters:
 void nmd_set_error_code(uint32_t error_code);
 
 /* Performs a system call using the specified id.
+Be aware: On Wow64 the syscall may expect structures with 8-byte sizes(such as pointers and SIZE_T).
 Parameters:
  - id  [in] The syscall id.
  - ... [in] The parameters used by the syscall.
@@ -305,7 +306,7 @@ Parameters:
 // NTSTATUS nmd_allocate_virtual_memory
 
 /* Returns a pointer to the PEB of the current process. */
-PPEB nmd_min_get_peb();
+NMD_PPEB nmd_min_get_peb();
 
 /* Scans the specified memory range for a pattern. Returns the address of the first occurence of the pattern or zero if not found.
 Parameters:
@@ -357,12 +358,12 @@ void nmd_set_error_code(uint32_t error_code)
 }
 
 /* Returns a pointer to the PEB of the current process. */
-PPEB nmd_min_get_peb()
+NMD_PPEB nmd_min_get_peb()
 {
 #ifdef _WIN64
-    return (PPEB)__readgsqword(0x60);
+    return (NMD_PPEB)__readgsqword(0x60);
 #else
-    return (PPEB)__readfsdword(0x30); 
+    return (NMD_PPEB)__readfsdword(0x30); 
 #endif
 }
 //#include<winternl.h>
@@ -552,8 +553,8 @@ _NMD_NAKED void _nmd_wow64_syscall()
     {
         ; Transition to x86-64
         push 0x33
-        _NMD_DB(0xe8) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00)  ; call $+0
-        _NMD_DB(0x83) _NMD_DB(0x04) _NMD_DB(0x24) _NMD_DB(0x05)                ; add dword ptr[esp], 5
+        _NMD_DB(0xe8) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) ; call $+0
+        _NMD_DB(0x83) _NMD_DB(0x04) _NMD_DB(0x24) _NMD_DB(0x05)               ; add dword ptr[esp], 5
         retf
 
         ; Adjust parameters and execute syscall
@@ -648,26 +649,30 @@ _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
     _asm
     {
 #ifdef _WIN64
-        mov rax, rcx       ; Set syscall index
-        mov rbx, [rsp]     ; Save return value
-        
-        mov r10, rdx;      ; Set register parameters
-        mov rdx, r8;       ;
-        mov r8, r9         ;
-        mov r9, [rsp + 40] ;
-        
-        add rsp, 48        ; Adjust stack parameters
-        syscall            ; Execute syscall
-        sub rsp, 48        ; Restore stack
-        mov [rsp], rbx     ; Adjust return address
-        ret                ; Return
+        mov rax, [rsp]        ; Save return value
+        mov [rsp - 0x20], rax ;
+        mov rax, rcx          ; Set syscall index
+                              
+        mov r10, rdx;         ; Set register parameters
+        mov rdx, r8;          ;
+        mov r8, r9            ;
+        mov r9, [rsp + 40]    ;
+                              
+        add rsp, 48           ; Adjust stack parameters
+        syscall               ; Execute syscall
+        sub rsp, 48           ; Restore stack
+        mov rcx, [rsp - 0x20] ; Adjust return address
+        mov [rsp], rcx        ;
+        ret                   ; Return
 #else
+        mov eax, [esp]          ; Save return value
+        mov [esp - 0x10], eax   ;
         mov eax, [esp + 4]      ; Set syscall index
-        mov ebx, [esp]          ; Save return value
         add esp, 8              ; Adjust parameters
         call _nmd_wow64_syscall ; Execute syscall
         sub esp, 8              ; Restore stack
-        mov [esp], ebx          ; Adjust return address
+        mov ecx, [esp - 0x10]   ; Save return value
+        mov [esp], ecx          ;
         ret                     ; Return
 #endif
     }
