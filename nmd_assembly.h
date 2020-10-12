@@ -3,7 +3,7 @@
 Features:
  - Support for x86(16/32/64).
     - Intel and AT&T syntax.
- - No dynamic memory allocation, global variables/state/context or runtime initialization.
+ - No libc, dynamic memory allocation, global variables/state/context or runtime initialization.
  - Thread-safe by design.
  - Optimized for speed, size and low memory usage.
  - The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_ASSEMBLY_NO_INCLUDES' macro.
@@ -2450,7 +2450,7 @@ typedef struct nmd_x86_cpu
 
 	void (*interrupt_handler)(struct nmd_x86_cpu* cpu, const nmd_x86_instruction* instruction, NMD_X86_EXCEPTION exception);
 
-	void* userdata;
+	void* user_data;
 
 	size_t count; /* Internal counter used by the emulator.*/
 
