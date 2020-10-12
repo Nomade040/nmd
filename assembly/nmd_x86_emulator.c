@@ -163,7 +163,7 @@ Parameters:
  - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
  - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
+NMD_ASSEMBLY_API bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count)
 {
 	const uint64_t end_virtual_address = cpu->virtual_address + cpu->physical_memory_size;
 	const void* end_physical_memory = (uint8_t*)cpu->physical_memory + cpu->physical_memory_size;
@@ -176,7 +176,7 @@ NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 		nmd_x86_instruction instruction;
 		const void* buffer = _NMD_GET_PHYSICAL_ADDRESS(cpu->rip);
 		const bool valid_buffer = _NMD_IN_BOUNDARIES(buffer);
-		if (!valid_buffer || !nmd_x86_decode(buffer, (size_t)(end_virtual_address - cpu->rip), &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
+		if (!valid_buffer || !nmd_decode_x86(buffer, (size_t)(end_virtual_address - cpu->rip), &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
 		{
 			if (cpu->interrupt_handler)
 				cpu->interrupt_handler(cpu, &instruction, valid_buffer ? NMD_X86_EXCEPTION_INVALID_OPCODE : NMD_X86_EXCEPTION_PAGE_FAULT);

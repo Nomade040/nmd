@@ -66,7 +66,7 @@ Parameters:
  - buffer_size [in] The size of the buffer in bytes.
  - mode        [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
 */
-NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode)
+NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, NMD_X86_MODE mode)
 {
 	const uint8_t* b = (const uint8_t*)(buffer);
 
