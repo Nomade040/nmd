@@ -99,10 +99,10 @@ static const TestInstruction instructions[] = {
 	//{"prefetch [eax]", {{true, false, false, false, false, false},   NMD_X86_MODE_32, 3,      0x0d,   1,          NMD_X86_INSTRUCTION_PREFETCH,   NMD_X86_PREFIXES_NONE,                  0,           1,           NMD_GROUP_NONE, {0x0f, 0x0d, 0x00}, {{NMD_X86_OPERAND_TYPE_MEMORY, 1, false, NMD_X86_OPERAND_ACTION_READ,{NMD_X86_REG_DS,NMD_X86_REG_EAX,0,0,0}},0,0,0}, {0},   {0},   NMD_X86_IMM_NONE, NMD_X86_DISP_NONE, 0,         0,            NMD_X86_OPCODE_MAP_DEFAULT, NMD_X86_INSTRUCTION_ENCODING_LEGACY, {0}, CPUFLAG(0),                                                                                                  CPUFLAG(0),                                     CPUFLAG(0), CPUFLAG(0),                                     CPUFLAG(0),                                                                             0,   0,               NMD_X86_PREFIXES_NONE                  } }
 };
 
-TEST(AssemblerAndDisassemblerTest, TestAllInstructions)
+TEST(assembler_disassembler_ldisasm_test, all_instructions)
 {	
 	nmd_x86_instruction instruction;
-	char formattedInstruction[128];
+	char formatted_instruction[128];
 	uint8_t buffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];
 
 	// Test all instructions in the array above.
@@ -111,22 +111,22 @@ TEST(AssemblerAndDisassemblerTest, TestAllInstructions)
 		SCOPED_TRACE("INDEX:" + std::to_string(i) + '(' + instructions[i].s + ')');
 
 		// Test decoder
-		EXPECT_EQ(nmd_x86_decode(&instructions[i].i.buffer, instructions[i].i.length, &instruction, (NMD_X86_MODE)instructions[i].i.mode, NMD_X86_DECODER_FLAGS_ALL), instructions[i].i.valid);
+		EXPECT_EQ(nmd_decode_x86(&instructions[i].i.buffer, instructions[i].i.length, &instruction, (NMD_X86_MODE)instructions[i].i.mode, NMD_X86_DECODER_FLAGS_ALL), instructions[i].i.valid);
 		if (instructions[i].i.valid)
 		{
 			// Test decoder
 			EXPECT_EQ(memcmp(&instructions[i].i, &instruction, sizeof(nmd_x86_instruction)), 0); 
 			
 			// Test length disassembler
-			EXPECT_EQ(nmd_x86_ldisasm(instructions[i].i.buffer, instructions[i].i.length, (NMD_X86_MODE)instructions[i].i.mode), instructions[i].i.length);
+			EXPECT_EQ(nmd_ldisasm_x86(instructions[i].i.buffer, instructions[i].i.length, (NMD_X86_MODE)instructions[i].i.mode), instructions[i].i.length);
 
 			// Test formatter
-			nmd_x86_format(&instruction, formattedInstruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_FORMAT_FLAGS_DEFAULT);
-			EXPECT_EQ(strcmp(formattedInstruction, instructions[i].s), 0);
+			nmd_format_x86(&instruction, formatted_instruction, NMD_X86_INVALID_RUNTIME_ADDRESS, NMD_X86_FORMAT_FLAGS_DEFAULT);
+			EXPECT_EQ(strcmp(formatted_instruction, instructions[i].s), 0);
 			
 			// Test assembler
 			memset(buffer, 0x00, sizeof(buffer));
-			EXPECT_EQ(nmd_x86_assemble(formattedInstruction, buffer, sizeof(buffer), NMD_X86_INVALID_RUNTIME_ADDRESS, (NMD_X86_MODE)instructions[i].i.mode, 0), instructions[i].i.length);
+			EXPECT_EQ(nmd_x86_assemble(formatted_instruction, buffer, sizeof(buffer), NMD_X86_INVALID_RUNTIME_ADDRESS, (NMD_X86_MODE)instructions[i].i.mode, 0), instructions[i].i.length);
 			EXPECT_EQ(memcmp(buffer, instructions[i].i.buffer, sizeof(buffer)), 0);
 		}
 	}
@@ -137,14 +137,14 @@ TEST(AssemblerAndDisassemblerTest, TestAllInstructions)
 
 #define EMULATOR_BLOCK_SIZE (1024 * 1024) /* 1MB */
 
-TEST(EmulatorTest, TestAllInstructions)
+TEST(emulator_test, all_instructions)
 {
 	nmd_x86_cpu cpu;
 	memset(&cpu, 0, sizeof(cpu));
 	cpu.mode = NMD_X86_MODE_32;
 	cpu.physical_memory = malloc(EMULATOR_BLOCK_SIZE);
 	cpu.physical_memory_size = EMULATOR_BLOCK_SIZE;
-	cpu.virtual_address = 0x3b000; /* Some random number(address) */
+	cpu.virtual_address = 0x3b000; /* Some random address */
 	cpu.rip = cpu.virtual_address + 0x1000; /* Execution starts 0x1000 bytes after the start of the block */
 	cpu.rsp.l64 = cpu.virtual_address + 0x48000; /* The bottom of the stack is 0x48000 bytes after the start of the block */
 
@@ -156,39 +156,39 @@ TEST(EmulatorTest, TestAllInstructions)
 	cpu.rax.l64 = cpu.virtual_address + 0x200;
 	*(uint8_t*)mem = 10;
 	cpu.rbx.l8 = 27;
-	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(nmd_emulate_x86(&cpu, 1), true);
 	EXPECT_EQ(*(uint8_t*)mem, 37);
 
 	/* 01 - add Gb, Eb */
 	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x01\x18", 2);
 	cpu.rbx.l64 = 1234;
-	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(nmd_emulate_x86(&cpu, 1), true);
 	EXPECT_EQ(*(uint32_t*)mem, 1271);
 
 	/* 02 - add Gv, Ev */
 	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x02\x18", 2);
 	cpu.rbx.l8 = 11;
 	*(uint64_t*)mem = 100;
-	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(nmd_emulate_x86(&cpu, 1), true);
 	EXPECT_EQ(cpu.rbx.l8, 111);
 
 	/* 03 - add Ev, Gv */
 	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x03\x18", 2);
 	cpu.rbx.l32 = 472;
 	*(uint64_t*)mem = 1000;
-	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(nmd_emulate_x86(&cpu, 1), true);
 	EXPECT_EQ(cpu.rbx.l64, 1472);
 
 	/* 04 - add al, lb */
 	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x04\x20", 2);
 	cpu.rax.l8 = 3;
-	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(nmd_emulate_x86(&cpu, 1), true);
 	EXPECT_EQ(cpu.rax.l8, 35);
 
 	/* 05 - add rAX, lv */
 	memcpy(NMD_EMULATOR_RESOLVE_VA(cpu.rip), "\x05\x21\x43\x00\x00", 5);
 	cpu.rax.l32 = 0x50000;
-	EXPECT_EQ(nmd_x86_emulate(&cpu, 1), true);
+	EXPECT_EQ(nmd_emulate_x86(&cpu, 1), true);
 	EXPECT_EQ(cpu.rax.l32, 0x54321);
 }
 
