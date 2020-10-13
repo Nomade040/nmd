@@ -336,14 +336,15 @@ Parameters:
 /* Returns a pointer to the PEB of the current process. */
 NMD_PPEB nmd_get_peb();
 
-/* Scans the specified memory range for a pattern. Returns the address of the first occurence of the pattern or zero if not found.
+/* Scans the specified memory range for a pattern.
 Parameters:
- - pattern [in] The pattern. e.g. "\x10\x20\x30\x40\x50".
- - mask    [in] The mask. e.g. "xxxxx", "x????xxxxx?xx".
- - start   [in] The start address.
- - end     [in] The end address.
+ - pattern    [in] The pattern. e.g. "\x10\x20\x30\x40\x50".
+ - mask       [in] The mask. e.g. "xxxxx", "x????xxxxx?xx".
+ - start      [in] The range's start address.
+ - end        [in] The range's end address.
+ - protection [in] The memory protection the page must match. Specify '-1' for any protection.
 */
-uintptr_t nmd_pattern_scan_range(const char* pattern, const char* mask, uintptr_t start, uintptr_t end);
+void* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* start, uint8_t* end, uint32_t protection);
 
 /* Iterates through all processes to find the process with a matching name. Returns the PID of the specified process, or zero if the operation failed.
 Parameters:
@@ -393,6 +394,15 @@ NMD_PPEB nmd_get_peb()
 #else
     return (NMD_PPEB)__readfsdword(0x30); 
 #endif
+}
+
+size_t _nmd_strlen(const char* str)
+{
+    size_t len = 0;
+    while (*str++)
+        len++;
+
+    return len;
 }
 
 size_t _nmd_strlenw(const wchar_t* str)
@@ -601,16 +611,44 @@ uintptr_t nmd_mex_inject(nmd_mex* m, const wchar_t* dll_path)
 
 /* Scans the specified memory range for a pattern.
 Parameters:
- - pattern [in] The pattern. e.g. "\x10\x20\x30\x40\x50".
- - mask    [in] The mask. e.g. "xxxxx", "x????xxxxx?xx".
- - start   [in] The start address.
- - end     [in] The end address.
+ - pattern    [in] The pattern. e.g. "\x10\x20\x30\x40\x50".
+ - mask       [in] The mask. e.g. "xxxxx", "x????xxxxx?xx".
+ - start      [in] The range's start address.
+ - end        [in] The range's end address.
+ - protection [in] The memory protection the page must match. Specify '-1' for any protection.
 */
-uintptr_t nmd_pattern_scan_range(const char* pattern, const char* mask, uintptr_t start, uintptr_t end)
+void* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* start, uint8_t* end, uint32_t protection)
 {
-    MEMORY_BASIC_INFORMATION64 mbi = { 0 };
-    uint64_t size=0;
-    NTSTATUS x=nmd_syscall(0x23, -1, GetModuleHandle(0), 0, &mbi, (uint64_t)1000000000000, (uint64_t)0);
+    MEMORY_BASIC_INFORMATION mbi;
+    const size_t mask_length = _nmd_strlen(mask);
+    size_t num_matches = 0;
+    while (start < end && VirtualQuery(start, &mbi, sizeof(mbi)))
+    {
+        if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD) || !(protection & mbi.Protect))
+        {
+            start = (uint8_t*)mbi.BaseAddress + mbi.RegionSize;
+            num_matches = 0;
+        }
+        else
+        {
+            const uint8_t* region_end = (uint8_t*)mbi.BaseAddress + mbi.RegionSize;
+            while (start < region_end)
+            {
+                for (; num_matches < mask_length; num_matches++)
+                {
+                    if (mask[num_matches] != '?' && pattern[num_matches] != start[num_matches])
+                        goto not_match;
+                }
+
+                if (start != pattern)
+                    return start;
+            not_match:
+                num_matches = 0;
+                start++;
+            }
+        }
+    }
+
     return 0;
 }
 
