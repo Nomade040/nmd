@@ -14,6 +14,9 @@ There're two ways to use syscalls. The first is to call a helper function for th
 The second is to use the generic variadic syscall function nmd_syscall() which takes the syscall id as the first parameter and the arguments
 used by the syscall for the remaining parameters.
 
+nmd_get_module_handle(): Similar to GetModuleHandleW()
+nmd_get_proc_addr(): Similar to GetProcAddress()
+
 */
 
 #ifndef NMD_MEMORY_H
@@ -117,6 +120,23 @@ typedef struct _NMD_UNICODE_STRING
     USHORT MaximumLength;
     PWSTR Buffer;
 } NMD_UNICODE_STRING, *NMD_PUNICODE_STRING;
+
+typedef struct _NMD_LDR_MODULE
+{
+    LIST_ENTRY              InLoadOrderModuleList;
+    LIST_ENTRY              InMemoryOrderModuleList;
+    LIST_ENTRY              InInitializationOrderModuleList;
+    PVOID                   BaseAddress;
+    PVOID                   EntryPoint;
+    ULONG                   SizeOfImage;
+    NMD_UNICODE_STRING      FullDllName;
+    NMD_UNICODE_STRING      BaseDllName;
+    ULONG                   Flags;
+    SHORT                   LoadCount;
+    SHORT                   TlsIndex;
+    LIST_ENTRY              HashTableEntry;
+    ULONG                   TimeDateStamp;
+} NMD_LDR_MODULE, * NMD_PLDR_MODULE;
 
 typedef struct _NMD_PEB
 {
@@ -273,7 +293,9 @@ Parameters:
 void nmd_set_error_code(uint32_t error_code);
 
 /* Performs a system call using the specified id.
-Be aware: On Wow64 the syscall may expect structures with 8-byte sizes(such as pointers and SIZE_T).
+Be aware: On WoW64 the syscall may expect structures with 8-byte sizes(such as pointers and SIZE_T).
+Also, on WoW64 every parameter after the fourth must be 8-byte long.
+Example: nmd_syscall(0x1234, arg1, arg2, arg3, arg4, (uint64_t)arg5, (uint64_t)arg6)
 Parameters:
  - id  [in] The syscall id.
  - ... [in] The parameters used by the syscall.
@@ -286,6 +308,12 @@ Parameters:
  - access_mask [in] The desired access.
 */
 HANDLE nmd_open_process(uint32_t pid, uint32_t access_mask);
+
+/* Returns a handle to a module(module base) given its name.
+Parameters:
+ - module_name [in] The name of the module. If null, the image base address is returned.
+*/
+HMODULE nmd_get_module_handle(const wchar_t* module_name);
 
 /* Returns the procedure address being exported by the specified module, or zero if an error occurred.
 Parameters:
@@ -306,7 +334,7 @@ Parameters:
 // NTSTATUS nmd_allocate_virtual_memory
 
 /* Returns a pointer to the PEB of the current process. */
-NMD_PPEB nmd_min_get_peb();
+NMD_PPEB nmd_get_peb();
 
 /* Scans the specified memory range for a pattern. Returns the address of the first occurence of the pattern or zero if not found.
 Parameters:
@@ -315,7 +343,7 @@ Parameters:
  - start   [in] The start address.
  - end     [in] The end address.
 */
-uintptr_t nmd_min_pattern_scan_range(const char* pattern, const char* mask, uintptr_t start, uintptr_t end);
+uintptr_t nmd_pattern_scan_range(const char* pattern, const char* mask, uintptr_t start, uintptr_t end);
 
 /* Iterates through all processes to find the process with a matching name. Returns the PID of the specified process, or zero if the operation failed.
 Parameters:
@@ -358,7 +386,7 @@ void nmd_set_error_code(uint32_t error_code)
 }
 
 /* Returns a pointer to the PEB of the current process. */
-NMD_PPEB nmd_min_get_peb()
+NMD_PPEB nmd_get_peb()
 {
 #ifdef _WIN64
     return (NMD_PPEB)__readgsqword(0x60);
@@ -366,7 +394,7 @@ NMD_PPEB nmd_min_get_peb()
     return (NMD_PPEB)__readfsdword(0x30); 
 #endif
 }
-//#include<winternl.h>
+
 size_t _nmd_strlenw(const wchar_t* str)
 {
     size_t len = 0;
@@ -386,6 +414,44 @@ bool _nmd_strcmp(const char* s1, const char* s2)
     }
 
     return !*s1 && !*s2;
+}
+
+wchar_t _nmd_tolowerw(const wchar_t c)
+{
+    return (c >= 'A' && c <= 'Z') ? c + 32 : c;
+}
+
+/* Returns true if s1 matches s2 exactly. */
+bool _nmd_strcmpiw(const wchar_t* s1, const wchar_t* s2)
+{
+    for (; *s1 && *s2; s1++, s2++)
+    {
+        if (_nmd_tolowerw(*s1) != _nmd_tolowerw(*s2))
+            return false;
+    }
+
+    return !*s1 && !*s2;
+}
+
+/* Returns a handle to a module(module base) given its name.
+Parameters:
+ - module_name [in] The name of the module. If null, the image base address is returned.
+*/
+HMODULE nmd_get_module_handle(const wchar_t* module_name)
+{
+    if (!module_name)
+        return (HMODULE)nmd_get_peb()->ImageBaseAddress;
+
+    NMD_PLDR_MODULE final_mod = nmd_get_peb()->Ldr->InLoadOrderModuleList.Flink;
+    NMD_PLDR_MODULE mod = nmd_get_peb()->Ldr->InLoadOrderModuleList.Blink;
+    while (mod != final_mod)
+    {
+        if(_nmd_strcmpiw(mod->BaseDllName.Buffer, module_name))
+            return (HMODULE)mod->BaseAddress;
+        mod = mod->InLoadOrderModuleList.Blink;
+    }
+
+    return 0;
 }
 
 /* Returns the procedure address being exported by the specified module, or zero if an error occurred.
@@ -540,8 +606,11 @@ Parameters:
  - start   [in] The start address.
  - end     [in] The end address.
 */
-uintptr_t nmd_min_pattern_scan_range(const char* pattern, const char* mask, uintptr_t start, uintptr_t end)
+uintptr_t nmd_pattern_scan_range(const char* pattern, const char* mask, uintptr_t start, uintptr_t end)
 {
+    MEMORY_BASIC_INFORMATION64 mbi = { 0 };
+    uint64_t size=0;
+    NTSTATUS x=nmd_syscall(0x23, -1, GetModuleHandle(0), 0, &mbi, (uint64_t)1000000000000, (uint64_t)0);
     return 0;
 }
 
@@ -562,7 +631,9 @@ _NMD_NAKED void _nmd_wow64_syscall()
         _NMD_DB(0x48) _NMD_DB(0x63) _NMD_DB(0x54) _NMD_DB(0x24) _NMD_DB(0x08) ; movsxd rdx, dword ptr[rsp + 0x8]
         _NMD_DB(0x4C) _NMD_DB(0x63) _NMD_DB(0x44) _NMD_DB(0x24) _NMD_DB(0x0c) ; movsxd r8, dword ptr[rsp + 0xc]
         _NMD_DB(0x4C) _NMD_DB(0x63) _NMD_DB(0x4C) _NMD_DB(0x24) _NMD_DB(0x10) ; movsxd r9, dword ptr[rsp + 0x10]
+        _NMD_DB(0x48) _NMD_DB(0x83) _NMD_DB(0xEC) _NMD_DB(0x14)               ; Allocate space for the shadow space
         _NMD_DB(0x0f) _NMD_DB(0x05)                                           ; syscall
+        _NMD_DB(0x48) _NMD_DB(0x83) _NMD_DB(0xC4) _NMD_DB(0x14)               ; Deallocate space for the shadow space
 
         ; Transition back to x86-32
         _NMD_DB(0xe8) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) ; call $+0
@@ -644,6 +715,14 @@ _NMD_NAKED HANDLE nmd_open_process(uint32_t pid, uint32_t access_mask)
     }
 }
 
+/* Performs a system call using the specified id.
+Be aware: On WoW64 the syscall may expect structures with 8-byte sizes(such as pointers and SIZE_T).
+Also, on WoW64 every parameter after the fourth must be 8-byte long.
+Example: nmd_syscall(0x1234, arg1, arg2, arg3, arg4, (uint64_t)arg5, (uint64_t)arg6)
+Parameters:
+ - id  [in] The syscall id.
+ - ... [in] The parameters used by the syscall.
+*/
 _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
 {
     _asm
@@ -656,11 +735,11 @@ _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
         mov r10, rdx;         ; Set register parameters
         mov rdx, r8;          ;
         mov r8, r9            ;
-        mov r9, [rsp + 40]    ;
+        mov r9, [rsp + 0x28]  ; offset(0x28) = ret address(0x8) + shadow space(0x20)
                               
-        add rsp, 48           ; Adjust stack parameters
+        add rsp, 0x08         ; Adjust stack parameters
         syscall               ; Execute syscall
-        sub rsp, 48           ; Restore stack
+        sub rsp, 0x08         ; Restore stack
         mov rcx, [rsp - 0x20] ; Adjust return address
         mov [rsp], rcx        ;
         ret                   ; Return
