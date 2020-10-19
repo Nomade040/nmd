@@ -51,9 +51,9 @@ Defining types manually:
 Define the 'NMD_GRAPHICS_DEFINE_TYPES' macro to tell the library to define(typedef) the required types.
 Be aware: This feature uses platform dependent macros.
 
-Disabling default functions:
 Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR' macro to tell the library not to include default allocators.
-
+Define the 'NMD_GRAPHICS_DISABLE_FILE_IO' macro to tell the library not to support file operations for fonts.
+Define the 'NMD_GRAPHICS_AVOID_ALLOCA' macro to tell the library to use malloc/free instead of alloca
 Default fonts:
 The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the font at compile time.
 
@@ -118,45 +118,69 @@ typedef unsigned long long uint64_t;
 
 #endif /* NMD_GRAPHICS_DEFINE_TYPES */
 
-#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR
+#ifndef NMD_MALLOC
 #include <stdlib.h>
-#include <stdio.h>
-#include <malloc.h>
-
-#ifndef NMD_ALLOC
-#define NMD_ALLOC malloc
-#endif /* NMD_ALLOC */
-
-#ifndef NMD_FREE
+#define NMD_MALLOC malloc
 #define NMD_FREE free
-#endif /* NMD_FREE */
+#endif /* NMD_MALLOC */
 
-#ifndef NMD_ALLOCA
-#define NMD_ALLOCA alloca
-#endif /* NMD_ALLOCA */
+#ifndef NMD_MEMSET
+#include <string.h>
+#define NMD_MEMSET memset
+#endif /* NMD_MEMSET */
 
-#endif /* NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR */
+#ifndef NMD_MEMCPY
+#include <string.h>
+#define NMD_MEMCPY memcpy
+#endif /* NMD_MEMCPY */
 
-#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_MATH_FUNCTIONS
-#include <math.h>
+#ifndef NMD_STRLEN
+#include <string.h>
+#define NMD_STRLEN strlen
+#endif /* NMD_STRLEN */
+
+#ifndef NMD_GRAPHICS_AVOID_ALLOCA
+    #ifndef NMD_ALLOCA
+    #include <malloc.h>
+    #define NMD_ALLOCA alloca
+    #endif /* NMD_ALLOCA */
+#endif /* NMD_GRAPHICS_AVOID_ALLOCA */
+
+#ifndef NMD_SPRINTF
+#include <stdio.h>
+#define NMD_SPRINTF sprintf
+#endif /* NMD_SPRINTF */
+
+#ifndef NMD_VSPRINTF
+#include <stdio.h>
+#define NMD_VSPRINTF vsprintf
+#endif /* NMD_VSPRINTF */
 
 #ifndef NMD_SQRT
+#include <math.h>
 #define NMD_SQRT sqrt
 #endif /* NMD_SQRT */
 
 #ifndef NMD_ACOS
+#include <math.h>
 #define NMD_ACOS acos
 #endif /* NMD_ACOS */
 
 #ifndef NMD_COS
+#include <math.h>
 #define NMD_COS cos
 #endif /* NMD_COS */
 
 #ifndef NMD_SIN
+#include <math.h>
 #define NMD_SIN sin
 #endif /* NMD_SIN */
 
-#endif /* NMD_GRAPHICS_DISABLE_DEFAULT_MATH_FUNCTIONS */
+#define STBTT_malloc(x,u) ((void)(u),NMD_MALLOC(x))
+#define STBTT_free(x,u) ((void)(u),NMD_FREE(x))
+#define STBTT_strlen(x) NMD_STRLEN(x)
+#define STBTT_memcpy NMD_MEMCPY
+#define STBTT_memset NMD_MEMSET
 
 /* The number of points the buffer intially supports */
 #ifndef NMD_PATH_BUFFER_INITIAL_SIZE
@@ -5698,20 +5722,20 @@ void nmd_new_frame()
         _nmd_calculate_circle_segments(1.6f);
 
         /* Allocate buffers */
-        _nmd_context.draw_list.path = (nmd_vec2*)NMD_ALLOC(NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2));
+        _nmd_context.draw_list.path = (nmd_vec2*)NMD_MALLOC(NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2));
         _nmd_context.draw_list.path_capacity = NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2);
 
-        _nmd_context.draw_list.vertices = (nmd_vertex*)NMD_ALLOC(NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex));
+        _nmd_context.draw_list.vertices = (nmd_vertex*)NMD_MALLOC(NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex));
         _nmd_context.draw_list.vertices_capacity = NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex);
 
-        _nmd_context.draw_list.indices = (nmd_index*)NMD_ALLOC(NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index));
+        _nmd_context.draw_list.indices = (nmd_index*)NMD_MALLOC(NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index));
         _nmd_context.draw_list.indices_capacity = NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index);
 
-        _nmd_context.draw_list.draw_commands = (nmd_draw_command*)NMD_ALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
+        _nmd_context.draw_list.draw_commands = (nmd_draw_command*)NMD_MALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
         _nmd_context.draw_list.draw_commands_capacity = NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command);
 
         _nmd_context.gui.num_windows = 0;
-        _nmd_context.gui.windows = (nmd_window*)NMD_ALLOC(NMD_WINDOWS_BUFFER_INITIAL_SIZE * sizeof(nmd_window));
+        _nmd_context.gui.windows = (nmd_window*)NMD_MALLOC(NMD_WINDOWS_BUFFER_INITIAL_SIZE * sizeof(nmd_window));
         _nmd_context.gui.windows_capacity = NMD_WINDOWS_BUFFER_INITIAL_SIZE;
         _nmd_context.gui.window = 0;
         _nmd_context.gui.window_pos.x = 60;
@@ -5747,9 +5771,9 @@ bool nmd_bake_font_from_memory(const void* font_data, nmd_atlas* atlas, float si
     atlas->width = 512;
     atlas->height = 512;
 
-    atlas->pixels8 = (uint8_t*)NMD_ALLOC(atlas->width * atlas->height);
-    atlas->pixels32 = (nmd_color*)NMD_ALLOC(atlas->width * atlas->height * 4);
-    atlas->baked_chars = NMD_ALLOC(sizeof(stbtt_bakedchar) * 96);
+    atlas->pixels8 = (uint8_t*)NMD_MALLOC(atlas->width * atlas->height);
+    atlas->pixels32 = (nmd_color*)NMD_MALLOC(atlas->width * atlas->height * 4);
+    atlas->baked_chars = NMD_MALLOC(sizeof(stbtt_bakedchar) * 96);
 
     stbtt_BakeFontBitmap((const unsigned char*)font_data, 0, size, atlas->pixels8, atlas->width, atlas->height, 0x20, 96, (stbtt_bakedchar*)atlas->baked_chars);
 
@@ -5762,6 +5786,9 @@ bool nmd_bake_font_from_memory(const void* font_data, nmd_atlas* atlas, float si
 
 bool nmd_bake_font(const char* font_path, nmd_atlas* atlas, float size)
 {
+    bool ret = false;
+
+#ifndef NMD_GRAPHICS_DISABLE_FILE_IO
     FILE* f = fopen(font_path, "rb");
 
     /* Get file size*/
@@ -5770,14 +5797,15 @@ bool nmd_bake_font(const char* font_path, nmd_atlas* atlas, float size)
     fseek(f, 0L, SEEK_SET);
 
     /* Allocate and read file */
-    void* font_data = NMD_ALLOC(file_size);    
+    void* font_data = NMD_MALLOC(file_size);    
     fread(font_data, 1, file_size, f);
 
-    bool ret = nmd_bake_font_from_memory(font_data, atlas, size);
+    ret = nmd_bake_font_from_memory(font_data, atlas, size);
     
     /* Close and free file */
     fclose(f);
     NMD_FREE(font_data);
+#endif
 
     return ret;
 }
@@ -5876,10 +5904,10 @@ bool _nmd_reserve(size_t num_new_vertices, size_t num_new_indices)
     if (future_size > _nmd_context.draw_list.vertices_capacity)
     {
         const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.vertices_capacity * 2, future_size);
-        void* mem = NMD_ALLOC(new_capacity);
+        void* mem = NMD_MALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.draw_list.vertices, _nmd_context.draw_list.vertices_capacity);
+        NMD_MEMCPY(mem, _nmd_context.draw_list.vertices, _nmd_context.draw_list.vertices_capacity);
         NMD_FREE(_nmd_context.draw_list.vertices);
 
         _nmd_context.draw_list.vertices = (nmd_vertex*)mem;
@@ -5891,10 +5919,10 @@ bool _nmd_reserve(size_t num_new_vertices, size_t num_new_indices)
     if (future_size > _nmd_context.draw_list.indices_capacity)
     {
         const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.indices_capacity * 2, future_size);
-        void* mem = NMD_ALLOC(new_capacity);
+        void* mem = NMD_MALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.draw_list.indices, _nmd_context.draw_list.indices_capacity);
+        NMD_MEMCPY(mem, _nmd_context.draw_list.indices, _nmd_context.draw_list.indices_capacity);
         NMD_FREE(_nmd_context.draw_list.indices);
 
         _nmd_context.draw_list.indices = (nmd_index*)mem;
@@ -5910,10 +5938,10 @@ bool _nmd_reserve_points(size_t num_new_points)
     if (future_size > _nmd_context.draw_list.path_capacity)
     {
         const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.path_capacity * 2, future_size);
-        void* mem = NMD_ALLOC(new_capacity);
+        void* mem = NMD_MALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.draw_list.path, _nmd_context.draw_list.path_capacity);
+        NMD_MEMCPY(mem, _nmd_context.draw_list.path, _nmd_context.draw_list.path_capacity);
         NMD_FREE(_nmd_context.draw_list.path);
 
         _nmd_context.draw_list.path = (nmd_vec2*)mem;
@@ -5951,7 +5979,11 @@ void nmd_add_polyline(const nmd_vec2* points, size_t num_points, nmd_color color
 
         size_t size;
         nmd_vec2* normals, * temp;
+#ifdef NMD_GRAPHICS_AVOID_ALLOCA
+        normals = (nmd_vec2*)NMD_MALLOC(sizeof(nmd_vec2) * ((thick_line) ? 5 : 3) * num_points);
+#else
         normals = (nmd_vec2*)NMD_ALLOCA(sizeof(nmd_vec2) * ((thick_line) ? 5 : 3) * num_points);
+#endif
 
         temp = normals + num_points;
 
@@ -6148,6 +6180,10 @@ void nmd_add_polyline(const nmd_vec2* points, size_t num_points, nmd_color color
                 _nmd_context.draw_list.num_vertices += 4;
             }
         }
+
+#ifdef NMD_GRAPHICS_AVOID_ALLOCA
+        NMD_FREE(normals);
+#endif /* NMD_GRAPHICS_AVOID_ALLOCA*/
     }
     else /* Non anti-alised */
     {
@@ -6608,7 +6644,12 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t num_points, nm
         }
 
         /* Compute normals */
+#ifdef NMD_GRAPHICS_AVOID_ALLOCA
+        nmd_vec2* temp_normals = (nmd_vec2*)NMD_MALLOC(num_points * sizeof(nmd_vec2));
+#else
         nmd_vec2* temp_normals = (nmd_vec2*)NMD_ALLOCA(num_points * sizeof(nmd_vec2));
+#endif
+
         for (int i0 = num_points - 1, i1 = 0; i1 < num_points; i0 = i1++)
         {
             const nmd_vec2* p0 = &points[i0];
@@ -6644,6 +6685,10 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t num_points, nm
         }
         _nmd_context.draw_list.num_vertices = vertices - _nmd_context.draw_list.vertices;
         _nmd_context.draw_list.num_indices = indices - _nmd_context.draw_list.indices;
+
+#ifdef NMD_GRAPHICS_AVOID_ALLOCA
+        NMD_FREE(temp_normals);
+#endif /* NMD_GRAPHICS_AVOID_ALLOCA */
     }
     else
     {
@@ -6870,7 +6915,7 @@ void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, con
         return;
 
     if (!text_end)
-        text_end = text + strlen(text);
+        text_end = text + NMD_STRLEN(text);
 
     if (!_nmd_reserve((text_end - text) * 4, (text_end - text) * 6))
         return;
@@ -6903,7 +6948,7 @@ void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, con
 void nmd_get_text_size(const nmd_atlas* font, const char* text, const char* text_end, nmd_vec2* size_out)
 {
     if (!text_end)
-        text_end = text + strlen(text);
+        text_end = text + NMD_STRLEN(text);
     
     stbtt_aligned_quad q;
     float x = 0, y = 0;
@@ -7075,10 +7120,10 @@ bool nmd_begin(const char* window_name)
         if (_nmd_context.gui.num_windows == _nmd_context.gui.windows_capacity)
         {
             _nmd_context.gui.windows_capacity *= 2;
-            void* mem = NMD_ALLOC(_nmd_context.gui.windows_capacity);
+            void* mem = NMD_MALLOC(_nmd_context.gui.windows_capacity);
             if (!mem)
                 return false;
-            memcpy(mem, _nmd_context.gui.windows, _nmd_context.gui.num_windows);
+            NMD_MEMCPY(mem, _nmd_context.gui.windows, _nmd_context.gui.num_windows);
             NMD_FREE(_nmd_context.gui.windows);
         }
 
@@ -7209,7 +7254,7 @@ void nmd_text(const char* fmt, ...)
 
     va_list args;
     va_start(args, fmt);
-    const int size = vsprintf(_nmd_context.gui.fmt_buffer, fmt, args);
+    const int size = NMD_VSPRINTF(_nmd_context.gui.fmt_buffer, fmt, args);
     va_end(args);
 
     nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6, window->y_offset + 10, _nmd_context.gui.fmt_buffer, _nmd_context.gui.fmt_buffer + size, NMD_COLOR_WHITE);
@@ -7327,7 +7372,7 @@ bool nmd_slider_float(const char* label, float* value, float min_value, float ma
     nmd_add_rect_filled(window->rect.p0.x + 6 + 2 + offset, window->y_offset + 2, window->rect.p0.x + 6 + 2 + offset + 8, window->y_offset + 16 - 2, NMD_COLOR_GUI_ACTIVE, 0, 0);
 
     /* Add value text */
-    const int size = sprintf(_nmd_context.gui.fmt_buffer, "%.3f", *value);
+    const int size = NMD_SPRINTF(_nmd_context.gui.fmt_buffer, "%.3f", *value);
     nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6 + (_NMD_SLIDER_WIDTH/2-15), window->y_offset + 12, _nmd_context.gui.fmt_buffer, _nmd_context.gui.fmt_buffer + size, NMD_COLOR_WHITE);
 
     /* Add label text */
@@ -7369,8 +7414,9 @@ void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 p_d3d9_device)
     _nmd_d3d9.viewport.MaxZ = 1.0f;
 
     int width = 16, height = 16;
-    unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
-    memset(pixels, 0xff, width * height * 4);
+    unsigned char* pixels = (unsigned char*)NMD_MALLOC(width * height * 4);
+    
+    NMD_MEMSET(pixels, 0xff, width * height * 4);
 
     _nmd_context.draw_list.default_atlas.font_id = nmd_d3d9_create_texture(pixels, width, height);
 }
@@ -7386,7 +7432,7 @@ nmd_tex_id nmd_d3d9_create_texture(void* pixels, int width, int height)
         return 0;
 
     for (int y = 0; y < height; y++)
-        memcpy((unsigned char*)tex_locked_rect.pBits + tex_locked_rect.Pitch * y, (unsigned char*)pixels + (width * 4) * y, (width * 4));
+        NMD_MEMCPY((unsigned char*)tex_locked_rect.pBits + tex_locked_rect.Pitch * y, (unsigned char*)pixels + (width * 4) * y, (width * 4));
    
     texture->UnlockRect(0);
     
@@ -7405,7 +7451,7 @@ void nmd_d3d9_resize(int width, int height)
         {              0.0f,              0.0f, 0.0f, 0.0f },
         { (R + L) / (L - R), (T + B) / (B - T), 0.0f, 1.0f },
     };
-    memcpy(&_nmd_d3d9.proj, matrix, sizeof(matrix));
+    NMD_MEMCPY(&_nmd_d3d9.proj, matrix, sizeof(matrix));
 
     _nmd_d3d9.viewport.Width = width;
     _nmd_d3d9.viewport.Height = height;
@@ -7502,7 +7548,7 @@ void nmd_d3d9_render()
     nmd_index* p_indices = 0;
     if (_nmd_d3d9.ib->Lock(0, (UINT)(_nmd_context.draw_list.num_indices * sizeof(nmd_index)), (void**)&p_indices, D3DLOCK_DISCARD) != D3D_OK)
         return;
-    memcpy(p_indices, _nmd_context.draw_list.indices, _nmd_context.draw_list.num_indices * sizeof(nmd_index));
+    NMD_MEMCPY(p_indices, _nmd_context.draw_list.indices, _nmd_context.draw_list.num_indices * sizeof(nmd_index));
     _nmd_d3d9.ib->Unlock();
     
 #ifndef NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE
@@ -7592,7 +7638,7 @@ nmd_tex_id nmd_d3d11_create_texture(void* pixels, int width, int height)
         return 0;
 
     D3D11_TEXTURE2D_DESC tex_desc;
-    memset(&tex_desc, 0, sizeof(tex_desc));
+    NMD_MEMSET(&tex_desc, 0, sizeof(tex_desc));
     tex_desc.Width = width;
     tex_desc.Height = height;
     tex_desc.MipLevels = 1;
@@ -7613,7 +7659,7 @@ nmd_tex_id nmd_d3d11_create_texture(void* pixels, int width, int height)
 
     /* Create texture view */
     D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
-    ZeroMemory(&srv_desc, sizeof(srv_desc));
+    NMD_MEMSET(&srv_desc, 0, sizeof(srv_desc));
     srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srv_desc.Texture2D.MipLevels = tex_desc.MipLevels;
@@ -7661,7 +7707,7 @@ bool _nmd_d3d11_create_objects()
         }";
 
     ID3DBlob* vertex_shader_blob;
-    if (FAILED(D3DCompile(vertex_shader, strlen(vertex_shader), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vertex_shader_blob, NULL)))
+    if (FAILED(D3DCompile(vertex_shader, NMD_STRLEN(vertex_shader), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vertex_shader_blob, NULL)))
         return false;
 
     if (FAILED(_nmd_d3d11.device->CreateVertexShader(vertex_shader_blob->GetBufferPointer(), vertex_shader_blob->GetBufferSize(), NULL, &_nmd_d3d11.vertex_shader)))
@@ -7713,7 +7759,7 @@ bool _nmd_d3d11_create_objects()
         }";
 
     ID3DBlob* pixel_shader_blob;
-    if (FAILED(D3DCompile(pixel_shader, strlen(pixel_shader), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &pixel_shader_blob, NULL)))
+    if (FAILED(D3DCompile(pixel_shader, NMD_STRLEN(pixel_shader), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &pixel_shader_blob, NULL)))
         return false;
     if (_nmd_d3d11.device->CreatePixelShader(pixel_shader_blob->GetBufferPointer(), pixel_shader_blob->GetBufferSize(), NULL, &_nmd_d3d11.pixel_shader) != S_OK)
     {
@@ -7724,7 +7770,7 @@ bool _nmd_d3d11_create_objects()
 
     /* Create the blending setup */
     D3D11_BLEND_DESC blend_desc;
-    memset(&blend_desc, 0, sizeof(blend_desc));
+    NMD_MEMSET(&blend_desc, 0, sizeof(blend_desc));
     blend_desc.AlphaToCoverageEnable = false;
     blend_desc.RenderTarget[0].BlendEnable = true;
     blend_desc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
@@ -7738,7 +7784,7 @@ bool _nmd_d3d11_create_objects()
 
     /* Create the rasterizer state */
     D3D11_RASTERIZER_DESC rasterizer_desc;
-    memset(&rasterizer_desc, 0, sizeof(rasterizer_desc));
+    NMD_MEMSET(&rasterizer_desc, 0, sizeof(rasterizer_desc));
     rasterizer_desc.FillMode = D3D11_FILL_SOLID;
     rasterizer_desc.CullMode = D3D11_CULL_NONE;
     rasterizer_desc.ScissorEnable = true;
@@ -7747,7 +7793,7 @@ bool _nmd_d3d11_create_objects()
 
     /* Create depth-stencil State */
     D3D11_DEPTH_STENCIL_DESC depth_stencil_desc;
-    memset(&depth_stencil_desc, 0, sizeof(depth_stencil_desc));
+    NMD_MEMSET(&depth_stencil_desc, 0, sizeof(depth_stencil_desc));
     depth_stencil_desc.DepthEnable = false;
     depth_stencil_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     depth_stencil_desc.DepthFunc = D3D11_COMPARISON_ALWAYS;
@@ -7773,7 +7819,7 @@ bool _nmd_d3d11_create_objects()
     
     /* Create texture sampler */
     D3D11_SAMPLER_DESC sampler_desc;
-    memset(&sampler_desc, 0, sizeof(sampler_desc));
+    NMD_MEMSET(&sampler_desc, 0, sizeof(sampler_desc));
     sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -7847,7 +7893,7 @@ bool nmd_d3d11_resize(int width, int height)
         { 0.0f,         0.0f,           0.5f,       0.0f },
         { (R + L) / (L - R),  (T + B) / (B - T),    0.5f,       1.0f },
     };
-    memcpy(mapped_resource.pData, mvp, sizeof(mvp));
+    NMD_MEMCPY(mapped_resource.pData, mvp, sizeof(mvp));
     _nmd_d3d11.device_context->Unmap(_nmd_d3d11.const_buffer, 0);
 
     /* Setup viewport */
@@ -7897,7 +7943,7 @@ void nmd_d3d11_render()
         _nmd_d3d11.vertex_buffer_size = _nmd_context.draw_list.num_vertices + NMD_VERTEX_BUFFER_INITIAL_SIZE;
 
         D3D11_BUFFER_DESC desc;
-        memset(&desc, 0, sizeof(desc));
+        NMD_MEMSET(&desc, 0, sizeof(desc));
         desc.Usage = D3D11_USAGE_DYNAMIC;
         desc.ByteWidth = _nmd_d3d11.vertex_buffer_size * sizeof(nmd_vertex);
         desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
@@ -7919,7 +7965,7 @@ void nmd_d3d11_render()
         _nmd_d3d11.index_buffer_size = _nmd_context.draw_list.num_indices + NMD_INDEX_BUFFER_INITIAL_SIZE;
 
         D3D11_BUFFER_DESC desc;
-        memset(&desc, 0, sizeof(desc));
+        NMD_MEMSET(&desc, 0, sizeof(desc));
         desc.Usage = D3D11_USAGE_DYNAMIC;
         desc.ByteWidth = _nmd_d3d11.index_buffer_size * sizeof(nmd_index);
         desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -7936,12 +7982,12 @@ void nmd_d3d11_render()
     D3D11_MAPPED_SUBRESOURCE mapped_resource;
     if (_nmd_d3d11.device_context->Map(_nmd_d3d11.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource) != S_OK)
         return;
-    memcpy(mapped_resource.pData, _nmd_context.draw_list.vertices, _nmd_context.draw_list.num_vertices * sizeof(nmd_vertex));
+    NMD_MEMCPY(mapped_resource.pData, _nmd_context.draw_list.vertices, _nmd_context.draw_list.num_vertices * sizeof(nmd_vertex));
     _nmd_d3d11.device_context->Unmap(_nmd_d3d11.vertex_buffer, 0);
 
     if (_nmd_d3d11.device_context->Map(_nmd_d3d11.index_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource) != S_OK)
         return;
-    memcpy(mapped_resource.pData, _nmd_context.draw_list.indices, _nmd_context.draw_list.num_indices * sizeof(nmd_index));
+    NMD_MEMCPY(mapped_resource.pData, _nmd_context.draw_list.indices, _nmd_context.draw_list.num_indices * sizeof(nmd_index));
     _nmd_d3d11.device_context->Unmap(_nmd_d3d11.index_buffer, 0);
 
 #ifndef NMD_GRAPHICS_D3D11_DONT_BACKUP_RENDER_STATE
@@ -8094,7 +8140,7 @@ bool _nmd_opengl_create_objects()
     {0.0f, 0.0f,-1.0f, 0.0f},
     {-1.0f,1.0f, 0.0f, 1.0f},
     };
-    memcpy(_nmd_opengl.ortho, ortho, sizeof(GLfloat) * 4 * 4);
+    NMD_MEMCPY(_nmd_opengl.ortho, ortho, sizeof(GLfloat) * 4 * 4);
 
     // Backup GL state
     GLint last_texture, last_array_buffer;
@@ -8167,7 +8213,7 @@ bool _nmd_opengl_create_objects()
 
     int width = 16, height = 16;
     char* pixels = malloc(width * height * 4);
-    memset(pixels, 255, width * height * 4);
+    NMD_MEMSET(pixels, 255, width * height * 4);
     _nmd_context.draw_list.font = nmd_opengl_create_texture(pixels, width, height);
 
     /* Restore modified GL state */

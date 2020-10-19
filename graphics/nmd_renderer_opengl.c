@@ -51,7 +51,7 @@ bool _nmd_opengl_create_objects()
     {0.0f, 0.0f,-1.0f, 0.0f},
     {-1.0f,1.0f, 0.0f, 1.0f},
     };
-    memcpy(_nmd_opengl.ortho, ortho, sizeof(GLfloat) * 4 * 4);
+    NMD_MEMCPY(_nmd_opengl.ortho, ortho, sizeof(GLfloat) * 4 * 4);
 
     // Backup GL state
     GLint last_texture, last_array_buffer;
@@ -124,7 +124,7 @@ bool _nmd_opengl_create_objects()
 
     int width = 16, height = 16;
     char* pixels = malloc(width * height * 4);
-    memset(pixels, 255, width * height * 4);
+    NMD_MEMSET(pixels, 255, width * height * 4);
     _nmd_context.draw_list.font = nmd_opengl_create_texture(pixels, width, height);
 
     /* Restore modified GL state */

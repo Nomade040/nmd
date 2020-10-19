@@ -99,10 +99,10 @@ bool nmd_begin(const char* window_name)
         if (_nmd_context.gui.num_windows == _nmd_context.gui.windows_capacity)
         {
             _nmd_context.gui.windows_capacity *= 2;
-            void* mem = NMD_ALLOC(_nmd_context.gui.windows_capacity);
+            void* mem = NMD_MALLOC(_nmd_context.gui.windows_capacity);
             if (!mem)
                 return false;
-            memcpy(mem, _nmd_context.gui.windows, _nmd_context.gui.num_windows);
+            NMD_MEMCPY(mem, _nmd_context.gui.windows, _nmd_context.gui.num_windows);
             NMD_FREE(_nmd_context.gui.windows);
         }
 
@@ -233,7 +233,7 @@ void nmd_text(const char* fmt, ...)
 
     va_list args;
     va_start(args, fmt);
-    const int size = vsprintf(_nmd_context.gui.fmt_buffer, fmt, args);
+    const int size = NMD_VSPRINTF(_nmd_context.gui.fmt_buffer, fmt, args);
     va_end(args);
 
     nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6, window->y_offset + 10, _nmd_context.gui.fmt_buffer, _nmd_context.gui.fmt_buffer + size, NMD_COLOR_WHITE);
@@ -351,7 +351,7 @@ bool nmd_slider_float(const char* label, float* value, float min_value, float ma
     nmd_add_rect_filled(window->rect.p0.x + 6 + 2 + offset, window->y_offset + 2, window->rect.p0.x + 6 + 2 + offset + 8, window->y_offset + 16 - 2, NMD_COLOR_GUI_ACTIVE, 0, 0);
 
     /* Add value text */
-    const int size = sprintf(_nmd_context.gui.fmt_buffer, "%.3f", *value);
+    const int size = NMD_SPRINTF(_nmd_context.gui.fmt_buffer, "%.3f", *value);
     nmd_add_text(&_nmd_context.draw_list.default_atlas, window->rect.p0.x + 6 + (_NMD_SLIDER_WIDTH/2-15), window->y_offset + 12, _nmd_context.gui.fmt_buffer, _nmd_context.gui.fmt_buffer + size, NMD_COLOR_WHITE);
 
     /* Add label text */

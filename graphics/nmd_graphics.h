@@ -51,9 +51,9 @@ Defining types manually:
 Define the 'NMD_GRAPHICS_DEFINE_TYPES' macro to tell the library to define(typedef) the required types.
 Be aware: This feature uses platform dependent macros.
 
-Disabling default functions:
 Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR' macro to tell the library not to include default allocators.
-
+Define the 'NMD_GRAPHICS_DISABLE_FILE_IO' macro to tell the library not to support file operations for fonts.
+Define the 'NMD_GRAPHICS_AVOID_ALLOCA' macro to tell the library to use malloc/free instead of alloca
 Default fonts:
 The 'Karla' true type font in included by default. Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_FONT' macro to remove the font at compile time.
 
@@ -118,45 +118,69 @@ typedef unsigned long long uint64_t;
 
 #endif /* NMD_GRAPHICS_DEFINE_TYPES */
 
-#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR
+#ifndef NMD_MALLOC
 #include <stdlib.h>
-#include <stdio.h>
-#include <malloc.h>
-
-#ifndef NMD_ALLOC
-#define NMD_ALLOC malloc
-#endif /* NMD_ALLOC */
-
-#ifndef NMD_FREE
+#define NMD_MALLOC malloc
 #define NMD_FREE free
-#endif /* NMD_FREE */
+#endif /* NMD_MALLOC */
 
-#ifndef NMD_ALLOCA
-#define NMD_ALLOCA alloca
-#endif /* NMD_ALLOCA */
+#ifndef NMD_MEMSET
+#include <string.h>
+#define NMD_MEMSET memset
+#endif /* NMD_MEMSET */
 
-#endif /* NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR */
+#ifndef NMD_MEMCPY
+#include <string.h>
+#define NMD_MEMCPY memcpy
+#endif /* NMD_MEMCPY */
 
-#ifndef NMD_GRAPHICS_DISABLE_DEFAULT_MATH_FUNCTIONS
-#include <math.h>
+#ifndef NMD_STRLEN
+#include <string.h>
+#define NMD_STRLEN strlen
+#endif /* NMD_STRLEN */
+
+#ifndef NMD_GRAPHICS_AVOID_ALLOCA
+    #ifndef NMD_ALLOCA
+    #include <malloc.h>
+    #define NMD_ALLOCA alloca
+    #endif /* NMD_ALLOCA */
+#endif /* NMD_GRAPHICS_AVOID_ALLOCA */
+
+#ifndef NMD_SPRINTF
+#include <stdio.h>
+#define NMD_SPRINTF sprintf
+#endif /* NMD_SPRINTF */
+
+#ifndef NMD_VSPRINTF
+#include <stdio.h>
+#define NMD_VSPRINTF vsprintf
+#endif /* NMD_VSPRINTF */
 
 #ifndef NMD_SQRT
+#include <math.h>
 #define NMD_SQRT sqrt
 #endif /* NMD_SQRT */
 
 #ifndef NMD_ACOS
+#include <math.h>
 #define NMD_ACOS acos
 #endif /* NMD_ACOS */
 
 #ifndef NMD_COS
+#include <math.h>
 #define NMD_COS cos
 #endif /* NMD_COS */
 
 #ifndef NMD_SIN
+#include <math.h>
 #define NMD_SIN sin
 #endif /* NMD_SIN */
 
-#endif /* NMD_GRAPHICS_DISABLE_DEFAULT_MATH_FUNCTIONS */
+#define STBTT_malloc(x,u) ((void)(u),NMD_MALLOC(x))
+#define STBTT_free(x,u) ((void)(u),NMD_FREE(x))
+#define STBTT_strlen(x) NMD_STRLEN(x)
+#define STBTT_memcpy NMD_MEMCPY
+#define STBTT_memset NMD_MEMSET
 
 /* The number of points the buffer intially supports */
 #ifndef NMD_PATH_BUFFER_INITIAL_SIZE

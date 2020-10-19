@@ -150,20 +150,20 @@ void nmd_new_frame()
         _nmd_calculate_circle_segments(1.6f);
 
         /* Allocate buffers */
-        _nmd_context.draw_list.path = (nmd_vec2*)NMD_ALLOC(NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2));
+        _nmd_context.draw_list.path = (nmd_vec2*)NMD_MALLOC(NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2));
         _nmd_context.draw_list.path_capacity = NMD_PATH_BUFFER_INITIAL_SIZE * sizeof(nmd_vec2);
 
-        _nmd_context.draw_list.vertices = (nmd_vertex*)NMD_ALLOC(NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex));
+        _nmd_context.draw_list.vertices = (nmd_vertex*)NMD_MALLOC(NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex));
         _nmd_context.draw_list.vertices_capacity = NMD_VERTEX_BUFFER_INITIAL_SIZE * sizeof(nmd_vertex);
 
-        _nmd_context.draw_list.indices = (nmd_index*)NMD_ALLOC(NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index));
+        _nmd_context.draw_list.indices = (nmd_index*)NMD_MALLOC(NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index));
         _nmd_context.draw_list.indices_capacity = NMD_INDEX_BUFFER_INITIAL_SIZE * sizeof(nmd_index);
 
-        _nmd_context.draw_list.draw_commands = (nmd_draw_command*)NMD_ALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
+        _nmd_context.draw_list.draw_commands = (nmd_draw_command*)NMD_MALLOC(NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command));
         _nmd_context.draw_list.draw_commands_capacity = NMD_DRAW_COMMANDS_BUFFER_INITIAL_SIZE * sizeof(nmd_draw_command);
 
         _nmd_context.gui.num_windows = 0;
-        _nmd_context.gui.windows = (nmd_window*)NMD_ALLOC(NMD_WINDOWS_BUFFER_INITIAL_SIZE * sizeof(nmd_window));
+        _nmd_context.gui.windows = (nmd_window*)NMD_MALLOC(NMD_WINDOWS_BUFFER_INITIAL_SIZE * sizeof(nmd_window));
         _nmd_context.gui.windows_capacity = NMD_WINDOWS_BUFFER_INITIAL_SIZE;
         _nmd_context.gui.window = 0;
         _nmd_context.gui.window_pos.x = 60;
@@ -199,9 +199,9 @@ bool nmd_bake_font_from_memory(const void* font_data, nmd_atlas* atlas, float si
     atlas->width = 512;
     atlas->height = 512;
 
-    atlas->pixels8 = (uint8_t*)NMD_ALLOC(atlas->width * atlas->height);
-    atlas->pixels32 = (nmd_color*)NMD_ALLOC(atlas->width * atlas->height * 4);
-    atlas->baked_chars = NMD_ALLOC(sizeof(stbtt_bakedchar) * 96);
+    atlas->pixels8 = (uint8_t*)NMD_MALLOC(atlas->width * atlas->height);
+    atlas->pixels32 = (nmd_color*)NMD_MALLOC(atlas->width * atlas->height * 4);
+    atlas->baked_chars = NMD_MALLOC(sizeof(stbtt_bakedchar) * 96);
 
     stbtt_BakeFontBitmap((const unsigned char*)font_data, 0, size, atlas->pixels8, atlas->width, atlas->height, 0x20, 96, (stbtt_bakedchar*)atlas->baked_chars);
 
@@ -214,6 +214,9 @@ bool nmd_bake_font_from_memory(const void* font_data, nmd_atlas* atlas, float si
 
 bool nmd_bake_font(const char* font_path, nmd_atlas* atlas, float size)
 {
+    bool ret = false;
+
+#ifndef NMD_GRAPHICS_DISABLE_FILE_IO
     FILE* f = fopen(font_path, "rb");
 
     /* Get file size*/
@@ -222,14 +225,15 @@ bool nmd_bake_font(const char* font_path, nmd_atlas* atlas, float size)
     fseek(f, 0L, SEEK_SET);
 
     /* Allocate and read file */
-    void* font_data = NMD_ALLOC(file_size);    
+    void* font_data = NMD_MALLOC(file_size);    
     fread(font_data, 1, file_size, f);
 
-    bool ret = nmd_bake_font_from_memory(font_data, atlas, size);
+    ret = nmd_bake_font_from_memory(font_data, atlas, size);
     
     /* Close and free file */
     fclose(f);
     NMD_FREE(font_data);
+#endif
 
     return ret;
 }

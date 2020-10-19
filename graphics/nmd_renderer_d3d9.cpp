@@ -31,8 +31,9 @@ void nmd_d3d9_set_device(LPDIRECT3DDEVICE9 p_d3d9_device)
     _nmd_d3d9.viewport.MaxZ = 1.0f;
 
     int width = 16, height = 16;
-    unsigned char* pixels = (unsigned char*)malloc(width * height * 4);
-    memset(pixels, 0xff, width * height * 4);
+    unsigned char* pixels = (unsigned char*)NMD_MALLOC(width * height * 4);
+    
+    NMD_MEMSET(pixels, 0xff, width * height * 4);
 
     _nmd_context.draw_list.default_atlas.font_id = nmd_d3d9_create_texture(pixels, width, height);
 }
@@ -48,7 +49,7 @@ nmd_tex_id nmd_d3d9_create_texture(void* pixels, int width, int height)
         return 0;
 
     for (int y = 0; y < height; y++)
-        memcpy((unsigned char*)tex_locked_rect.pBits + tex_locked_rect.Pitch * y, (unsigned char*)pixels + (width * 4) * y, (width * 4));
+        NMD_MEMCPY((unsigned char*)tex_locked_rect.pBits + tex_locked_rect.Pitch * y, (unsigned char*)pixels + (width * 4) * y, (width * 4));
    
     texture->UnlockRect(0);
     
@@ -67,7 +68,7 @@ void nmd_d3d9_resize(int width, int height)
         {              0.0f,              0.0f, 0.0f, 0.0f },
         { (R + L) / (L - R), (T + B) / (B - T), 0.0f, 1.0f },
     };
-    memcpy(&_nmd_d3d9.proj, matrix, sizeof(matrix));
+    NMD_MEMCPY(&_nmd_d3d9.proj, matrix, sizeof(matrix));
 
     _nmd_d3d9.viewport.Width = width;
     _nmd_d3d9.viewport.Height = height;
@@ -164,7 +165,7 @@ void nmd_d3d9_render()
     nmd_index* p_indices = 0;
     if (_nmd_d3d9.ib->Lock(0, (UINT)(_nmd_context.draw_list.num_indices * sizeof(nmd_index)), (void**)&p_indices, D3DLOCK_DISCARD) != D3D_OK)
         return;
-    memcpy(p_indices, _nmd_context.draw_list.indices, _nmd_context.draw_list.num_indices * sizeof(nmd_index));
+    NMD_MEMCPY(p_indices, _nmd_context.draw_list.indices, _nmd_context.draw_list.num_indices * sizeof(nmd_index));
     _nmd_d3d9.ib->Unlock();
     
 #ifndef NMD_GRAPHICS_D3D9_DONT_BACKUP_RENDER_STATE
