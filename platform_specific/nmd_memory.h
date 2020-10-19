@@ -72,12 +72,16 @@ typedef unsigned long long uint64_t;
 
 #endif /* NMD_MEMORY_NO_INCLUDES */
 
+
 #ifdef __clang__
     #define _NMD_NAKED __attribute__((naked))
 #else
-    #define _NMD_NAKED __declspec(naked)
-#endif
-
+    #if defined(_WIN64) and defined(_MSC_VER)
+        #define _NMD_NAKED
+    #else
+        #define _NMD_NAKED __declspec(naked)
+    #endif
+#endif /* __clang__ */
 #include <Windows.h>
 
 typedef struct nmd_mex
@@ -315,6 +319,12 @@ Parameters:
 */
 HMODULE nmd_get_module_handle(const wchar_t* module_name);
 
+/* Returns the image size of the specified module. 
+Parameters:
+ - h_module The module base.
+*/
+DWORD nmd_get_module_size(HMODULE h_module);
+
 /* Returns the procedure address being exported by the specified module, or zero if an error occurred.
 Parameters:
  - h_module  [in] The module base.
@@ -344,7 +354,16 @@ Parameters:
  - end        [in] The range's end address.
  - protection [in] The memory protection the page must match. Specify '-1' for any protection.
 */
-void* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* start, uint8_t* end, uint32_t protection);
+uint8_t* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* start, uint8_t* end, uint32_t protection);
+
+/*
+Hooks a function. Returns true if successful, false otherwise.
+Parameters:
+ - target   [in]      The function to be hooked.
+ - detour   [in]      The function to override the 'target'.
+ - original [out/opt] An optional pointer to a variable that recieves the address of the original function.
+ */
+bool nmd_hook(void* target, void* detour, void* original);
 
 /* Iterates through all processes to find the process with a matching name. Returns the PID of the specified process, or zero if the operation failed.
 Parameters:
@@ -452,16 +471,25 @@ HMODULE nmd_get_module_handle(const wchar_t* module_name)
     if (!module_name)
         return (HMODULE)nmd_get_peb()->ImageBaseAddress;
 
-    NMD_PLDR_MODULE final_mod = nmd_get_peb()->Ldr->InLoadOrderModuleList.Flink;
-    NMD_PLDR_MODULE mod = nmd_get_peb()->Ldr->InLoadOrderModuleList.Blink;
+    NMD_PLDR_MODULE final_mod = (NMD_PLDR_MODULE)nmd_get_peb()->Ldr->InLoadOrderModuleList.Flink;
+    NMD_PLDR_MODULE mod = (NMD_PLDR_MODULE)nmd_get_peb()->Ldr->InLoadOrderModuleList.Blink;
     while (mod != final_mod)
     {
         if(_nmd_strcmpiw(mod->BaseDllName.Buffer, module_name))
             return (HMODULE)mod->BaseAddress;
-        mod = mod->InLoadOrderModuleList.Blink;
+        mod = (NMD_PLDR_MODULE)mod->InLoadOrderModuleList.Blink;
     }
 
     return 0;
+}
+
+/* Returns the image size of the specified module.
+Parameters:
+ - h_module The module base.
+*/
+DWORD nmd_get_module_size(HMODULE h_module)
+{
+    return ((PIMAGE_OPTIONAL_HEADER)((uint8_t*)h_module + ((PIMAGE_DOS_HEADER)h_module)->e_lfanew + 4 + sizeof(IMAGE_FILE_HEADER)))->SizeOfImage;
 }
 
 /* Returns the procedure address being exported by the specified module, or zero if an error occurred.
@@ -471,23 +499,23 @@ Parameters:
 */
 void* nmd_get_proc_addr(HMODULE h_module, const char* proc_name)
 {
-    const uint8_t* base = h_module;
-    const PIMAGE_OPTIONAL_HEADER optional_header = base + *(uint32_t*)(base + 0x3c) + 4 + sizeof(IMAGE_FILE_HEADER);
+    const uint8_t* base = (uint8_t*)h_module;
+    const PIMAGE_OPTIONAL_HEADER optional_header = (PIMAGE_OPTIONAL_HEADER)(base + *(uint32_t*)(base + 0x3c) + 4 + sizeof(IMAGE_FILE_HEADER));
     const uint32_t export_directory_rva = optional_header->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
     if (!export_directory_rva)
         return 0;
-    const PIMAGE_EXPORT_DIRECTORY export_directory = base + export_directory_rva;
-    const uint32_t* names = base + export_directory->AddressOfNames;
+    const PIMAGE_EXPORT_DIRECTORY export_directory = (PIMAGE_EXPORT_DIRECTORY)(base + export_directory_rva);
+    const uint32_t* names = (uint32_t*)(base + export_directory->AddressOfNames);
 
     size_t i = 0;
     for (; i < export_directory->NumberOfNames; i++)
     {
-        const char* name = base + names[i];
+        const char* name = (const char*)(base + names[i]);
         if (_nmd_strcmp(name, proc_name))
         {
             const uint16_t ordinal = ((uint16_t*)(base + export_directory->AddressOfNameOrdinals))[i];
             const uint32_t address = ((uint32_t*)(base + export_directory->AddressOfFunctions))[ordinal];
-            return base + address;
+            return (void*)(base + address);
         }
     }
 
@@ -571,7 +599,7 @@ uintptr_t nmd_mex_inject(nmd_mex* m, const wchar_t* dll_path)
         return 0;
 
     /* Create a thread on the target process with the entry point as LoadLibraryA(), passing the address of the buffer containing the path as the parameter */
-    HANDLE h_thread = CreateRemoteThread(m->h_process, NULL, 0, buffer + 8 + dll_path_size, buffer, NULL, NULL);
+    HANDLE h_thread = CreateRemoteThread(m->h_process, NULL, 0, (LPTHREAD_START_ROUTINE)(buffer + 8 + dll_path_size), buffer, NULL, NULL);
     if (!h_thread)
         return 0;
 
@@ -580,7 +608,7 @@ uintptr_t nmd_mex_inject(nmd_mex* m, const wchar_t* dll_path)
         return 0;
 
     uintptr_t module_base;
-    if (!GetExitCodeThread(h_thread, &module_base))
+    if (!GetExitCodeThread(h_thread, (LPDWORD)&module_base))
         return 0;
 
     /* Free resources */
@@ -617,13 +645,13 @@ Parameters:
  - end        [in] The range's end address.
  - protection [in] The memory protection the page must match. Specify '-1' for any protection.
 */
-void* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* start, uint8_t* end, uint32_t protection)
+uint8_t* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* start, uint8_t* end, uint32_t protection)
 {
     MEMORY_BASIC_INFORMATION mbi;
     const size_t mask_length = _nmd_strlen(mask);
     size_t num_matches = 0;
     while (start < end && VirtualQuery(start, &mbi, sizeof(mbi)))
-    {
+    {        
         if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD) || !(protection & mbi.Protect))
         {
             start = (uint8_t*)mbi.BaseAddress + mbi.RegionSize;
@@ -636,11 +664,11 @@ void* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* sta
             {
                 for (; num_matches < mask_length; num_matches++)
                 {
-                    if (mask[num_matches] != '?' && pattern[num_matches] != start[num_matches])
+                    if (mask[num_matches] != '?' && ((uint8_t*)pattern)[num_matches] != start[num_matches])
                         goto not_match;
                 }
 
-                if (start != pattern)
+                if (start != (uint8_t*)pattern)
                     return start;
             not_match:
                 num_matches = 0;
@@ -652,7 +680,51 @@ void* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* sta
     return 0;
 }
 
-#ifdef _WIN32
+bool nmd_hook_size(void* target, void* detour, void* original, size_t hook_size)
+{
+    if (hook_size > 15)
+        return false;
+
+    LPVOID trampoline;
+    size_t offset = 0x1000;
+    while (!(trampoline = VirtualAlloc((LPVOID)((uintptr_t)target + offset), 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE)))
+        offset += 0x1000;
+
+    DWORD old_protection;
+    if (!VirtualProtect(target, hook_size, PAGE_EXECUTE_READWRITE, &old_protection))
+        return false;
+
+    /* Copy original instructions */
+    size_t i = 0;
+    for (; i < hook_size; i++)
+        ((uint8_t*)trampoline)[i] = ((uint8_t*)target)[i];
+
+    /* Place jmp to the original function */
+
+    /* Place jmp to detour */
+    *(uint8_t*)target = 0xE9;
+    *(uint32_t*)((uint8_t*)target + 1) = (uint32_t)((uintptr_t)detour - ((uintptr_t)target + 5));
+
+    VirtualProtect(target, hook_size, old_protection, &old_protection);
+
+    FlushInstructionCache((HANDLE)(-1), target, 5);
+
+    return true;
+}
+
+/*
+Hooks a function. Returns true if successful, false otherwise.
+Parameters:
+ - target   [in]      The function to be hooked.
+ - detour   [in]      The function to override the 'target'.
+ - original [out/opt] An optional pointer to a variable that recieves the address of the original function.
+ */
+bool nmd_hook(void* target, void* detour, void* original)
+{
+    return true;
+}
+
+#ifndef _WIN64
 #define _NMD_DB(x) _asm _emit x
 _NMD_NAKED void _nmd_wow64_syscall()
 {
@@ -691,9 +763,10 @@ Parameters:
 */
 _NMD_NAKED HANDLE nmd_open_process(uint32_t pid, uint32_t access_mask)
 {
+#ifdef _WIN64
+#ifndef _MSC_VER
     _asm
     {
-#ifdef _WIN64
         sub rsp, 64              ; Allocate space for two 8-byte variables and an OBJECT_ATTRIBUTES variable
 
         mov [rsp + 8], rcx       ; Store pid
@@ -716,7 +789,13 @@ _NMD_NAKED HANDLE nmd_open_process(uint32_t pid, uint32_t access_mask)
         mov rax, [rsp]           ; Set return value
         add rsp, 64              ; Restore stack
         ret
+    }
 #else
+    return 0; /* hack for visual studio */
+#endif /* _MSC_VER */
+#else
+    _asm
+    {
         push ebp                      ; Prologue
         mov ebp, esp                  ;
         sub esp, 64                   ;
@@ -749,8 +828,8 @@ _NMD_NAKED HANDLE nmd_open_process(uint32_t pid, uint32_t access_mask)
         mov esp, ebp                  ; Epilogue
         pop ebp                       ;
         ret                           ;
-#endif
     }
+#endif
 }
 
 /* Performs a system call using the specified id.
@@ -763,9 +842,10 @@ Parameters:
 */
 _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
 {
+#ifdef _WIN64
+#ifndef _MSC_VER
     _asm
     {
-#ifdef _WIN64
         mov rax, [rsp]        ; Save return value
         mov [rsp - 0x20], rax ;
         mov rax, rcx          ; Set syscall index
@@ -781,7 +861,13 @@ _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
         mov rcx, [rsp - 0x20] ; Adjust return address
         mov [rsp], rcx        ;
         ret                   ; Return
+    }
 #else
+    return 0; /* hack for visual studio */
+#endif /* _MSC_VER */
+#else
+    _asm
+    {
         mov eax, [esp]          ; Save return value
         mov [esp - 0x10], eax   ;
         mov eax, [esp + 4]      ; Set syscall index
@@ -791,8 +877,8 @@ _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
         mov ecx, [esp - 0x10]   ; Save return value
         mov [esp], ecx          ;
         ret                     ; Return
-#endif
     }
+#endif
 }
 
 #endif /* NMD_MEMORY_IMPLEMENTATION */
