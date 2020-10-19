@@ -7,10 +7,10 @@ bool _nmd_reserve(size_t num_new_vertices, size_t num_new_indices)
     if (future_size > _nmd_context.draw_list.vertices_capacity)
     {
         const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.vertices_capacity * 2, future_size);
-        void* mem = NMD_ALLOC(new_capacity);
+        void* mem = NMD_MALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.draw_list.vertices, _nmd_context.draw_list.vertices_capacity);
+        NMD_MEMCPY(mem, _nmd_context.draw_list.vertices, _nmd_context.draw_list.vertices_capacity);
         NMD_FREE(_nmd_context.draw_list.vertices);
 
         _nmd_context.draw_list.vertices = (nmd_vertex*)mem;
@@ -22,10 +22,10 @@ bool _nmd_reserve(size_t num_new_vertices, size_t num_new_indices)
     if (future_size > _nmd_context.draw_list.indices_capacity)
     {
         const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.indices_capacity * 2, future_size);
-        void* mem = NMD_ALLOC(new_capacity);
+        void* mem = NMD_MALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.draw_list.indices, _nmd_context.draw_list.indices_capacity);
+        NMD_MEMCPY(mem, _nmd_context.draw_list.indices, _nmd_context.draw_list.indices_capacity);
         NMD_FREE(_nmd_context.draw_list.indices);
 
         _nmd_context.draw_list.indices = (nmd_index*)mem;
@@ -41,10 +41,10 @@ bool _nmd_reserve_points(size_t num_new_points)
     if (future_size > _nmd_context.draw_list.path_capacity)
     {
         const size_t new_capacity = NMD_MAX(_nmd_context.draw_list.path_capacity * 2, future_size);
-        void* mem = NMD_ALLOC(new_capacity);
+        void* mem = NMD_MALLOC(new_capacity);
         if (!mem)
             return false;
-        memcpy(mem, _nmd_context.draw_list.path, _nmd_context.draw_list.path_capacity);
+        NMD_MEMCPY(mem, _nmd_context.draw_list.path, _nmd_context.draw_list.path_capacity);
         NMD_FREE(_nmd_context.draw_list.path);
 
         _nmd_context.draw_list.path = (nmd_vec2*)mem;
@@ -82,7 +82,11 @@ void nmd_add_polyline(const nmd_vec2* points, size_t num_points, nmd_color color
 
         size_t size;
         nmd_vec2* normals, * temp;
+#ifdef NMD_GRAPHICS_AVOID_ALLOCA
+        normals = (nmd_vec2*)NMD_MALLOC(sizeof(nmd_vec2) * ((thick_line) ? 5 : 3) * num_points);
+#else
         normals = (nmd_vec2*)NMD_ALLOCA(sizeof(nmd_vec2) * ((thick_line) ? 5 : 3) * num_points);
+#endif
 
         temp = normals + num_points;
 
@@ -279,6 +283,10 @@ void nmd_add_polyline(const nmd_vec2* points, size_t num_points, nmd_color color
                 _nmd_context.draw_list.num_vertices += 4;
             }
         }
+
+#ifdef NMD_GRAPHICS_AVOID_ALLOCA
+        NMD_FREE(normals);
+#endif /* NMD_GRAPHICS_AVOID_ALLOCA*/
     }
     else /* Non anti-alised */
     {
@@ -739,7 +747,12 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t num_points, nm
         }
 
         /* Compute normals */
+#ifdef NMD_GRAPHICS_AVOID_ALLOCA
+        nmd_vec2* temp_normals = (nmd_vec2*)NMD_MALLOC(num_points * sizeof(nmd_vec2));
+#else
         nmd_vec2* temp_normals = (nmd_vec2*)NMD_ALLOCA(num_points * sizeof(nmd_vec2));
+#endif
+
         for (int i0 = num_points - 1, i1 = 0; i1 < num_points; i0 = i1++)
         {
             const nmd_vec2* p0 = &points[i0];
@@ -775,6 +788,10 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t num_points, nm
         }
         _nmd_context.draw_list.num_vertices = vertices - _nmd_context.draw_list.vertices;
         _nmd_context.draw_list.num_indices = indices - _nmd_context.draw_list.indices;
+
+#ifdef NMD_GRAPHICS_AVOID_ALLOCA
+        NMD_FREE(temp_normals);
+#endif /* NMD_GRAPHICS_AVOID_ALLOCA */
     }
     else
     {
@@ -1001,7 +1018,7 @@ void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, con
         return;
 
     if (!text_end)
-        text_end = text + strlen(text);
+        text_end = text + NMD_STRLEN(text);
 
     if (!_nmd_reserve((text_end - text) * 4, (text_end - text) * 6))
         return;
@@ -1034,7 +1051,7 @@ void nmd_add_text(const nmd_atlas* font, float x, float y, const char* text, con
 void nmd_get_text_size(const nmd_atlas* font, const char* text, const char* text_end, nmd_vec2* size_out)
 {
     if (!text_end)
-        text_end = text + strlen(text);
+        text_end = text + NMD_STRLEN(text);
     
     stbtt_aligned_quad q;
     float x = 0, y = 0;
