@@ -127,10 +127,10 @@ int nmd_vsnprintf(char* buf, size_t n, const char* fmt, va_list va);
 
 void* nmd_malloc(size_t size);
 void nmd_free(void* address);
-void* nmd_memset(void* ptr, int value, size_t size);
 void* nmd_memcpy(void* destination, void* source, size_t size);
 size_t nmd_strlen(const char* str);
 
+double nmd_abs(double x);
 double nmd_sqrt(double x);
 double nmd_scalbn(double x, int n);
 double nmd_ldexp(double x, int n);
@@ -156,6 +156,7 @@ double nmd_atan2(double y, double x);
 float nmd_atanf(float x);
 float nmd_atan2f(float y, float x);
 
+#define nmd_memset(ptr, value, num) { size_t _nmd_index = num-1; while(_nmd_index){((uint8_t*)ptr)[_nmd_index--] = value;}}
 #ifdef NMD_LIBC_IMPLEMENTATION
 
 size_t _nmd_libc_get_num_digits_hex(uint64_t n)
@@ -169,6 +170,9 @@ size_t _nmd_libc_get_num_digits_hex(uint64_t n)
 
 size_t _nmd_libc_get_num_digits(uint64_t n)
 {
+	if (n == 0)
+		return 1;
+
 	size_t num_digits = 0;
 	for (; n > 0; n /= 10)
 		num_digits++;
@@ -208,6 +212,24 @@ int nmd_snprintf(char* buf, size_t n, const char* fmt, ...)
 int nmd_vsprintf(char* buf, const char* fmt, va_list va)
 {
 	return nmd_vsnprintf(buf, -1, fmt, va);
+}
+
+void _nmd_sprintf_append_uint(uint64_t x, char** p_buf, size_t* p_i, size_t n)
+{
+	size_t num_digits = _NMD_GET_NUM_DIGITS(x);
+	const size_t offset = num_digits;
+
+	char* buf = *p_buf;
+	size_t i = *p_i;
+		
+	if (i + num_digits < n)
+	{
+		for (; x > 0; x /= 10)
+			buf[--num_digits] = (char)('0' + x % 10);
+		*p_buf += offset;
+	}
+
+	*p_i += offset;
 }
 
 int nmd_vsnprintf(char* buf, size_t n, const char* fmt, va_list va)
@@ -261,23 +283,22 @@ int nmd_vsnprintf(char* buf, size_t n, const char* fmt, va_list va)
 			}
 
 			/* Parse precision sub-specifier */
-			size_t precision = 0;
+			size_t precision = 6; /* 6 is the default precision specified by the standard */
 			if (*fmt == '.')
 			{
 				fmt++;
 
-				if (*fmt == '*') /* Precision specified by argument */
+				if (*fmt == '*') /* Precision specified as argument */
 				{
 					precision = va_arg(va, size_t);
 					fmt++;
 				}
-				else
+				else /* Precision specified in format string */
 				{
-					for (; *fmt >= '0' && *fmt <= '9'; fmt++)
-					{
-						precision += (uint8_t)(*fmt - '0'); /* Add digit to the unit's place */
-						precision *= 10; /* Move all digits by one place to the left */
-					}
+					precision = 0;
+					size_t place = 0;
+					for (; *fmt >= '0' && *fmt <= '9'; fmt++, place++)
+						precision += (uint8_t)(*fmt - '0') * nmd_pow(10, place);
 				}
 			}
 			
@@ -356,17 +377,7 @@ int nmd_vsnprintf(char* buf, size_t n, const char* fmt, va_list va)
 				else
 					x = va_arg(va, uint32_t);
 
-				size_t num_digits = _NMD_GET_NUM_DIGITS(x);
-				const size_t offset = num_digits;
-
-				if (i + num_digits < n)
-				{
-					for (; x > 0; x /= 10)
-						buf[--num_digits] = (char)('0' + x % 10);
-					buf += offset;
-				}
-
-				i += offset;
+				_nmd_sprintf_append_uint(x, &buf, &i, n);
 			}
 			else if (*fmt == 'x' || *fmt == 'X') /* Hexadecimal integer specifier(lowercase or uppercase) */
 			{
@@ -438,6 +449,34 @@ int nmd_vsnprintf(char* buf, size_t n, const char* fmt, va_list va)
 
 				i += sizeof(uintptr_t) * 2;
 			}
+			else if (*fmt == 'f' || *fmt == 'F') /* Floating-point specifier */
+			{
+				double x = va_arg(va, double);
+
+				/* Add minus sign if negative */
+				if((*(uint64_t*)(&x)) & ((uint64_t)1<<63))
+				{
+					if (i < n)
+						*buf++ = '-';
+					i++;
+					x = -x;
+				}
+
+				/* Add integer part*/
+				uint32_t int_part = (uint32_t)x;
+				_nmd_sprintf_append_uint(int_part, &buf, &i, n);
+
+				/* Add fractional part */
+				if (precision > 0)
+				{
+					/* Add dot */
+					if (i++ < n)
+						*buf++ = '.';
+
+					uint32_t fractional_part = (x - (double)int_part) * nmd_pow(10, precision);
+					_nmd_sprintf_append_uint(fractional_part, &buf, &i, n);
+				}
+			}
 			else if (*fmt == 'o') /* Unsigned octal specifier */
 			{
 				uint32_t x = va_arg(va, uint32_t);
@@ -492,42 +531,56 @@ typedef struct _nmd_block_header
 
 _nmd_block_header* _nmd_first_block = 0;
 
-#define _NMD_IS_MOST_SIGNIFCANT_BIT_SET(x) (((uintptr_t)(x)) & (1<<(sizeof(uintptr_t)*8-1)))
-#define _NMD_SET_MOST_SIGNIFICANT_BIT(x) (((uintptr_t)(x))|(1<<(sizeof(uintptr_t)*8-1)))
-#define _NMD_CLEAR_MOST_SIGNIFICANT_BIT(x) (((uintptr_t)(x))&(~(1<<(sizeof(uintptr_t)*8-1))))
-/*#define _NMD_ROUND_PAGE_BOUNDARY(n) ((n) + 0x1000 - ((n) & 0xfff))*/
+#define _NMD_IS_MOST_SIGNIFCANT_BIT_SET(x) (((uintptr_t)(x)) & (((uintptr_t)1)<<(sizeof(uintptr_t)*8-1)))
+#define _NMD_SET_MOST_SIGNIFICANT_BIT(x) (((uintptr_t)(x))|(((uintptr_t)1)<<(sizeof(uintptr_t)*8-1)))
+#define _NMD_CLEAR_MOST_SIGNIFICANT_BIT(x) (((uintptr_t)(x))&(~(((uintptr_t)1)<<(sizeof(uintptr_t)*8-1))))
 #define _NMD_ROUND_POINTER_ALIGN(n) ((n) + sizeof(uintptr_t) - (((n)&(sizeof(uintptr_t)-1)) ? ((n) & (sizeof(uintptr_t)-1)) : sizeof(uintptr_t)))
+/*#define _NMD_ROUND_PAGE_BOUNDARY(n) ((n) + 0x1000 - ((n) & 0xfff))*/
 
-#pragma comment(lib, "ntdll")
-extern "C" uint32_t __stdcall NtAllocateVirtualMemory(void* ProcessHandle, void** BaseAddress, uint32_t ZeroBits, uint32_t* RegionSize, uint32_t AllocationType, uint32_t Protect);
+#pragma comment(lib, "ntdll.lib")
+extern "C" uint32_t __stdcall NtAllocateVirtualMemory(void* ProcessHandle, void** BaseAddress, uint32_t ZeroBits, size_t* RegionSize, uint32_t AllocationType, uint32_t Protect);
 
 _nmd_block_header* _nmd_alloc_region(size_t size)
 {
-	_nmd_block_header* block = NULL;
-
+	_nmd_block_header* block = 0;
+	
 	/* The requested size is 'size + sizeof(_nmd_block_header)' because the memory region must have at least one block header */
-	uint32_t memory_region_size = size + sizeof(_nmd_block_header);
+	size_t memory_region_size = size + sizeof(_nmd_block_header);
 	if (NtAllocateVirtualMemory((void*)(-1), (void**)&block, NULL, &memory_region_size, 0x00002000 | 0x00001000/*MEM_RESERVE | MEM_COMMIT*/, 0x04/*PAGE_READWRITE*/))
 		return 0;
 
-	/* Calculate the real size of the memory block(with padding) */
-	const size_t block_size = _NMD_ROUND_POINTER_ALIGN(size);
-
-	/* Check for a rare case where the memory region will only have one block */
-	if (block_size == memory_region_size - sizeof(_nmd_block_header))
+	/* Check for a rare case where the memory region only has one block */
+	if (memory_region_size - (size + sizeof(_nmd_block_header)) <= sizeof(_nmd_block_header))
+	{
+		/* Indicate that the next block must be in another memory region */
 		block->next = (_nmd_block_header*)_NMD_SET_MOST_SIGNIFICANT_BIT(0);
+
+		/* Give all the space available on this region to the block */
+		block->size = memory_region_size - sizeof(_nmd_block_header);
+	}
 	else
 	{
-		_nmd_block_header* next_block = (_nmd_block_header*)((uint8_t*)block + sizeof(_nmd_block_header) + block_size);
-		next_block->size = memory_region_size - (block_size + sizeof(_nmd_block_header));
+		/* Calculate the address of the next block in this memory region */
+		_nmd_block_header* next_block = (_nmd_block_header*)((uint8_t*)block + sizeof(_nmd_block_header) + size);
+
+		/* Set the remaining space available on this region to the next block */
+		next_block->size = memory_region_size - (size + sizeof(_nmd_block_header));
+
+		/* Link this block and the next block. Also set the most significant bit indicating that this block is not free */
 		block->next = (_nmd_block_header*)_NMD_SET_MOST_SIGNIFICANT_BIT(next_block);
-	}
-	block->size = block_size;
+
+		/* Set the block size(with padding) */
+		block->size = size;
+	}	
 
 	return block;
 }
+
 void* nmd_malloc(size_t size)
 {
+	/* Calculate the size of the memory block with padding */
+	size = _NMD_ROUND_POINTER_ALIGN(size);
+
 	/* Initialize a memory region when this function is called for the first time */
 	if (!_nmd_first_block)
 	{
@@ -536,35 +589,28 @@ void* nmd_malloc(size_t size)
 		return (uint8_t*)_nmd_first_block + sizeof(_nmd_block_header);
 	}
 
-	/* Try to find a free block which is large enough for the user */
+	/* Try to find a free block which is big enough for the user */
 	_nmd_block_header* block = _nmd_first_block;
 	while (true)
 	{
-		/* Check if the block is free. Check if the block is large enough */
+		/* Check if the block is free and if it is big enough */
 		if (!_NMD_IS_MOST_SIGNIFCANT_BIT_SET(block->next) && size <= block->size)
 		{
-			/* Calculate the real size of the memory block(with padding) */
-			const size_t block_size = _NMD_ROUND_POINTER_ALIGN(size);
-
-			/* Set the information of the next block */
-			_nmd_block_header* next_block = (_nmd_block_header*)((uint8_t*)block + sizeof(_nmd_block_header) + block_size);
-			next_block->size = block->size - (block_size + sizeof(_nmd_block_header));
-			block->next = (_nmd_block_header*)_NMD_SET_MOST_SIGNIFICANT_BIT(next_block);
-
-			/* Set the new block size */
-			block->size = block_size;
+			/* Set the most significant bit indicating that this block is not free anymore */
+			block->next = (_nmd_block_header*)_NMD_SET_MOST_SIGNIFICANT_BIT(block->next);
 
 			return (uint8_t*)block + sizeof(_nmd_block_header);
 		}
 
+		/* Get the next block. Stop parsing if it's null */
 		_nmd_block_header* next_block = (_nmd_block_header*)_NMD_CLEAR_MOST_SIGNIFICANT_BIT(block->next);
 		if (!next_block)
-			return 0;
+			break;
 
 		block = next_block;
 	}
 
-	/* There're no free blocks which are large enough. Allocate a new memory region */
+	/* There're no free blocks which are big enough. Allocate a new memory region */
 	if(!(block->next = _nmd_alloc_region(size)))
 		return 0;
 	return (uint8_t*)block->next + sizeof(_nmd_block_header);
@@ -611,15 +657,6 @@ void nmd_free(void* ptr)
 }
 
 #endif
-
-void* nmd_memset(void* ptr, int value, size_t size)
-{
-	size_t i = 0;
-	for (; i < size; i++)
-		((uint8_t*)ptr)[i] = value;
-
-	return ptr;
-}
 
 void* nmd_memcpy(void* destination, void* source, size_t size)
 {
