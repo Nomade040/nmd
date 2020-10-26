@@ -1,23 +1,16 @@
 /* This is a platform independent C89 x86 assembler(in development), disassembler(almost done), emulator(in development) and length disassembler library.
 
 Features:
- - Support for x86(16/32/64).
-    - Intel and AT&T syntax.
- - No libc, dynamic memory allocation, global variables/state/context or runtime initialization.
+ - Support for x86(16/32/64). Intel and AT&T syntax.
+ - No libc, dynamic memory allocation, static/global variables/state/context or runtime initialization.
  - Thread-safe by design.
  - Optimized for speed, size and low memory usage.
- - The only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>. Check out the 'NMD_ASSEMBLY_NO_INCLUDES' macro.
+ - By default the only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>.
 
 Setup:
 Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
 #define NMD_ASSEMBLY_IMPLEMENTATION
 #include "nmd_assembly.h"
-
-Using absolutely no headers/dependencies:
-Define the 'NMD_ASSEMBLY_NO_INCLUDES' macro to tell the library not to include any headers. By doing so it will define the required types.
-Be aware: This feature uses platform dependent macros.
-
-You may define the 'NMD_ASSEMBLY_PRIVATE' macro to mark all functions as static so that they're not visible to other translation units.
 
 Interfaces(i.e the functions you call from your application):
  - The assembler is represented by the following function:
@@ -39,7 +32,7 @@ Interfaces(i.e the functions you call from your application):
        - instruction [out] A pointer to a variable of type 'nmd_x86_instruction' that receives information about the instruction.
        - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
        - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
-      bool nmd_decode_x86(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
+      bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
 
     - Formats an instruction. This function may access invalid memory(thus causing a crash) if you modify 'instruction' manually.
       Parameters:
@@ -47,7 +40,7 @@ Interfaces(i.e the functions you call from your application):
        - buffer          [out] A pointer to buffer that receives the string. The buffer's recommended size is 128 bytes.
        - runtime_address [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
        - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
-      void nmd_format_x86(const nmd_x86_instruction* instruction, char buffer[], uint64_t runtime_address, uint32_t flags);
+      void nmd_x86_format(const nmd_x86_instruction* instruction, char buffer[], uint64_t runtime_address, uint32_t flags);
 
  - The emulator is represented by the following function:
     Emulates x86 code according to the state of the cpu. You MUST initialize the following variables before calling this
@@ -62,7 +55,7 @@ Interfaces(i.e the functions you call from your application):
     Parameters:
      - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
      - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
-    bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count);
+    bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count);
 
  - The length disassembler is represented by the following function:
     Returns the length of the instruction if it is valid, zero otherwise.
@@ -70,15 +63,15 @@ Interfaces(i.e the functions you call from your application):
      - buffer      [in] A pointer to a buffer containing an encoded instruction.
      - buffer_size [in] The size of the buffer in bytes.
      - mode        [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-    size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, NMD_X86_MODE mode);
+    size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode);
 
 Enabling and disabling features of the decoder:
-To dynamically choose which features are used by the decoder, use the 'flags' parameter of nmd_decode_x86(). The less features specified in the mask, the
+To dynamically choose which features are used by the decoder, use the 'flags' parameter of nmd_x86_decode(). The less features specified in the mask, the
 faster the decoder runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
 the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
  - 'NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK': the decoder does not check if the instruction is invalid.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID': the decoder does not fill the 'id' variable.
- - 'NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS': the decoder does not fill the 'cpuFlags' variable.
+ - 'NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS': the decoder does not fill the variables related to cpu fags.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS': the decoder does not fill the 'num_operands' and 'operands' variable.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_GROUP': the decoder does not fill the 'group' variable.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_VEX': the decoder does not support VEX instructions.
@@ -86,7 +79,7 @@ the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' i
  - 'NMD_ASSEMBLY_DISABLE_DECODER_3DNOW': the decoder does not support 3DNow! instructions.
 
 Enabling and disabling features of the formatter:
-To dynamically choose which features are used by the formatter, use the 'flags' parameter of nmd_format_x86(). The less features specified in the mask, the
+To dynamically choose which features are used by the formatter, use the 'flags' parameter of nmd_x86_format(). The less features specified in the mask, the
 faster the function runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
 the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE': the formatter does not support pointer size.
@@ -104,6 +97,24 @@ Use the following macros to disable features at compile-time:
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK': the length disassembler does not check if the instruction is invalid.
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VEX': the length disassembler does not support VEX instructions.
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW': the length disassembler does not support 3DNow! instructions.
+
+Define the 'NMD_ASSEMBLY_DEFINE_INT_TYPES' macro to tell the library to define fixed width int types such as 'uint8_t', 'uint32_t', etc. By doing so,
+the library will require no depedencies whatsoever. Be aware, this feature uses platform dependent macros.
+
+You may define the 'NMD_ASSEMBLY_PRIVATE' macro to mark all functions as static so that they're not visible to other translation units.
+
+Common helper functions:
+Some 'nmd' libraries utilize the same functions such as '_nmd_assembly_get_num_digits' and '_nmd_assembly_get_num_digits_hex'.
+All libraries include the same implementation which internally are defined as '_nmd_[LIBRARY_NAME]_[FUNCTION_NAME]' to avoid name conflits between them.
+When the function is called a macro is used in the form '_NMD_FUNCTION_NAME', this allows another function to override the default implementation, so in
+the case that two 'nmd' libraries need the same function, only one implementation will be used by both libraries. You may also provide your implemetation:
+Example:
+size_t my_get_num_digits(int x);
+#define _NMD_GET_NUM_DIGITS my_get_num_digits
+
+Shared helper functions used by this library:
+ - _NMD_GET_NUM_DIGITS()
+ - _NMD_GET_NUM_DIGITS_HEX()
 
 Conventions:
  - Every identifier uses snake case.
@@ -139,7 +150,7 @@ Contributors(This may not be a complete list):
 #ifndef NMD_ASSEMBLY_H
 #define NMD_ASSEMBLY_H
 
-#ifdef NMD_ASSEMBLY_NO_INCLUDES
+#ifdef NMD_ASSEMBLY_DEFINE_INT_TYPES
 
 #ifndef __cplusplus
 
@@ -182,12 +193,20 @@ typedef unsigned long long uint64_t;
 
 #else
 
-/* Dependencies when 'NMD_ASSEMBLY_NO_INCLUDES' is not defined. */
+/* Dependencies when 'NMD_ASSEMBLY_DEFINE_INT_TYPES' is not defined. */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
-#endif /* NMD_ASSEMBLY_NO_INCLUDES */
+#endif /* NMD_ASSEMBLY_DEFINE_INT_TYPES */
+
+#ifndef _NMD_GET_NUM_DIGITS
+#define _NMD_GET_NUM_DIGITS _nmd_assembly_get_num_digits
+#endif /* _NMD_GET_NUM_DIGITS */
+
+#ifndef _NMD_GET_NUM_DIGITS_HEX
+#define _NMD_GET_NUM_DIGITS_HEX _nmd_assembly_get_num_digits_hex
+#endif /* _NMD_GET_NUM_DIGITS_HEX */
 
 #ifndef NMD_X86_FORMATTER_NUM_PADDING_BYTES
 #define NMD_X86_FORMATTER_NUM_PADDING_BYTES 10
@@ -236,7 +255,7 @@ enum NMD_X86_DECODER_FLAGS
 {
 	NMD_X86_DECODER_FLAGS_VALIDITY_CHECK = (1 << 0), /* The decoder checks if the instruction is valid. */
 	NMD_X86_DECODER_FLAGS_INSTRUCTION_ID = (1 << 1), /* The decoder fills the 'id' variable. */
-	NMD_X86_DECODER_FLAGS_CPU_FLAGS      = (1 << 2), /* The decoder fills the 'cpuFlags' variable. */
+	NMD_X86_DECODER_FLAGS_CPU_FLAGS      = (1 << 2), /* The decoder fills the variables related to cpu flags. */
 	NMD_X86_DECODER_FLAGS_OPERANDS       = (1 << 3), /* The decoder fills the 'num_operands' and 'operands' variable. */
 	NMD_X86_DECODER_FLAGS_GROUP          = (1 << 4), /* The decoder fills 'group' variable. */
 	NMD_X86_DECODER_FLAGS_VEX            = (1 << 5), /* The decoder parses VEX instructions. */
@@ -2556,7 +2575,7 @@ Parameters:
  - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
 */
-NMD_ASSEMBLY_API bool nmd_decode_x86(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
+NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags);
 
 /*
 Formats an instruction. This function may cause a crash if you modify 'instruction' manually.
@@ -2566,7 +2585,7 @@ Parameters:
  - runtime_address [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
  - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
-NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags);
+NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags);
 
 /*
 Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
@@ -2582,7 +2601,7 @@ Parameters:
  - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
  - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-NMD_ASSEMBLY_API bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count);
+NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count);
 
 /*
 Returns the instruction's length if it's valid, zero otherwise.
@@ -2591,6 +2610,6 @@ Parameters:
  - buffer_size [in] The buffer's size in bytes.
  - mode        [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
 */
-NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, NMD_X86_MODE mode);
+NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode);
 
 #endif /* NMD_ASSEMBLY_H */

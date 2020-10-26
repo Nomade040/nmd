@@ -1,17 +1,17 @@
 #include "nmd_common.h"
 
 /* Four high-order bits of an opcode to index a row of the opcode table */
-#define NMD_R(b) ((b) >> 4)
+#define _NMD_R(b) ((b) >> 4)
 
 /* Four low-order bits to index a column of the table */
-#define NMD_C(b) ((b) & 0xF)
+#define _NMD_C(b) ((b) & 0xF)
 
 #define _NMD_NUM_ELEMENTS(arr) (sizeof(arr) / sizeof((arr)[0]))
 
-#define _NMD_IS_UPPERCASE(c) (c >= 'A' && c <= 'Z')
-#define _NMD_IS_LOWERCASE(c) (c >= 'a' && c <= 'z')
-#define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? c + 0x20 : c)
-#define _NMD_IS_DECIMAL_NUMBER(c) (c >= '0' && c <= '9')
+#define _NMD_IS_UPPERCASE(c) ((c) >= 'A' && (c) <= 'Z')
+#define _NMD_IS_LOWERCASE(c) ((c) >= 'a' && (c) <= 'z')
+#define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? (c) + 0x20 : (c))
+#define _NMD_IS_DECIMAL_NUMBER(c) ((c) >= '0' && (c) <= '9')
 
 NMD_ASSEMBLY_API const char* const _nmd_reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
 NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };
@@ -202,4 +202,22 @@ NMD_ASSEMBLY_API size_t _nmd_get_bit_index(uint32_t mask)
 		i++;
 
 	return i;
+}
+
+NMD_ASSEMBLY_API size_t _nmd_assembly_get_num_digits_hex(uint64_t n)
+{
+	size_t num_digits = 0;
+	for (; n > 0; n /= 16)
+		num_digits++;
+
+	return num_digits;
+}
+
+NMD_ASSEMBLY_API size_t _nmd_assembly_get_num_digits(uint64_t n)
+{
+	size_t num_digits = 0;
+	for (; n > 0; n /= 10)
+		num_digits++;
+
+	return num_digits;
 }

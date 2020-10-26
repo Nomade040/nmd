@@ -14,22 +14,14 @@ NMD_ASSEMBLY_API void _nmd_append_string(_nmd_string_info* const si, const char*
 		*si->buffer++ = *source++;
 }
 
-NMD_ASSEMBLY_API size_t _nmd_get_num_digits(uint64_t n, bool hex)
-{
-	size_t num_digits = 0;
-	while ((n /= (hex ? 16 : 10)) > 0)
-		num_digits++;
-
-	return num_digits;
-}
-
 NMD_ASSEMBLY_API void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
 {
-	size_t num_digits = _nmd_get_num_digits(n, si->flags & NMD_X86_FORMAT_FLAGS_HEX);
-	size_t buffer_offset = num_digits + 1;
-
+	size_t buffer_offset;
 	if (si->flags & NMD_X86_FORMAT_FLAGS_HEX)
 	{
+		size_t num_digits = _NMD_GET_NUM_DIGITS_HEX(n);
+		buffer_offset = num_digits + 1;
+
 		const bool condition = n > 9 || si->flags & NMD_X86_FORMAT_FLAGS_ENFORCE_HEX_ID;
 		if (si->flags & NMD_X86_FORMAT_FLAGS_0X_PREFIX && condition)
 			*si->buffer++ = '0', *si->buffer++ = 'x';
@@ -45,6 +37,9 @@ NMD_ASSEMBLY_API void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
 	}
 	else
 	{
+		size_t num_digits = _NMD_GET_NUM_DIGITS(n);
+		buffer_offset = num_digits + 1;
+
 		do {
 			*(si->buffer + num_digits--) = (char)('0' + n % 10);
 		} while ((n /= 10) > 0);
@@ -580,7 +575,7 @@ Parameters:
  - runtime_address [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
  - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
-NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags)
+NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags)
 {
 	if (!instruction->valid)
 		return;
@@ -614,7 +609,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 
 	if (instruction->prefixes & (NMD_X86_PREFIXES_REPEAT | NMD_X86_PREFIXES_REPEAT_NOT_ZERO) && (instruction->prefixes & NMD_X86_PREFIXES_LOCK || ((op == 0x86 || op == 0x87) && instruction->modrm.fields.mod != 0b11)))
 		_nmd_append_string(&si, instruction->repeat_prefix ? "xrelease " : "xacquire ");
-	else if (instruction->prefixes & NMD_X86_PREFIXES_REPEAT_NOT_ZERO && (instruction->opcode_size == 1 && (op == 0xc2 || op == 0xc3 || op == 0xe8 || op == 0xe9 || NMD_R(op) == 7 || (op == 0xff && (instruction->modrm.fields.reg == 0b010 || instruction->modrm.fields.reg == 0b100)))))
+	else if (instruction->prefixes & NMD_X86_PREFIXES_REPEAT_NOT_ZERO && (instruction->opcode_size == 1 && (op == 0xc2 || op == 0xc3 || op == 0xe8 || op == 0xe9 || _NMD_R(op) == 7 || (op == 0xff && (instruction->modrm.fields.reg == 0b010 || instruction->modrm.fields.reg == 0b100)))))
 		_nmd_append_string(&si, "bnd ");
 
 	if (instruction->prefixes & NMD_X86_PREFIXES_LOCK)
@@ -843,9 +838,9 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 					else
 						_nmd_append_modrm_upper(&si, (instruction->modrm.fields.reg == 0b011 || instruction->modrm.fields.reg == 0b101) ? "fword" : (instruction->mode == NMD_X86_MODE_64 && ((instruction->modrm.fields.reg >= 0b010 && instruction->modrm.fields.reg <= 0b110) || (instruction->prefixes & NMD_X86_PREFIXES_REX_W && instruction->modrm.fields.reg <= 0b010)) ? "qword" : (operand_size ? "word" : "dword")));
 				}
-				else if (NMD_R(op) < 4 && (NMD_C(op) < 6 || (NMD_C(op) >= 8 && NMD_C(op) < 0xE))) /* add,adc,and,xor,or,sbb,sub,cmp */
+				else if (_NMD_R(op) < 4 && (_NMD_C(op) < 6 || (_NMD_C(op) >= 8 && _NMD_C(op) < 0xE))) /* add,adc,and,xor,or,sbb,sub,cmp */
 				{
-					_nmd_append_string(&si, _nmd_op1_opcode_map_mnemonics[NMD_R((NMD_C(op) > 6 ? op + 0x40 : op))]);
+					_nmd_append_string(&si, _nmd_op1_opcode_map_mnemonics[_NMD_R((_NMD_C(op) > 6 ? op + 0x40 : op))]);
 					*si.buffer++ = ' ';
 
 					switch (op % 8)
@@ -881,9 +876,9 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 						break;
 					}
 				}
-				else if (NMD_R(op) == 4 || NMD_R(op) == 5) /* inc,dec,push,pop [0x40, 0x5f] */
+				else if (_NMD_R(op) == 4 || _NMD_R(op) == 5) /* inc,dec,push,pop [0x40, 0x5f] */
 				{
-					_nmd_append_string(&si, NMD_C(op) < 8 ? (NMD_R(op) == 4 ? "inc " : "push ") : (NMD_R(op) == 4 ? "dec " : "pop "));
+					_nmd_append_string(&si, _NMD_C(op) < 8 ? (_NMD_R(op) == 4 ? "inc " : "push ") : (_NMD_R(op) == 4 ? "dec " : "pop "));
 					_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? _nmd_regrx : (instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32)))[op % 8]);
 				}
 				else if (op >= 0x80 && op < 0x84) /* add,adc,and,xor,or,sbb,sub,cmp [80,83] */
@@ -965,10 +960,10 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 					else
 						_nmd_append_modrm_upper(&si, instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? "qword" : (operand_size ? "word" : "dword"));
 				}
-				else if (NMD_R(op) == 7) /* conditional jump [70,7f]*/
+				else if (_NMD_R(op) == 7) /* conditional jump [70,7f]*/
 				{
 					*si.buffer++ = 'j';
-					_nmd_append_string(&si, _nmd_condition_suffixes[NMD_C(op)]);
+					_nmd_append_string(&si, _nmd_condition_suffixes[_NMD_C(op)]);
 					*si.buffer++ = ' ';
 					_nmd_append_relative_address8(&si);
 				}
@@ -994,13 +989,13 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 				}
 				else if(op == 0xc3)
 					_nmd_append_string(&si, "ret");
-				else if (NMD_R(op) == 0xb) /* mov [b0, bf] */
+				else if (_NMD_R(op) == 0xb) /* mov [b0, bf] */
 				{
 					_nmd_append_string(&si, "mov ");
 					if (instruction->prefixes & NMD_X86_PREFIXES_REX_B)
-						_nmd_append_string(&si, _nmd_regrx[op % 8]), * si.buffer++ = NMD_C(op) < 8 ? 'b' : 'd';
+						_nmd_append_string(&si, _nmd_regrx[op % 8]), * si.buffer++ = _NMD_C(op) < 8 ? 'b' : 'd';
 					else
-						_nmd_append_string(&si, (NMD_C(op) < 8 ? (instruction->has_rex ? _nmd_reg8_x64 : _nmd_reg8) : (instruction->rex_w_prefix ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32)))[op % 8]);
+						_nmd_append_string(&si, (_NMD_C(op) < 8 ? (instruction->has_rex ? _nmd_reg8_x64 : _nmd_reg8) : (instruction->rex_w_prefix ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32)))[op % 8]);
 					*si.buffer++ = ',';
 					_nmd_append_number(&si, instruction->immediate);
 				}
@@ -1069,12 +1064,12 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 					_nmd_append_string(&si, "xchg ");
 					if (instruction->prefixes & NMD_X86_PREFIXES_REX_B)
 					{
-						_nmd_append_string(&si, _nmd_regrx[NMD_C(op)]);
+						_nmd_append_string(&si, _nmd_regrx[_NMD_C(op)]);
 						if (!(instruction->prefixes & NMD_X86_PREFIXES_REX_W))
 							*si.buffer++ = 'd';
 					}
 					else
-						_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32))[NMD_C(op)]);
+						_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? _nmd_reg64 : (operand_size ? _nmd_reg16 : _nmd_reg32))[_NMD_C(op)]);
 					_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? ",rax" : (operand_size ? ",ax" : ",eax")));
 				}
 				else if (op == 0x9A)
@@ -1105,7 +1100,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 					_nmd_append_string(&si, str);
 					*si.buffer++ = (op % 2 == 0) ? 'b' : (operand_size ? 'w' : 'd');
 				}
-				else if (op == 0xC0 || op == 0xC1 || (NMD_R(op) == 0xd && NMD_C(op) < 4))
+				else if (op == 0xC0 || op == 0xC1 || (_NMD_R(op) == 0xd && _NMD_C(op) < 4))
 				{
 					_nmd_append_string(&si, _nmd_opcode_extensions_grp2[instruction->modrm.fields.reg]);
 					*si.buffer++ = ' ';
@@ -1114,9 +1109,9 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 					else
 						_nmd_append_Ev(&si);
 					*si.buffer++ = ',';
-					if (NMD_R(op) == 0xc)
+					if (_NMD_R(op) == 0xc)
 						_nmd_append_number(&si, instruction->immediate);
-					else if (NMD_C(op) < 2)
+					else if (_NMD_C(op) < 2)
 						_nmd_append_number(&si, 1);
 					else
 						_nmd_append_string(&si, "cl");
@@ -1129,7 +1124,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 				else if (op >= 0xe0 && op <= 0xe3)
 				{
 					const char* mnemonics[] = { "loopne", "loope", "loop" };
-					_nmd_append_string(&si, op == 0xe3 ? (instruction->mode == NMD_X86_MODE_64 ? "jrcxz" : "jecxz") : mnemonics[NMD_C(op)]);
+					_nmd_append_string(&si, op == 0xe3 ? (instruction->mode == NMD_X86_MODE_64 ? "jrcxz" : "jecxz") : mnemonics[_NMD_C(op)]);
 					*si.buffer++ = ' ';
 					_nmd_append_relative_address8(&si);
 				}
@@ -1229,7 +1224,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 
 					if (instruction->modrm.modrm < 0xc0)
 					{
-						_nmd_append_string(&si, _nmd_escape_opcodes[NMD_C(op) - 8][instruction->modrm.fields.reg]);
+						_nmd_append_string(&si, _nmd_escape_opcodes[_NMD_C(op) - 8][instruction->modrm.fields.reg]);
 						*si.buffer++ = ' ';
 						switch (op)
 						{
@@ -1247,14 +1242,14 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 						switch (op)
 						{
 						case 0xd8:
-							_nmd_append_string(&si, _nmd_escape_opcodesD8[(NMD_R(instruction->modrm.modrm) - 0xc) * 2 + (NMD_C(instruction->modrm.modrm) > 7 ? 1 : 0)]);
+							_nmd_append_string(&si, _nmd_escape_opcodesD8[(_NMD_R(instruction->modrm.modrm) - 0xc) * 2 + (_NMD_C(instruction->modrm.modrm) > 7 ? 1 : 0)]);
 							_nmd_append_string(&si, " st(0),st(");
 							*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8), * si.buffer++ = ')';
 							break;
 						case 0xd9:
-							if (NMD_R(instruction->modrm.modrm) == 0xc)
+							if (_NMD_R(instruction->modrm.modrm) == 0xc)
 							{
-								_nmd_append_string(&si, NMD_C(instruction->modrm.modrm) < 8 ? "ld" : "xch");
+								_nmd_append_string(&si, _NMD_C(instruction->modrm.modrm) < 8 ? "ld" : "xch");
 								_nmd_append_string(&si, " st(0),st(");
 								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8), * si.buffer++ = ')';
 							}
@@ -1307,17 +1302,17 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 							else
 							{
 								const char* mnemonics[4] = { "cmovb", "cmovbe", "cmove", "cmovu" };
-								_nmd_append_string(&si, mnemonics[(NMD_R(instruction->modrm.modrm) - 0xc) + (NMD_C(instruction->modrm.modrm) > 7 ? 2 : 0)]);
+								_nmd_append_string(&si, mnemonics[(_NMD_R(instruction->modrm.modrm) - 0xc) + (_NMD_C(instruction->modrm.modrm) > 7 ? 2 : 0)]);
 								_nmd_append_string(&si, " st(0),st(");
 								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
 								*si.buffer++ = ')';
 							}
 							break;
 						case 0xdb:
-							if (NMD_R(instruction->modrm.modrm) == 0xe && NMD_C(instruction->modrm.modrm) < 8)
+							if (_NMD_R(instruction->modrm.modrm) == 0xe && _NMD_C(instruction->modrm.modrm) < 8)
 							{
 								const char* mnemonics[] = { "eni8087_nop", "disi8087_nop", "nclex", "ninit", "setpm287_nop" };
-								_nmd_append_string(&si, mnemonics[NMD_C(instruction->modrm.modrm)]);
+								_nmd_append_string(&si, mnemonics[_NMD_C(instruction->modrm.modrm)]);
 							}
 							else
 							{
@@ -1341,24 +1336,24 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 							}
 							break;
 						case 0xdc:
-							if (NMD_R(instruction->modrm.modrm) == 0xc)
-								_nmd_append_string(&si, NMD_C(instruction->modrm.modrm) > 7 ? "mul" : "add");
+							if (_NMD_R(instruction->modrm.modrm) == 0xc)
+								_nmd_append_string(&si, _NMD_C(instruction->modrm.modrm) > 7 ? "mul" : "add");
 							else
 							{
-								_nmd_append_string(&si, NMD_R(instruction->modrm.modrm) == 0xd ? "com" : (NMD_R(instruction->modrm.modrm) == 0xe ? "subr" : "div"));
-								if (NMD_R(instruction->modrm.modrm) == 0xd && NMD_C(instruction->modrm.modrm) >= 8)
+								_nmd_append_string(&si, _NMD_R(instruction->modrm.modrm) == 0xd ? "com" : (_NMD_R(instruction->modrm.modrm) == 0xe ? "subr" : "div"));
+								if (_NMD_R(instruction->modrm.modrm) == 0xd && _NMD_C(instruction->modrm.modrm) >= 8)
 								{
-									if (NMD_R(instruction->modrm.modrm) >= 8)
+									if (_NMD_R(instruction->modrm.modrm) >= 8)
 										*si.buffer++ = 'p';
 								}
 								else
 								{
-									if (NMD_R(instruction->modrm.modrm) < 8)
+									if (_NMD_R(instruction->modrm.modrm) < 8)
 										*si.buffer++ = 'r';
 								}
 							}
 
-							if (NMD_R(instruction->modrm.modrm) == 0xd)
+							if (_NMD_R(instruction->modrm.modrm) == 0xd)
 							{
 								_nmd_append_string(&si, " st(0),st(");
 								*si.buffer++ = (char)('0' + instruction->modrm.modrm % 8);
@@ -1372,12 +1367,12 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 							}
 							break;
 						case 0xdd:
-							if (NMD_R(instruction->modrm.modrm) == 0xc)
-								_nmd_append_string(&si, NMD_C(instruction->modrm.modrm) < 8 ? "free" : "xch");
+							if (_NMD_R(instruction->modrm.modrm) == 0xc)
+								_nmd_append_string(&si, _NMD_C(instruction->modrm.modrm) < 8 ? "free" : "xch");
 							else
 							{
 								_nmd_append_string(&si, instruction->modrm.modrm < 0xe0 ? "st" : "ucom");
-								if (NMD_C(instruction->modrm.modrm) >= 8)
+								if (_NMD_C(instruction->modrm.modrm) >= 8)
 									*si.buffer++ = 'p';
 							}
 
@@ -1399,12 +1394,12 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 								}
 								else
 								{
-									if (NMD_R(instruction->modrm.modrm) == 0xc)
-										_nmd_append_string(&si, NMD_C(instruction->modrm.modrm) < 8 ? "add" : "mul");
+									if (_NMD_R(instruction->modrm.modrm) == 0xc)
+										_nmd_append_string(&si, _NMD_C(instruction->modrm.modrm) < 8 ? "add" : "mul");
 									else
 									{
 										_nmd_append_string(&si, instruction->modrm.modrm < 0xf0 ? "sub" : "div");
-										if (NMD_R(instruction->modrm.modrm) < 8 || (NMD_R(instruction->modrm.modrm) >= 0xe && NMD_C(instruction->modrm.modrm) < 8))
+										if (_NMD_R(instruction->modrm.modrm) < 8 || (_NMD_R(instruction->modrm.modrm) >= 0xe && _NMD_C(instruction->modrm.modrm) < 8))
 											*si.buffer++ = 'r';
 									}
 									_nmd_append_string(&si, "p st(");
@@ -1543,10 +1538,10 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 	}
 	else if (instruction->opcode_map == NMD_X86_OPCODE_MAP_0F)
 	{
-		if (NMD_R(op) == 8)
+		if (_NMD_R(op) == 8)
 		{
 			*si.buffer++ = 'j';
-			_nmd_append_string(&si, _nmd_condition_suffixes[NMD_C(op)]);
+			_nmd_append_string(&si, _nmd_condition_suffixes[_NMD_C(op)]);
 			*si.buffer++ = ' ';
 			_nmd_append_relative_address16_32(&si);
 		}
@@ -1554,10 +1549,10 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			_nmd_append_string(&si, "syscall");
 		else if(op == 0xa2)
 			_nmd_append_string(&si, "cpuid");
-		else if (NMD_R(op) == 4)
+		else if (_NMD_R(op) == 4)
 		{
 			_nmd_append_string(&si, "cmov");
-			_nmd_append_string(&si, _nmd_condition_suffixes[NMD_C(op)]);
+			_nmd_append_string(&si, _nmd_condition_suffixes[_NMD_C(op)]);
 			*si.buffer++ = ' ';
 			_nmd_append_Gv(&si);
 			*si.buffer++ = ',';
@@ -1569,10 +1564,10 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			{
 				const char* prefix66_mnemonics[] = { "movupd", "movupd", "movlpd", "movlpd", "unpcklpd", "unpckhpd", "movhpd", "movhpd" };
 
-				_nmd_append_string(&si, prefix66_mnemonics[NMD_C(op)]);
+				_nmd_append_string(&si, prefix66_mnemonics[_NMD_C(op)]);
 				*si.buffer++ = ' ';
 
-				switch (NMD_C(op))
+				switch (_NMD_C(op))
 				{
 				case 0:
 					_nmd_append_Vx(&si);
@@ -1601,10 +1596,10 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			{
 				const char* prefixF3_mnemonics[] = { "movss", "movss", "movsldup", 0, 0, 0, "movshdup" };
 
-				_nmd_append_string(&si, prefixF3_mnemonics[NMD_C(op)]);
+				_nmd_append_string(&si, prefixF3_mnemonics[_NMD_C(op)]);
 				*si.buffer++ = ' ';
 
-				switch (NMD_C(op))
+				switch (_NMD_C(op))
 				{
 				case 0:
 					_nmd_append_Vdq(&si);
@@ -1634,10 +1629,10 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			{
 				const char* prefixF2_mnemonics[] = { "movsd", "movsd", "movddup" };
 
-				_nmd_append_string(&si, prefixF2_mnemonics[NMD_C(op)]);
+				_nmd_append_string(&si, prefixF2_mnemonics[_NMD_C(op)]);
 				*si.buffer++ = ' ';
 
-				switch (NMD_C(op))
+				switch (_NMD_C(op))
 				{
 				case 0:
 				case 2:
@@ -1667,10 +1662,10 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 				else if (op == 0x16 && instruction->modrm.fields.mod == 0b11)
 					_nmd_append_string(&si, "movlhps");
 				else
-					_nmd_append_string(&si, no_prefix_mnemonics[NMD_C(op)]);
+					_nmd_append_string(&si, no_prefix_mnemonics[_NMD_C(op)]);
 				*si.buffer++ = ' ';
 
-				switch (NMD_C(op))
+				switch (_NMD_C(op))
 				{
 				case 0:
 					_nmd_append_Vdq(&si);
@@ -1697,7 +1692,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 
 			}
 
-			switch (NMD_C(op))
+			switch (_NMD_C(op))
 			{
 			case 3:
 			case 7:
@@ -1716,7 +1711,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 				break;
 			};
 		}
-		else if (NMD_R(op) == 6 || (op >= 0x74 && op <= 0x76))
+		else if (_NMD_R(op) == 6 || (op >= 0x74 && op <= 0x76))
 		{
 			if (op == 0x6e)
 			{
@@ -1765,7 +1760,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 		{
 			_nmd_append_string(&si, _nmd_opcode_extensions_grp6[instruction->modrm.fields.reg]);
 			*si.buffer++ = ' ';
-			if (NMD_R(instruction->modrm.modrm) == 0xc)
+			if (_NMD_R(instruction->modrm.modrm) == 0xc)
 				_nmd_append_Ev(&si);
 			else
 				_nmd_append_Ew(&si);
@@ -2139,7 +2134,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 				_nmd_append_Vdq(&si);
 			}
 		}
-		else if (NMD_R(op) == 5)
+		else if (_NMD_R(op) == 5)
 		{
 			if (instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 			{
@@ -2340,14 +2335,14 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 				_nmd_append_Pq(&si);
 			}
 		}		
-		else if (NMD_R(op) == 9)
+		else if (_NMD_R(op) == 9)
 		{
 			_nmd_append_string(&si, "set");
-			_nmd_append_string(&si, _nmd_condition_suffixes[NMD_C(op)]);
+			_nmd_append_string(&si, _nmd_condition_suffixes[_NMD_C(op)]);
 			*si.buffer++ = ' ';
 			_nmd_append_Eb(&si);
 		}
-		else if ((NMD_R(op) == 0xA || NMD_R(op) == 0xB) && op % 8 == 3)
+		else if ((_NMD_R(op) == 0xA || _NMD_R(op) == 0xB) && op % 8 == 3)
 		{
 			_nmd_append_string(&si, op == 0xa3 ? "bt" : (op == 0xb3 ? "btr" : (op == 0xab ? "bts" : "btc")));
 			*si.buffer++ = ' ';
@@ -2355,7 +2350,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			*si.buffer++ = ',';
 			_nmd_append_Gv(&si);
 		}
-		else if (NMD_R(op) == 0xA && (op % 8 == 4 || op % 8 == 5))
+		else if (_NMD_R(op) == 0xA && (op % 8 == 4 || op % 8 == 5))
 		{
 			_nmd_append_string(&si, op > 0xA8 ? "shrd" : "shld");
 			*si.buffer++ = ' ';
@@ -2461,7 +2456,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			*si.buffer++ = ',';
 			_nmd_append_modrm_upper(&si, "fword");
 		}
-		else if (NMD_R(op) == 0xb && (op % 8) >= 6)
+		else if (_NMD_R(op) == 0xb && (op % 8) >= 6)
 		{
 			_nmd_append_string(&si, op > 0xb8 ? "movsx " : "movzx ");
 			_nmd_append_Gv(&si);
@@ -2758,11 +2753,11 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 	}
 	else if (instruction->opcode_map == NMD_X86_OPCODE_MAP_0F38)
 	{
-		if ((NMD_R(op) == 2 || NMD_R(op) == 3) && NMD_C(op) <= 5)
+		if ((_NMD_R(op) == 2 || _NMD_R(op) == 3) && _NMD_C(op) <= 5)
 		{
 			const char* mnemonics[] = { "pmovsxbw", "pmovsxbd", "pmovsxbq", "pmovsxwd", "pmovsxwq", "pmovsxdq" };
-			_nmd_append_string(&si, mnemonics[NMD_C(op)]);
-			if (NMD_R(op) == 3)
+			_nmd_append_string(&si, mnemonics[_NMD_C(op)]);
+			if (_NMD_R(op) == 3)
 				*(si.buffer - 4) = 'z';
 			*si.buffer++ = ' ';
 			_nmd_append_Vdq(&si);
@@ -2770,7 +2765,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			if (instruction->modrm.fields.mod == 0b11)
 				_nmd_append_Udq(&si);
 			else
-				_nmd_append_modrm_upper(&si, NMD_C(op) == 5 ? "qword" : (NMD_C(op) % 3 == 0 ? "qword" : (NMD_C(op) % 3 == 1 ? "dword" : "word")));
+				_nmd_append_modrm_upper(&si, _NMD_C(op) == 5 ? "qword" : (_NMD_C(op) % 3 == 0 ? "qword" : (_NMD_C(op) % 3 == 1 ? "dword" : "word")));
 		}
 		else if (op >= 0x80 && op <= 0x83)
 		{
@@ -2886,15 +2881,15 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			}
 			else if (op == 0x37)
 				_nmd_append_string(&si, "pcmpgtq");
-			else if (NMD_R(op) == 2)
+			else if (_NMD_R(op) == 2)
 			{
 				const char* mnemonics[] = { "pmuldq", "pcmpeqq", "movntdqa", "packusdw" };
-				_nmd_append_string(&si, mnemonics[NMD_C(op) - 8]);
+				_nmd_append_string(&si, mnemonics[_NMD_C(op) - 8]);
 			}
-			else if (NMD_R(op) == 3)
+			else if (_NMD_R(op) == 3)
 			{
 				const char* mnemonics[] = { "pminsb", "pminsd", "pminuw", "pminud", "pmaxsb", "pmaxsd", "pmaxuw", "pmaxud" };
-				_nmd_append_string(&si, mnemonics[NMD_C(op) - 8]);
+				_nmd_append_string(&si, mnemonics[_NMD_C(op) - 8]);
 			}
 			else if (op < 0x10)
 			{
@@ -2926,7 +2921,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 	}
 	else if (instruction->opcode_map == NMD_X86_OPCODE_MAP_0F3A)
 	{
-		if (NMD_R(op) == 1)
+		if (_NMD_R(op) == 1)
 		{
 			const char* mnemonics[] = { "pextrb", "pextrw", "pextrd", "extractps" };
 			_nmd_append_string(&si, mnemonics[op - 0x14]);
@@ -2947,7 +2942,7 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 			*si.buffer++ = ',';
 			_nmd_append_Vdq(&si);
 		}
-		else if (NMD_R(op) == 2)
+		else if (_NMD_R(op) == 2)
 		{
 			_nmd_append_string(&si, op == 0x20 ? "pinsrb" : (op == 0x21 ? "insertps" : "pinsrd"));
 			*si.buffer++ = ' ';
@@ -2977,15 +2972,15 @@ NMD_ASSEMBLY_API void nmd_format_x86(const nmd_x86_instruction* instruction, cha
 				const char* mnemonics[] = { "roundps", "roundpd", "roundss", "roundsd", "blendps", "blendpd", "pblendw", "palignr" };
 				_nmd_append_string(&si, mnemonics[op - 8]);
 			}
-			else if (NMD_R(op) == 4)
+			else if (_NMD_R(op) == 4)
 			{
 				const char* mnemonics[] = { "dpps", "dppd", "mpsadbw", 0, "pclmulqdq" };
-				_nmd_append_string(&si, mnemonics[NMD_C(op)]);
+				_nmd_append_string(&si, mnemonics[_NMD_C(op)]);
 			}
-			else if (NMD_R(op) == 6)
+			else if (_NMD_R(op) == 6)
 			{
 				const char* mnemonics[] = { "pcmpestrm", "pcmpestri", "pcmpistrm", "pcmpistri" };
-				_nmd_append_string(&si, mnemonics[NMD_C(op)]);
+				_nmd_append_string(&si, mnemonics[_NMD_C(op)]);
 			}
 			else if (op > 0x80)
 				_nmd_append_string(&si, op == 0xcc ? "sha1rnds4" : (op == 0xce ? "gf2p8affineqb" : (op == 0xcf ? "gf2p8affineinvqb" : "aeskeygenassist")));
