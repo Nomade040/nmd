@@ -873,7 +873,8 @@ double nmd_frexp(double x, int* e)
 double nmd_sqrt(double x)
 {
 	double n = x / 2;
-	const double tolerance = 1.0e-7;
+	/* const double tolerance = 1.0e-7 */;
+	const double tolerance = 1.0e-5;
 	do
 	{
 		n = (n + x / n) / 2;
