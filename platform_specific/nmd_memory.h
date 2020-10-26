@@ -167,7 +167,7 @@ typedef struct _NMD_PEB
 
     PVOID ImageBaseAddress;
     NMD_PPEB_LDR_DATA Ldr;
-    PVOID ProcessParameters; // PRTL_USER_PROCESS_PARAMETERS
+    PVOID ProcessParameters; /* PRTL_USER_PROCESS_PARAMETERS */
     PVOID SubSystemData;
     PVOID ProcessHeap;
     PRTL_CRITICAL_SECTION FastPebLock;
@@ -201,12 +201,12 @@ typedef struct _NMD_PEB
     ULONG TlsBitmapBits[2];
 
     PVOID ReadOnlySharedMemoryBase;
-    PVOID SharedData; // HotpatchInformation
+    PVOID SharedData; /* HotpatchInformation */
     PVOID* ReadOnlyStaticServerData;
 
-    PVOID AnsiCodePageData; // PCPTABLEINFO
-    PVOID OemCodePageData; // PCPTABLEINFO
-    PVOID UnicodeCaseTableData; // PNLSTABLEINFO
+    PVOID AnsiCodePageData; /* PCPTABLEINFO */
+    PVOID OemCodePageData; /* PCPTABLEINFO */
+    PVOID UnicodeCaseTableData; /* PNLSTABLEINFO */
 
     ULONG NumberOfProcessors;
     ULONG NtGlobalFlag;
@@ -219,7 +219,7 @@ typedef struct _NMD_PEB
 
     ULONG NumberOfHeaps;
     ULONG MaximumNumberOfHeaps;
-    PVOID* ProcessHeaps; // PHEAP
+    PVOID* ProcessHeaps; /* PHEAP */
 
     PVOID GdiSharedHandleTable;
     PVOID ProcessStarterHelper;
@@ -247,14 +247,14 @@ typedef struct _NMD_PEB
     ULARGE_INTEGER AppCompatFlags;
     ULARGE_INTEGER AppCompatFlagsUser;
     PVOID pShimData;
-    PVOID AppCompatInfo; // APPCOMPAT_EXE_DATA
+    PVOID AppCompatInfo; /* APPCOMPAT_EXE_DATA */
 
     NMD_UNICODE_STRING CSDVersion;
 
-    PVOID ActivationContextData; // ACTIVATION_CONTEXT_DATA
-    PVOID ProcessAssemblyStorageMap; // ASSEMBLY_STORAGE_MAP
-    PVOID SystemDefaultActivationContextData; // ACTIVATION_CONTEXT_DATA
-    PVOID SystemAssemblyStorageMap; // ASSEMBLY_STORAGE_MAP
+    PVOID ActivationContextData; /* ACTIVATION_CONTEXT_DATA */
+    PVOID ProcessAssemblyStorageMap; /* ASSEMBLY_STORAGE_MAP */
+    PVOID SystemDefaultActivationContextData; /* ACTIVATION_CONTEXT_DATA */
+    PVOID SystemAssemblyStorageMap; /* ASSEMBLY_STORAGE_MAP */
 
     SIZE_T MinimumStackCommit;
 
@@ -266,7 +266,7 @@ typedef struct _NMD_PEB
 
     PVOID WerRegistrationData;
     PVOID WerShipAssertPtr;
-    PVOID pUnused; // pContextData
+    PVOID pUnused; /* pContextData */
     PVOID pImageHeaderHash;
     union
     {
@@ -283,7 +283,7 @@ typedef struct _NMD_PEB
     PVOID TppWorkerpListLock;
     LIST_ENTRY TppWorkerpList;
     PVOID WaitOnAddressHashTable[128];
-    PVOID TelemetryCoverageHeader; // REDSTONE3
+    PVOID TelemetryCoverageHeader; /* REDSTONE3 */
     ULONG CloudFileFlags;
 } NMD_PEB, *NMD_PPEB;
 
@@ -339,9 +339,9 @@ Parameters:
  - size        [in]      The size of the buffer(in bytes) specified by 'system_information'.
  - return_size [out/opt] An optional pointer to a variable that receives the number of bytes written to the buffer.
 */
-//NTSTATUS nmd_query_system_information(SYSTEM_INFORMATION_CLASS info, PVOID buffer, ULONG size, PULONG return_size);
+/* NTSTATUS nmd_query_system_information(SYSTEM_INFORMATION_CLASS info, PVOID buffer, ULONG size, PULONG return_size); */
 
-// NTSTATUS nmd_allocate_virtual_memory
+/* NTSTATUS nmd_allocate_virtual_memory */
 
 /* Returns a pointer to the PEB of the current process. */
 NMD_PPEB nmd_get_peb();
@@ -556,35 +556,35 @@ uintptr_t nmd_mex_inject(nmd_mex* m, const wchar_t* dll_path)
 {
 #ifdef _WIN64
     uint8_t shellcode_x64_load_library[] = {
-        0x68, 0x00, 0x00, 0x00, 0x00,                               // mov r8 lpLibFileName: 'path_buffer'
-        0x6a, 0x00,                                                 // mov rdx hFile: NULL
-        0x6a, 0x00,                                                 // mov rcx dwFlags: 0
-        0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // mov rax, LoadLibraryExW
-        0xff, 0xd0                                                  // call rax
+        0x68, 0x00, 0x00, 0x00, 0x00,                               /* mov r8 lpLibFileName: 'path_buffer' */
+        0x6a, 0x00,                                                 /* mov rdx hFile: NULL */
+        0x6a, 0x00,                                                 /* mov rcx dwFlags: 0 */
+        0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* mov rax, LoadLibraryExW */
+        0xff, 0xd0                                                  /* call rax */
     };
 
     uint8_t shellcode_x64_ldr_load_dll[] = {
-        0x68, 0x00, 0x00, 0x00, 0x00,                               // mov r9 DllHandle: 'path_buffer'
-        0x6a, 0x00,                                                 // mov r8 PUNICODE_STRING : NULL
-        0x6a, 0x00,                                                 // mov rdx DllCharacteristics: 0
-        0x6a, 0x00,                                                 // mov rcx DllPath: 0
-        0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // mov rax, LdrLoadDll
-        0xff, 0xd0                                                  // call rax
+        0x68, 0x00, 0x00, 0x00, 0x00,                               /* mov r9 DllHandle: 'path_buffer' */
+        0x6a, 0x00,                                                 /* mov r8 PUNICODE_STRING : NULL */
+        0x6a, 0x00,                                                 /* mov rdx DllCharacteristics: 0 */
+        0x6a, 0x00,                                                 /* mov rcx DllPath: 0 */
+        0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* mov rax, LdrLoadDll */
+        0xff, 0xd0                                                  /* call rax */
     };
 #else
     uint8_t shellcode_x86_load_library[] = {
-        0x68, 0x00, 0x00, 0x00, 0x00, // push lpLibFileName: 'path_buffer'
-        0x6a, 0x00,                   // push hFile: NULL
-        0x6a, 0x00,                   // push dwFlags: 0
-        0xe8, 0x00, 0x00, 0x00, 0x00, // call LoadLibraryExW
+        0x68, 0x00, 0x00, 0x00, 0x00, /* push lpLibFileName: 'path_buffer' */
+        0x6a, 0x00,                   /* push hFile: NULL */
+        0x6a, 0x00,                   /* push dwFlags: 0 */
+        0xe8, 0x00, 0x00, 0x00, 0x00, /* call LoadLibraryExW */
     };
 
     uint8_t shellcode_x86_ldr_load_dll[] = {
-        0x68, 0x00, 0x00, 0x00, 0x00, // push DllHandle: 'path_buffer'
-        0x6a, 0x00,                   // push PUNICODE_STRING : NULL
-        0x6a, 0x00,                   // push DllCharacteristics: 0
-        0x6a, 0x00,                   // push DllPath: 0
-        0xe8, 0x00, 0x00, 0x00, 0x00, // call LdrLoadDll
+        0x68, 0x00, 0x00, 0x00, 0x00, /* push DllHandle: 'path_buffer' */
+        0x6a, 0x00,                   /* push PUNICODE_STRING : NULL */
+        0x6a, 0x00,                   /* push DllCharacteristics: 0 */
+        0x6a, 0x00,                   /* push DllPath: 0 */
+        0xe8, 0x00, 0x00, 0x00, 0x00, /* call LdrLoadDll */
     };
 #endif
 
@@ -617,24 +617,44 @@ uintptr_t nmd_mex_inject(nmd_mex* m, const wchar_t* dll_path)
 
     return module_base;
 
-    ///* Open file */
-    //HANDLE h_file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    //if (h_file == INVALID_HANDLE_VALUE)
-    //    return 0;
-    //
-    ///* Get file size */
-    //DWORD file_size = GetFileSize(h_file, NULL);
-    //
-    ///* Allocate buffer for the file */
-    //LPVOID file_buffer = VirtualAlloc(NULL, file_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    //if (!file_buffer)
-    //    return 0;
-    //
-    ///* Read file */ 
-    //if (!ReadFile(h_file, file_buffer, file_size, NULL, NULL))
-    //    return 0;
-    //
-    ///* Call 'nmd_mex_inject_from_memory()' */
+    /* Open file */
+    /*HANDLE h_file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h_file == INVALID_HANDLE_VALUE)
+        return 0; */
+    
+    /* Get file size */
+    /*DWORD file_size = GetFileSize(h_file, NULL); */
+    
+    /* Allocate buffer for the file */
+    /*LPVOID file_buffer = VirtualAlloc(NULL, file_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!file_buffer)
+        return 0; */
+    
+    /* Read file */ 
+    /*if (!ReadFile(h_file, file_buffer, file_size, NULL, NULL))
+        return 0; */
+    
+    /* Call 'nmd_mex_inject_from_memory()' */
+}
+
+extern "C" uint32_t __stdcall NtAllocateVirtualMemory(void* ProcessHandle, void** BaseAddress, uint32_t ZeroBits, size_t* RegionSize, uint32_t AllocationType, uint32_t Protect);
+extern "C" uint32_t __stdcall NtProtectVirtualMemory(void* ProcessHandle, void** BaseAddress, uint32_t* NumberOfBytesToProtect, uint32_t NewAccessProtection, uint32_t* OldAccessProtection);
+extern "C" uint32_t __stdcall NtQueryVirtualMemory(void* ProcessHandle, void* BaseAddress, uint32_t MemoryInformationClass, void* Buffer, size_t Length, size_t* ResultLength);
+
+void* nmd_read_multi_level_pointer(void* base, int32_t* offsets, size_t num_offsets)
+{    
+    MEMORY_BASIC_INFORMATION mbi;
+    size_t i = 0;
+    for (; i < num_offsets; i++)
+    {   
+        if (NtQueryVirtualMemory((void*)(-1), base, 0/*MemoryBasicInformation*/, &mbi, sizeof(mbi), 0) || mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))
+            return 0;
+
+        /* Dereference and apply offset */
+        base = (void*)(*(uintptr_t*)base + offsets[i]);
+    }
+
+    return base;
 }
 
 /* Scans the specified memory range for a pattern.
@@ -650,7 +670,8 @@ uint8_t* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* 
     MEMORY_BASIC_INFORMATION mbi;
     const size_t mask_length = _nmd_strlen(mask);
     size_t num_matches = 0;
-    while (start < end && VirtualQuery(start, &mbi, sizeof(mbi)))
+    
+    while (start < end && !NtQueryVirtualMemory((void*)(-1), start, 0/*MemoryBasicInformation*/, &mbi, sizeof(mbi), 0))
     {        
         if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD) || !(protection & mbi.Protect))
         {
@@ -680,36 +701,221 @@ uint8_t* nmd_pattern_scan_range(const char* pattern, const char* mask, uint8_t* 
     return 0;
 }
 
-bool nmd_hook_size(void* target, void* detour, void* original, size_t hook_size)
+#define _NMD_MEM_R (*b >> 4)
+#define _NMD_MEM_C (*b & 0xF)
+bool _nmd_mem_find_byte(const uint8_t* arr, const size_t N, const uint8_t x) { for (size_t i = 0; i < N; i++) { if (arr[i] == x) { return true; } }; return false; }
+
+void _nmd_mem_parse_modrm(uint8_t** b, const bool addressPrefix)
 {
-    if (hook_size > 15)
-        return false;
+    uint8_t modrm = *++ * b;
 
-    LPVOID trampoline;
-    size_t offset = 0x1000;
-    while (!(trampoline = VirtualAlloc((LPVOID)((uintptr_t)target + offset), 0x1000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE)))
-        offset += 0x1000;
+    if (!addressPrefix || (addressPrefix && **b >= 0x40))
+    {
+        bool hasSIB = false; /* Check for SIB byte */
+        if (**b < 0xC0 && (**b & 0b111) == 0b100 && !addressPrefix)
+            hasSIB = true, (*b)++;
 
-    DWORD old_protection;
-    if (!VirtualProtect(target, hook_size, PAGE_EXECUTE_READWRITE, &old_protection))
-        return false;
+        if (modrm >= 0x40 && modrm <= 0x7F) /* disp8 (ModR/M) */
+            (*b)++;
+        else if ((modrm <= 0x3F && (modrm & 0b111) == 0b101) || (modrm >= 0x80 && modrm <= 0xBF)) /* disp16,32 (ModR/M) */
+            *b += (addressPrefix) ? 2 : 4;
+        else if (hasSIB && (**b & 0b111) == 0b101) /* disp8,32 (SIB) */
+            *b += (modrm & 0b01000000) ? 1 : 4;
+    }
+    else if (addressPrefix && modrm == 0x26)
+        *b += 2;
+};
 
-    /* Copy original instructions */
-    size_t i = 0;
-    for (; i < hook_size; i++)
-        ((uint8_t*)trampoline)[i] = ((uint8_t*)target)[i];
+size_t _nmd_mem_ldisasm(const void* const address, const bool x86_64_mode)
+{
+    const uint8_t prefixes[] = { 0xF0, 0xF2, 0xF3, 0x2E, 0x36, 0x3E, 0x26, 0x64, 0x65, 0x66, 0x67 };
+    const uint8_t op1modrm[] = { 0x62, 0x63, 0x69, 0x6B, 0xC0, 0xC1, 0xC4, 0xC5, 0xC6, 0xC7, 0xD0, 0xD1, 0xD2, 0xD3, 0xF6, 0xF7, 0xFE, 0xFF };
+    const uint8_t op1imm8[] = { 0x6A, 0x6B, 0x80, 0x82, 0x83, 0xA8, 0xC0, 0xC1, 0xC6, 0xCD, 0xD4, 0xD5, 0xEB };
+    const uint8_t op1imm32[] = { 0x68, 0x69, 0x81, 0xA9, 0xC7, 0xE8, 0xE9 };
+    const uint8_t op2modrm[] = { 0x0D, 0xA3, 0xA4, 0xA5, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF };
 
-    /* Place jmp to the original function */
+    size_t offset = 0;
+    bool operandPrefix = false, addressPrefix = false, rexW = false;
+    uint8_t* b = (uint8_t*)(address);
 
-    /* Place jmp to detour */
-    *(uint8_t*)target = 0xE9;
-    *(uint32_t*)((uint8_t*)target + 1) = (uint32_t)((uintptr_t)detour - ((uintptr_t)target + 5));
+    /* Parse legacy prefixes & REX prefixes */
+    for (int i = 0; i < 14 && _nmd_mem_find_byte(prefixes, sizeof(prefixes), *b) || ((x86_64_mode) ? (_NMD_MEM_R == 4) : false); i++, b++)
+    {
+        if (*b == 0x66)
+            operandPrefix = true;
+        else if (*b == 0x67)
+            addressPrefix = true;
+        else if (_NMD_MEM_R == 4 && _NMD_MEM_C >= 8)
+            rexW = true;
+    }
 
-    VirtualProtect(target, hook_size, old_protection, &old_protection);
+    /* Parse opcode(s) */
+    if (*b == 0x0F) /* 2 bytes */
+    {
+        if (_NMD_MEM_R == 8) /* disp32 */
+            offset += 4;
+        else if ((_NMD_MEM_R == 7 && _NMD_MEM_C < 4) || *b == 0xA4 || *b == 0xC2 || (*b > 0xC3 && *b <= 0xC6) || *b == 0xBA || *b == 0xAC) /* imm8 */
+            offset++;
 
-    FlushInstructionCache((HANDLE)(-1), target, 5);
+        /* Check for ModR/M, SIB and displacement */
+        if (_nmd_mem_find_byte(op2modrm, sizeof(op2modrm), *b) || (_NMD_MEM_R != 3 && _NMD_MEM_R > 0 && _NMD_MEM_R < 7) || *b >= 0xD0 || (_NMD_MEM_R == 7 && _NMD_MEM_C != 7) || _NMD_MEM_R == 9 || _NMD_MEM_R == 0xB || (_NMD_MEM_R == 0xC && _NMD_MEM_C < 8) || (_NMD_MEM_R == 0 && _NMD_MEM_C < 4))
+            _nmd_mem_parse_modrm(&b, addressPrefix);
+    }
+    else /* 1 byte */
+    {
+        /* Check for immediate field */
+        if ((_NMD_MEM_R == 0xE && _NMD_MEM_C < 8) || (_NMD_MEM_R == 0xB && _NMD_MEM_C < 8) || _NMD_MEM_R == 7 || (_NMD_MEM_R < 4 && (_NMD_MEM_C == 4 || _NMD_MEM_C == 0xC)) || (*b == 0xF6 && !(*(b + 1) & 48)) || _nmd_mem_find_byte(op1imm8, sizeof(op1imm8), *b)) /* imm8 */
+            offset++;
+        else if (*b == 0xC2 || *b == 0xCA) /* imm16 */
+            offset += 2;
+        else if (*b == 0xC8) /* imm16 + imm8 */
+            offset += 3;
+        else if ((_NMD_MEM_R < 4 && (_NMD_MEM_C == 5 || _NMD_MEM_C == 0xD)) || (_NMD_MEM_R == 0xB && _NMD_MEM_C >= 8) || (*b == 0xF7 && !(*(b + 1) & 48)) || _nmd_mem_find_byte(op1imm32, sizeof(op1imm32), *b)) /* imm32,16 */
+            offset += (rexW) ? 8 : (operandPrefix ? 2 : 4);
+        else if (_NMD_MEM_R == 0xA && _NMD_MEM_C < 4)
+            offset += (rexW) ? 8 : (addressPrefix ? 2 : 4);
+        else if (*b == 0xEA || *b == 0x9A) /* imm32,48 */
+            offset += operandPrefix ? 4 : 6;
 
-    return true;
+        /* Check for ModR/M, SIB and displacement */
+        if (_nmd_mem_find_byte(op1modrm, sizeof(op1modrm), *b) || (_NMD_MEM_R < 4 && (_NMD_MEM_C < 4 || (_NMD_MEM_C >= 8 && _NMD_MEM_C < 0xC))) || _NMD_MEM_R == 8 || (_NMD_MEM_R == 0xD && _NMD_MEM_C >= 8))
+            _nmd_mem_parse_modrm(&b, addressPrefix);
+    }
+
+    return (size_t)((ptrdiff_t)(++b + offset) - (ptrdiff_t)(address));
+}
+
+typedef struct _nmd_hook_page
+{
+    struct _nmd_hook_page* next;
+} _nmd_hook_page;
+
+enum _NMD_HOOK_DATA_TYPE
+{
+    _NMD_HOOK_DATA_TYPE_NONE          = 0,
+    _NMD_HOOK_DATA_TYPE_TRAMPOLINE    = 1,
+    _NMD_HOOK_DATA_TYPE_ABSOLUTE_JUMP = 2,
+};
+
+typedef struct _nmd_hook_data
+{
+    uint16_t type; /* A member of the '_NMD_HOOK_DATA_TYPE' enum */
+    uint16_t size;
+}_nmd_hook_data;
+
+_nmd_hook_page* _nmd_first_hook_page = 0;
+
+void* _nmd_alloc_page_near(void* addr)
+{
+    size_t size = 0x1000;
+#ifdef _WIN64
+    /* Start (1<<31) bytes before 'addr' */
+    void* target_addr = (void*)((uintptr_t)addr + 0x1000);
+    while (NtAllocateVirtualMemory((void*)(-1), (void**)&target_addr, NULL, &size, 0x00002000 | 0x00001000/*MEM_RESERVE | MEM_COMMIT*/, 0x40/*PAGE_EXECUTE_READWRITE*/))
+    {
+        /* Return zero if we're in an invalid range */
+        if ((uintptr_t)target_addr >= ((uintptr_t)1<<(sizeof(uintptr_t)*8-1)) || (uintptr_t)target_addr >= ((uintptr_t)addr + ((uintptr_t)1 << 31) - 0x1000))
+            return 0;
+
+        target_addr = (uint8_t*)target_addr + 0x1000;
+    }
+
+    return target_addr;
+#else
+    void* target_addr = 0;
+    const bool success = !NtAllocateVirtualMemory((void*)(-1), (void**)&target_addr, NULL, &size, 0x00002000 | 0x00001000/*MEM_RESERVE | MEM_COMMIT*/, 0x40/*PAGE_EXECUTE_READWRITE*/);
+    return success ? target_addr : 0;
+#endif
+}
+
+_nmd_hook_data* _nmd_find_free_hook_data(_nmd_hook_page* hook_page, size_t size)
+{
+    _nmd_hook_data* hook_data = (_nmd_hook_data*)((uint8_t*)hook_page + sizeof(_nmd_hook_page));
+    while (hook_data->type != _NMD_HOOK_DATA_TYPE_NONE || size > hook_data->size)
+    {
+        /* Check if we're parsed the whole page */
+        if (!((uintptr_t)hook_data & 0xfff))
+            return 0;
+
+        hook_data = (_nmd_hook_data*)((uint8_t*)hook_data + sizeof(_nmd_hook_data) + hook_data->size);
+    }
+
+    return hook_data;
+}
+
+uint8_t* _nmd_alloc_hook_data_near(void* target, uint8_t type, size_t size)
+{
+    /* Allocate the first page if it does not exist */
+    if (!_nmd_first_hook_page)
+    {
+        if (!(_nmd_first_hook_page = (_nmd_hook_page*)_nmd_alloc_page_near(target)))
+            return 0;
+
+        _nmd_hook_data* hook_data = (_nmd_hook_data*)((uint8_t*)_nmd_first_hook_page + sizeof(_nmd_hook_page));
+        hook_data->size = size;
+        hook_data->type = type;
+
+        _nmd_hook_data* next_hook_data = (_nmd_hook_data*)((uint8_t*)hook_data + sizeof(_nmd_hook_data) + size);
+        next_hook_data->size = 0x1000 - (sizeof(_nmd_hook_page*) + sizeof(_nmd_hook_data) + size);
+
+        return (uint8_t*)hook_data + sizeof(_nmd_hook_data);
+    }
+
+    /* Parse existing hook pages */
+    _nmd_hook_page* hook_page = _nmd_first_hook_page;
+    while (true)
+    {
+        /* Check if the hook page is within range */
+        if ((uintptr_t)hook_page < (uintptr_t)target + ((uintptr_t)1 << 31) && (uintptr_t)hook_page > (((uint8_t*)target <= (uint8_t*)(((uintptr_t)1 << 31) - 0x1000)) ? (uintptr_t)0x1000 : ((uintptr_t)target - ((uintptr_t)1 << 31) + 0x1000)))
+        {
+            _nmd_hook_data* hook_data = _nmd_find_free_hook_data(hook_page, size);
+            if (hook_data)
+            {
+                uint32_t remaining_bytes = ((0x1000 - (((uintptr_t)hook_data + sizeof(_nmd_hook_data) + size) & 0xfff)) % 0x1000);
+
+                if (remaining_bytes < 10 + sizeof(_nmd_hook_data))
+                    size += remaining_bytes;
+                else
+                {
+                    _nmd_hook_data* next_hook_data = (_nmd_hook_data*)((uint8_t*)hook_data + sizeof(_nmd_hook_data) + size);
+                    next_hook_data->size = remaining_bytes - sizeof(_nmd_hook_data);
+                }
+
+                hook_data->size = size;
+
+                hook_data->type = type;
+                return (uint8_t*)hook_data + sizeof(_nmd_hook_data);
+            }
+        }
+
+        /* Allocate a new hook page if this was the last one */
+        if (!hook_page->next)
+        {
+            if ((hook_page->next = (_nmd_hook_page*)_nmd_alloc_page_near(target)))
+                return 0;
+            _nmd_hook_data* hook_data = (_nmd_hook_data*)((uint8_t*)hook_page->next + sizeof(_nmd_hook_page));
+            hook_data->size = size;
+            hook_data->type = type;
+
+            _nmd_hook_data* next_hook_data = (_nmd_hook_data*)((uint8_t*)hook_data + sizeof(_nmd_hook_data) + size);
+            next_hook_data->size = 0x1000 - (sizeof(_nmd_hook_page*) + sizeof(_nmd_hook_data) + size);
+            
+            return (uint8_t*)hook_data + sizeof(_nmd_hook_data);
+        }
+
+        /* Go to the next hook page */
+        hook_page = hook_page->next;
+    }
+}
+
+uint8_t* _nmd_alloc_trampoline(void* target, size_t num_original_bytes)
+{
+    return _nmd_alloc_hook_data_near(target, _NMD_HOOK_DATA_TYPE_TRAMPOLINE, num_original_bytes + 5);
+}
+
+uint8_t* _nmd_alloc_absolute_jump(void* target)
+{
+    return _nmd_alloc_hook_data_near(target, _NMD_HOOK_DATA_TYPE_ABSOLUTE_JUMP, 12);
 }
 
 /*
@@ -721,6 +927,147 @@ Parameters:
  */
 bool nmd_hook(void* target, void* detour, void* original)
 {
+    const ptrdiff_t delta = (uintptr_t)detour - ((uintptr_t)target + 5);
+
+    /* Calculate the number of bytes to be copied to the trampoline */
+    size_t num_copy_bytes = 0;
+#ifdef _WIN64
+    while(num_copy_bytes < 5)
+        num_copy_bytes += _nmd_mem_ldisasm((uint8_t*)target + num_copy_bytes, true);
+#else
+    while (num_copy_bytes < 5)
+        num_copy_bytes += _nmd_mem_ldisasm((uint8_t*)target + num_copy_bytes, false);
+#endif
+
+    uint8_t* trampoline = _nmd_alloc_trampoline(target, num_copy_bytes);
+    if (!trampoline)
+        return false;
+    
+    if (*(uint8_t*)target == 0xe9)
+    {
+        trampoline[0] = 0xe9;
+        *(int32_t*)(trampoline + 1) = (int32_t)((*(int32_t*)((uint8_t*)target + 1) + ((uintptr_t)target + 5)) - (uintptr_t)(trampoline + 5));
+    }
+    else
+    {
+        /* Copy original instructions */
+        size_t i = 0;
+        for (; i < num_copy_bytes; i++)
+            trampoline[i] = ((uint8_t*)target)[i];
+    }
+    
+    /* Place near jump back to the original function */
+    trampoline[num_copy_bytes] = 0xE9;
+    *((int32_t*)(trampoline + num_copy_bytes + 1)) = (int32_t)(((uintptr_t)target + num_copy_bytes) - (uintptr_t)(trampoline + num_copy_bytes + 5));
+
+    /* Set 'original' */
+    if (original)
+        *(uint8_t**)original = trampoline;
+
+    uint32_t old_protection;
+    void* base_addr = target;
+    if (NtProtectVirtualMemory((void*)(-1), &base_addr, (uint32_t*)&num_copy_bytes, PAGE_EXECUTE_READWRITE, &old_protection))
+        return false;
+
+#ifdef _WIN64
+    /* Check if 'target' and 'detour' are too far from each other */
+    if (delta < -(ptrdiff_t)0x80000000 || delta > (ptrdiff_t)0x7fffffff)
+    {
+        uint8_t* absolute_jump = _nmd_alloc_absolute_jump(target);
+        if (!absolute_jump)
+            return false;
+
+        /* Absolute jump to 'detour' */
+        *(uint16_t*)(absolute_jump + 0) = 0xB848;
+        *(uint64_t*)(absolute_jump + 2) = (uint64_t)detour;
+        *(uint16_t*)(absolute_jump + 10) = 0xE0FF;
+
+        /* Near jump to the absolute jump */
+        *(uint8_t*)target = 0xE9;
+        *((int32_t*)((uint8_t*)target + 1)) = (int32_t)((uintptr_t)absolute_jump - ((uintptr_t)target + 5));
+    }
+    else
+#endif
+    {
+        /* Near jump to 'detour' */
+        *(uint8_t*)target = 0xE9;
+        *((int32_t*)((uint8_t*)target + 1)) = (int32_t)delta;
+    }
+
+    /* Restore protection */
+    base_addr = target;
+    NtProtectVirtualMemory((void*)(-1), &base_addr, (uint32_t*)&num_copy_bytes, old_protection, &old_protection);
+    FlushInstructionCache((HANDLE)(-1), target, 5);
+
+    return true;
+}
+
+bool _nmd_unhook_page(void* target, _nmd_hook_page* hook_page)
+{
+    _nmd_hook_data* hook_data = (_nmd_hook_data*)((uint8_t*)hook_page + sizeof(_nmd_hook_page));
+    do
+    {
+        if (hook_data->type == _NMD_HOOK_DATA_TYPE_TRAMPOLINE)
+        {
+            uint8_t* trampoline = (uint8_t*)hook_data + sizeof(_nmd_hook_data) + hook_data->size - 4;
+            const size_t num_copy_bytes = hook_data->size - 5;
+            if ((uintptr_t)(*(int32_t*)trampoline + (trampoline + 4)) == ((uintptr_t)target + num_copy_bytes))
+            {
+                /* TODO delete absolute jump if there's any */
+
+                /* Change protection */
+                uint32_t old_protection;
+                void* base_addr = target;
+                size_t num_copy_bytes_tmp = num_copy_bytes;
+                if (NtProtectVirtualMemory((void*)(-1), &base_addr, (uint32_t*)&num_copy_bytes_tmp, PAGE_EXECUTE_READWRITE, &old_protection))
+                    return false;
+
+                /* Restore bytes */
+                uint8_t* original_bytes = (uint8_t*)hook_data + sizeof(_nmd_hook_data);
+                size_t i = 0;
+                for (; i < num_copy_bytes; i++)
+                    ((uint8_t*)target)[i] = original_bytes[i];
+
+                /* Restore protection */
+                base_addr = target;
+                num_copy_bytes_tmp = num_copy_bytes;
+                NtProtectVirtualMemory((void*)(-1), &base_addr, (uint32_t*)&num_copy_bytes_tmp, old_protection, &old_protection);
+
+                hook_data->type = _NMD_HOOK_DATA_TYPE_NONE;
+
+                /* Try to merge */
+                _nmd_hook_data* next_hook_data = (_nmd_hook_data*)((uint8_t*)hook_data + sizeof(_nmd_hook_data) + hook_data->size);
+                if ((uintptr_t)next_hook_data & 0xfff && next_hook_data->type == _NMD_HOOK_DATA_TYPE_NONE)
+                    hook_data->size += sizeof(_nmd_hook_data) + next_hook_data->size;
+
+                return true;
+            }
+        }
+
+        hook_data = (_nmd_hook_data*)((uint8_t*)hook_data + sizeof(_nmd_hook_data) + hook_data->size);            
+    } while ((uintptr_t)hook_data & 0xfff);
+
+    return false;
+}
+
+/* Unhooks a function. Returns true if successful, false otherwise.
+Parameters:
+ - target [in] The function to be unhooked.
+ */
+bool nmd_unhook(void* target)
+{
+    _nmd_hook_page* hook_page = _nmd_first_hook_page;
+    if (!hook_page)
+        return false;
+
+    while (!_nmd_unhook_page(target, hook_page))
+    {
+        if (!hook_page->next)
+            return false;
+
+        hook_page = hook_page->next;
+    }
+
     return true;
 }
 
@@ -874,7 +1221,7 @@ _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
         add esp, 8              ; Adjust parameters
         call _nmd_wow64_syscall ; Execute syscall
         sub esp, 8              ; Restore stack
-        mov ecx, [esp - 0x10]   ; Save return value
+        mov ecx, [esp - 0x10]   ; Restore return value
         mov [esp], ecx          ;
         ret                     ; Return
     }
