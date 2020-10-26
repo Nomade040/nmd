@@ -8009,7 +8009,7 @@ void nmd_d3d11_render()
         ID3D11VertexShader* VS;
         ID3D11GeometryShader* GS;
         UINT PSInstancesCount, VSInstancesCount, GSInstancesCount;
-        ID3D11ClassInstance* PSInstances[256], *VSInstances[256], *GSInstances[256];
+        ID3D11ClassInstance* PSInstances[128], *VSInstances[128], *GSInstances[128];
         D3D11_PRIMITIVE_TOPOLOGY PrimitiveTopology;
         ID3D11Buffer* IndexBuffer, *VertexBuffer, *VSConstantBuffer;
         UINT IndexBufferOffset, VertexBufferStride, VertexBufferOffset;
@@ -8024,7 +8024,7 @@ void nmd_d3d11_render()
     _nmd_d3d11.device_context->OMGetDepthStencilState(&old.DepthStencilState, &old.StencilRef);
     _nmd_d3d11.device_context->PSGetShaderResources(0, 1, &old.PSShaderResource);
     _nmd_d3d11.device_context->PSGetSamplers(0, 1, &old.PSSampler);
-    old.PSInstancesCount = old.VSInstancesCount = old.GSInstancesCount = 256;
+    old.PSInstancesCount = old.VSInstancesCount = old.GSInstancesCount = 128;
     _nmd_d3d11.device_context->PSGetShader(&old.PS, old.PSInstances, &old.PSInstancesCount);
     _nmd_d3d11.device_context->VSGetShader(&old.VS, old.VSInstances, &old.VSInstancesCount);
     _nmd_d3d11.device_context->VSGetConstantBuffers(0, 1, &old.VSConstantBuffer);
