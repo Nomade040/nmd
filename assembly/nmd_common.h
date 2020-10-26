@@ -4,10 +4,10 @@
 #include "nmd_assembly.h"
 
 /* Four high-order bits of an opcode to index a row of the opcode table */
-#define NMD_R(b) ((b) >> 4)
+#define _NMD_R(b) ((b) >> 4)
 
 /* Four low-order bits to index a column of the table */
-#define NMD_C(b) ((b) & 0xF)
+#define _NMD_C(b) ((b) & 0xF)
 
 #define _NMD_NUM_ELEMENTS(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -85,5 +85,9 @@ NMD_ASSEMBLY_API const char* _nmd_find_number(const char* s1, const char* s2);
 NMD_ASSEMBLY_API bool _nmd_strcmp(const char* s1, const char* s2);
 
 NMD_ASSEMBLY_API size_t _nmd_get_bit_index(uint32_t mask);
+
+NMD_ASSEMBLY_API size_t _nmd_assembly_get_num_digits_hex(uint64_t n);
+
+NMD_ASSEMBLY_API size_t _nmd_assembly_get_num_digits(uint64_t n);
 
 #endif /* NMD_COMMON_H */

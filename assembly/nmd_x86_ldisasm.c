@@ -66,7 +66,7 @@ Parameters:
  - buffer_size [in] The size of the buffer in bytes.
  - mode        [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
 */
-NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, NMD_X86_MODE mode)
+NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode)
 {
 	const uint8_t* b = (const uint8_t*)(buffer);
 
@@ -103,9 +103,9 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 		case 0x66: operand_prefix = true, simd_prefix = NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE; continue;
 		case 0x67: address_prefix = true; continue;
 		default:
-			if (mode == NMD_X86_MODE_64 && NMD_R(*b) == 4) /* [40,4f[ */
+			if (mode == NMD_X86_MODE_64 && _NMD_R(*b) == 4) /* [40,4f[ */
 			{
-				if(NMD_C(*b) & 0b1000)
+				if(_NMD_C(*b) & 0b1000)
 					rexW = true;
 				continue;
 			}
@@ -166,7 +166,7 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 					if (simd_prefix)
 						return 0;
 				}
-				else if (op == 0x10 || op == 0x14 || op == 0x15 || op == 0x17 || (op >= 0x20 && op <= 0x25) || op == 0x28 || op == 0x29 || op == 0x2b || NMD_R(op) == 3 || op == 0x40 || op == 0x41 || op == 0xcf || (op >= 0xdb && op <= 0xdf))
+				else if (op == 0x10 || op == 0x14 || op == 0x15 || op == 0x17 || (op >= 0x20 && op <= 0x25) || op == 0x28 || op == 0x29 || op == 0x2b || _NMD_R(op) == 3 || op == 0x40 || op == 0x41 || op == 0xcf || (op >= 0xdb && op <= 0xdf))
 				{
 					if (simd_prefix != NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)
 						return 0;
@@ -260,7 +260,7 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 			/* Check for ModR/M, SIB and displacement. */
 			if (op >= 0x20 && op <= 0x23 && remaining_size == 2)
 				has_modrm = true, modrm.modrm = *++b;
-			else if (op < 4 || (NMD_R(op) != 3 && NMD_R(op) > 0 && NMD_R(op) < 7) || (op >= 0xD0 && op != 0xFF) || (NMD_R(op) == 7 && NMD_C(op) != 7) || NMD_R(op) == 9 || NMD_R(op) == 0xB || (NMD_R(op) == 0xC && NMD_C(op) < 8) || (NMD_R(op) == 0xA && (op % 8) >= 3) || op == 0x0ff || op == 0x00 || op == 0x0d)
+			else if (op < 4 || (_NMD_R(op) != 3 && _NMD_R(op) > 0 && _NMD_R(op) < 7) || (op >= 0xD0 && op != 0xFF) || (_NMD_R(op) == 7 && _NMD_C(op) != 7) || _NMD_R(op) == 9 || _NMD_R(op) == 0xB || (_NMD_R(op) == 0xC && _NMD_C(op) < 8) || (_NMD_R(op) == 0xA && (op % 8) >= 3) || op == 0x0ff || op == 0x00 || op == 0x0d)
 			{
 				if (!_nmd_ldisasm_parse_modrm(&b, address_prefix, mode, &modrm, remaining_size - 2))
 					return 0;
@@ -300,12 +300,12 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 				return 0;
 			else if (op >= 0x3b && op <= 0x3f)
 				return 0;
-			else if (NMD_R(op) == 5)
+			else if (_NMD_R(op) == 5)
 			{
 				if ((op == 0x50 && modrm.fields.mod != 0b11) || (simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && (op == 0x52 || op == 0x53)) || (simd_prefix == NMD_X86_PREFIXES_REPEAT && (op == 0x50 || (op >= 0x54 && op <= 0x57))) || (repeat_not_zero_prefix && (op == 0x50 || (op >= 0x52 && op <= 0x57) || op == 0x5b)))
 					return 0;
 			}
-			else if (NMD_R(op) == 6)
+			else if (_NMD_R(op) == 6)
 			{
 				if ((!(simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || simd_prefix == NMD_X86_PREFIXES_REPEAT || simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO) && (op == 0x6c || op == 0x6d)) || (simd_prefix == NMD_X86_PREFIXES_REPEAT && op != 0x6f) || repeat_not_zero_prefix)
 					return 0;
@@ -390,7 +390,7 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 				if ((op == 0xc5 && modrm.fields.mod != 0b11) || (simd_prefix == NMD_X86_PREFIXES_REPEAT || simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO) || (op == 0xc3 && simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE))
 					return 0;
 			}
-			else if (NMD_R(op) >= 0xd && NMD_C(op) != 0 && op != 0xff && ((NMD_C(op) == 6 && NMD_R(op) != 0xf) ? (!simd_prefix || (NMD_R(op) == 0xD && (simd_prefix == NMD_X86_PREFIXES_REPEAT || simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO) ? modrm.fields.mod != 0b11 : false)) : (simd_prefix == NMD_X86_PREFIXES_REPEAT || simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO || ((NMD_C(op) == 7 && NMD_R(op) != 0xe) ? modrm.fields.mod != 0b11 : false))))
+			else if (_NMD_R(op) >= 0xd && _NMD_C(op) != 0 && op != 0xff && ((_NMD_C(op) == 6 && _NMD_R(op) != 0xf) ? (!simd_prefix || (_NMD_R(op) == 0xD && (simd_prefix == NMD_X86_PREFIXES_REPEAT || simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO) ? modrm.fields.mod != 0b11 : false)) : (simd_prefix == NMD_X86_PREFIXES_REPEAT || simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO || ((_NMD_C(op) == 7 && _NMD_R(op) != 0xe) ? modrm.fields.mod != 0b11 : false))))
 				return 0;
 			else if (has_modrm && modrm.fields.mod == 0b11)
 			{
@@ -399,9 +399,9 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK */
 
-			if (NMD_R(op) == 8) /* imm32 */
+			if (_NMD_R(op) == 8) /* imm32 */
 				offset += (operand_prefix ? 2 : 4);
-			else if ((NMD_R(op) == 7 && NMD_C(op) < 4) || op == 0xA4 || op == 0xC2 || (op > 0xC3 && op <= 0xC6) || op == 0xBA || op == 0xAC) /* imm8 */
+			else if ((_NMD_R(op) == 7 && _NMD_C(op) < 4) || op == 0xA4 || op == 0xC2 || (op > 0xC3 && op <= 0xC6) || op == 0xBA || op == 0xAC) /* imm8 */
 				offset++;
 			else if (op == 0x78 && (repeat_not_zero_prefix || operand_prefix)) /* imm8 + imm8 = "imm16" */
 				offset += 2;
@@ -413,7 +413,7 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 		opcode_size = 1;
 
 		/* Check for ModR/M, SIB and displacement. */
-		if (NMD_R(op) == 8 || _nmd_find_byte(_nmd_op1_modrm, sizeof(_nmd_op1_modrm), op) || (NMD_R(op) < 4 && (NMD_C(op) < 4 || (NMD_C(op) >= 8 && NMD_C(op) < 0xC))) || (NMD_R(op) == 0xD && NMD_C(op) >= 8) || ((op == 0xc4 || op == 0xc5) && remaining_size > 1 && ((nmd_x86_modrm*)(b + 1))->fields.mod != 0b11))
+		if (_NMD_R(op) == 8 || _nmd_find_byte(_nmd_op1_modrm, sizeof(_nmd_op1_modrm), op) || (_NMD_R(op) < 4 && (_NMD_C(op) < 4 || (_NMD_C(op) >= 8 && _NMD_C(op) < 0xC))) || (_NMD_R(op) == 0xD && _NMD_C(op) >= 8) || ((op == 0xc4 || op == 0xc5) && remaining_size > 1 && ((nmd_x86_modrm*)(b + 1))->fields.mod != 0b11))
 		{
 			if (!_nmd_ldisasm_parse_modrm(&b, address_prefix, mode, &modrm, remaining_size - 1))
 				return 0;
@@ -483,7 +483,7 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 					return 0;
 				break;
 			case 0xdd:
-				if ((modrm.fields.reg == 0b101 && modrm.fields.mod != 0b11) || NMD_R(modrm.modrm) == 0xf)
+				if ((modrm.fields.reg == 0b101 && modrm.fields.mod != 0b11) || _NMD_R(modrm.modrm) == 0xf)
 					return 0;
 				break;
 			case 0xde:
@@ -534,9 +534,9 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 
 		{
 			/* Check for immediate */
-			if (_nmd_find_byte(_nmd_op1_imm32, sizeof(_nmd_op1_imm32), op) || (NMD_R(op) < 4 && (NMD_C(op) == 5 || NMD_C(op) == 0xD)) || (NMD_R(op) == 0xB && NMD_C(op) >= 8) || (op == 0xF7 && modrm.fields.reg == 0b000)) /* imm32,16 */
+			if (_nmd_find_byte(_nmd_op1_imm32, sizeof(_nmd_op1_imm32), op) || (_NMD_R(op) < 4 && (_NMD_C(op) == 5 || _NMD_C(op) == 0xD)) || (_NMD_R(op) == 0xB && _NMD_C(op) >= 8) || (op == 0xF7 && modrm.fields.reg == 0b000)) /* imm32,16 */
 			{
-				if (NMD_R(op) == 0xB && NMD_C(op) >= 8)
+				if (_NMD_R(op) == 0xB && _NMD_C(op) >= 8)
 					offset += rexW ? 8 : (operand_prefix || (mode == NMD_X86_MODE_16 && !operand_prefix) ? 2 : 4);
 				else
 				{
@@ -546,9 +546,9 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 						offset += NMD_X86_IMM16;
 				}
 			}
-			else if (NMD_R(op) == 7 || (NMD_R(op) == 0xE && NMD_C(op) < 8) || (NMD_R(op) == 0xB && NMD_C(op) < 8) || (NMD_R(op) < 4 && (NMD_C(op) == 4 || NMD_C(op) == 0xC)) || (op == 0xF6 && modrm.fields.reg <= 0b001) || _nmd_find_byte(_nmd_op1_imm8, sizeof(_nmd_op1_imm8), op)) /* imm8 */
+			else if (_NMD_R(op) == 7 || (_NMD_R(op) == 0xE && _NMD_C(op) < 8) || (_NMD_R(op) == 0xB && _NMD_C(op) < 8) || (_NMD_R(op) < 4 && (_NMD_C(op) == 4 || _NMD_C(op) == 0xC)) || (op == 0xF6 && modrm.fields.reg <= 0b001) || _nmd_find_byte(_nmd_op1_imm8, sizeof(_nmd_op1_imm8), op)) /* imm8 */
 				offset++;
-			else if (NMD_R(op) == 0xA && NMD_C(op) < 4)
+			else if (_NMD_R(op) == 0xA && _NMD_C(op) < 4)
 				offset += (mode == NMD_X86_MODE_64) ? (address_prefix ? 4 : 8) : (address_prefix ? 2 : 4);
 			else if (op == 0xEA || op == 0x9A) /* imm32,48 */
 			{
@@ -566,7 +566,7 @@ NMD_ASSEMBLY_API size_t nmd_ldisasm_x86(const void* buffer, size_t buffer_size, 
 	if (lock_prefix)
 	{
 		if (!(has_modrm && modrm.fields.mod != 0b11 &&
-			((opcode_size == 1 && (op == 0x86 || op == 0x87 || (NMD_R(op) < 4 && (op % 8) < 2 && op < 0x38) || ((op >= 0x80 && op <= 0x83) && modrm.fields.reg != 0b111) || (op >= 0xfe && modrm.fields.reg < 2) || ((op == 0xf6 || op == 0xf7) && (modrm.fields.reg == 0b010 || modrm.fields.reg == 0b011)))) ||
+			((opcode_size == 1 && (op == 0x86 || op == 0x87 || (_NMD_R(op) < 4 && (op % 8) < 2 && op < 0x38) || ((op >= 0x80 && op <= 0x83) && modrm.fields.reg != 0b111) || (op >= 0xfe && modrm.fields.reg < 2) || ((op == 0xf6 || op == 0xf7) && (modrm.fields.reg == 0b010 || modrm.fields.reg == 0b011)))) ||
 				(opcode_size == 2 && (_nmd_find_byte(_nmd_two_opcodes, sizeof(_nmd_two_opcodes), op) || op == 0xab || (op == 0xba && modrm.fields.reg != 0b100) || (op == 0xc7 && modrm.fields.reg == 0b001))))))
 			return 0;
 	}

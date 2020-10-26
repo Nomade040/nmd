@@ -163,7 +163,7 @@ Parameters:
  - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
  - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
 */
-NMD_ASSEMBLY_API bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count)
+NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 {
 	const uint64_t end_virtual_address = cpu->virtual_address + cpu->physical_memory_size;
 	const void* end_physical_memory = (uint8_t*)cpu->physical_memory + cpu->physical_memory_size;
@@ -176,7 +176,7 @@ NMD_ASSEMBLY_API bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count)
 		nmd_x86_instruction instruction;
 		const void* buffer = _NMD_GET_PHYSICAL_ADDRESS(cpu->rip);
 		const bool valid_buffer = _NMD_IN_BOUNDARIES(buffer);
-		if (!valid_buffer || !nmd_decode_x86(buffer, (size_t)(end_virtual_address - cpu->rip), &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
+		if (!valid_buffer || !nmd_x86_decode(buffer, (size_t)(end_virtual_address - cpu->rip), &instruction, (NMD_X86_MODE)cpu->mode, NMD_X86_DECODER_FLAGS_MINIMAL))
 		{
 			if (cpu->interrupt_handler)
 				cpu->interrupt_handler(cpu, &instruction, valid_buffer ? NMD_X86_EXCEPTION_INVALID_OPCODE : NMD_X86_EXCEPTION_PAGE_FAULT);
@@ -218,7 +218,7 @@ NMD_ASSEMBLY_API bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count)
 					_nmd_copy_by_mode(r0, addr, (NMD_X86_MODE)cpu->mode);
 				}
 			}
-			else if (NMD_R(instruction.opcode) == 5) /* push,pop [50,5f] */
+			else if (_NMD_R(instruction.opcode) == 5) /* push,pop [50,5f] */
 			{
 				nmd_x86_register* r0 = _NMD_GET_GREG(instruction.opcode % 8);
 				void* dst, * src;
@@ -357,12 +357,12 @@ NMD_ASSEMBLY_API bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count)
 			else if (instruction.opcode == 0x0d) /* xor rAX, lz */
 				_nmd_xor_by_operand_size(&cpu->rax, &instruction.immediate, &instruction);
 
-			else if (NMD_R(instruction.opcode) == 4) /* inc/dec [40,4f] */
+			else if (_NMD_R(instruction.opcode) == 4) /* inc/dec [40,4f] */
 			{
 				nmd_x86_register* r0 = _NMD_GET_GREG(instruction.opcode % 8);
 				instruction.opcode < 0x48 ? r0->l64++ : r0->l64--;
 			}
-			else if (NMD_R(instruction.opcode) == 7 && _nmd_check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r8 */
+			else if (_NMD_R(instruction.opcode) == 7 && _nmd_check_jump_condition(cpu, _NMD_C(instruction.opcode))) /* conditional jump r8 */
 				cpu->rip += (int8_t)(instruction.immediate);
 			else if (instruction.opcode >= 0x91 && instruction.opcode <= 0x97) /* xchg rax, ... */
 			{
@@ -425,10 +425,10 @@ NMD_ASSEMBLY_API bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count)
 				}
 				cpu->rsp.l32 += cpu->mode * 8;
 			}
-			else if (NMD_R(instruction.opcode) == 0xb) /* mov reg, imm */
+			else if (_NMD_R(instruction.opcode) == 0xb) /* mov reg, imm */
 			{
 				const uint8_t width = (instruction.prefixes & NMD_X86_PREFIXES_REX_W && instruction.opcode >= 0xb8) ? 8 : instruction.mode;
-				nmd_x86_register* r0 = instruction.prefixes & NMD_X86_PREFIXES_REX_B ? _NMD_GET_RREG(NMD_C(instruction.opcode)) : _NMD_GET_GREG(NMD_C(instruction.opcode));
+				nmd_x86_register* r0 = instruction.prefixes & NMD_X86_PREFIXES_REX_B ? _NMD_GET_RREG(_NMD_C(instruction.opcode)) : _NMD_GET_GREG(_NMD_C(instruction.opcode));
 				_nmd_copy_by_mode(r0, &instruction.immediate, (NMD_X86_MODE)width);
 			}
 			else if (instruction.opcode == 0x90)
@@ -521,7 +521,7 @@ NMD_ASSEMBLY_API bool nmd_emulate_x86(nmd_x86_cpu* cpu, size_t max_count)
 		}
 		else if (instruction.opcode_map == NMD_X86_OPCODE_MAP_0F)
 		{
-			if (NMD_R(instruction.opcode) == 8 && _nmd_check_jump_condition(cpu, NMD_C(instruction.opcode))) /* conditional jump r32 */
+			if (_NMD_R(instruction.opcode) == 8 && _nmd_check_jump_condition(cpu, _NMD_C(instruction.opcode))) /* conditional jump r32 */
 				cpu->rip += (int32_t)(instruction.immediate);
 
 			else if (instruction.opcode == 0xa0) /* push fs */
