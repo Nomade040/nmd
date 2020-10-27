@@ -224,8 +224,13 @@ void _nmd_sprintf_append_uint(uint64_t x, char** p_buf, size_t* p_i, size_t n)
 		
 	if (i + num_digits < n)
 	{
-		for (; x > 0; x /= 10)
-			buf[--num_digits] = (char)('0' + x % 10);
+		if (x == 0)
+			*buf = '0';
+		else
+		{
+			for (; x > 0; x /= 10)
+				buf[--num_digits] = (char)('0' + x % 10);
+		}
 		*p_buf += offset;
 	}
 
@@ -474,7 +479,16 @@ int nmd_vsnprintf(char* buf, size_t n, const char* fmt, va_list va)
 						*buf++ = '.';
 
 					uint32_t fractional_part = (x - (double)int_part) * nmd_pow(10, precision);
-					_nmd_sprintf_append_uint(fractional_part, &buf, &i, n);
+					if (fractional_part == 0)
+					{
+						const size_t num = precision < (n - i) ? precision : (n - i);
+						size_t j = 0;
+						for (; j < num; j++)
+							*buf++ = '0';
+						i += precision;
+					}
+					else
+						_nmd_sprintf_append_uint(fractional_part, &buf, &i, n);
 				}
 			}
 			else if (*fmt == 'o') /* Unsigned octal specifier */
@@ -872,15 +886,15 @@ double nmd_frexp(double x, int* e)
 /* Taken from: https://www.codeproject.com/Articles/69941/Best-Square-Root-Method-Algorithm-Function-Precisi */
 double nmd_sqrt(double x)
 {
-	double n = x / 2;
-	/* const double tolerance = 1.0e-7 */;
-	const double tolerance = 1.0e-5;
-	do
-	{
-		n = (n + x / n) / 2;
-	} while (nmd_abs(n * n - x) > tolerance);
+	if (x <= 0.0)
+		return 0.0;
 
-	return n;
+	float guess = 1;
+
+	while (nmd_abs((guess * guess) / x - 1.0) >= 0.0001)
+		guess = ((x / guess) + guess) / 2;
+
+	return guess;
 }
 
 /* Taken from ftp://ftp.update.uu.se/pub/pdp11/rt/cmath/pow.c */
