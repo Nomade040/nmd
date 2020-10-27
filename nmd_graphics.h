@@ -538,7 +538,7 @@ bool nmd_bake_font(const char* font_path, nmd_atlas* atlas, float size);
 
 #define NMD_CIRCLE_AUTO_SEGMENT_MIN 12
 #define NMD_CIRCLE_AUTO_SEGMENT_MAX 512
-#define NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, max_error) NMD_CLAMP(NMD_2PI / NMD_ACOS((radius - max_error) / radius), NMD_CIRCLE_AUTO_SEGMENT_MIN, NMD_CIRCLE_AUTO_SEGMENT_MAX)
+#define NMD_CIRCLE_AUTO_SEGMENT_CALC(radius, max_error) NMD_CLAMP(NMD_2PI / NMD_ACOS(((radius) - max_error) / (radius)), NMD_CIRCLE_AUTO_SEGMENT_MIN, NMD_CIRCLE_AUTO_SEGMENT_MAX)
 
 #define _NMD_OFFSETOF(TYPE, NAME) (&((TYPE*)0)->NAME)
 
@@ -8009,7 +8009,7 @@ void nmd_d3d11_render()
         ID3D11VertexShader* VS;
         ID3D11GeometryShader* GS;
         UINT PSInstancesCount, VSInstancesCount, GSInstancesCount;
-        ID3D11ClassInstance* PSInstances[128], *VSInstances[128], *GSInstances[128];
+        ID3D11ClassInstance* PSInstances[64], *VSInstances[64], *GSInstances[64];
         D3D11_PRIMITIVE_TOPOLOGY PrimitiveTopology;
         ID3D11Buffer* IndexBuffer, *VertexBuffer, *VSConstantBuffer;
         UINT IndexBufferOffset, VertexBufferStride, VertexBufferOffset;
@@ -8024,7 +8024,7 @@ void nmd_d3d11_render()
     _nmd_d3d11.device_context->OMGetDepthStencilState(&old.DepthStencilState, &old.StencilRef);
     _nmd_d3d11.device_context->PSGetShaderResources(0, 1, &old.PSShaderResource);
     _nmd_d3d11.device_context->PSGetSamplers(0, 1, &old.PSSampler);
-    old.PSInstancesCount = old.VSInstancesCount = old.GSInstancesCount = 128;
+    old.PSInstancesCount = old.VSInstancesCount = old.GSInstancesCount = 64;
     _nmd_d3d11.device_context->PSGetShader(&old.PS, old.PSInstances, &old.PSInstancesCount);
     _nmd_d3d11.device_context->VSGetShader(&old.VS, old.VSInstances, &old.VSInstancesCount);
     _nmd_d3d11.device_context->VSGetConstantBuffers(0, 1, &old.VSConstantBuffer);
