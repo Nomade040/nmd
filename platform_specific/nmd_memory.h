@@ -16,7 +16,6 @@ used by the syscall for the remaining parameters.
 
 nmd_get_module_handle(): Similar to GetModuleHandleW()
 nmd_get_proc_addr(): Similar to GetProcAddress()
-
 */
 
 #ifndef NMD_MEMORY_H
@@ -84,17 +83,10 @@ typedef unsigned long long uint64_t;
 #endif /* __clang__ */
 #include <Windows.h>
 
-typedef struct nmd_mex
+typedef struct nmd_proc
 {
 	HANDLE h_process;
-} nmd_mex;
-
-enum NMD_INJECTION_METHOD
-{
-	NMD_INJECTION_METHOD_LOAD_LIBRARY, /* LoadLibraryW at kernel32.dll */
-	NMD_INJECTION_METHOD_LDR_LOAD_DLL, /* LdrLoadDll at ntdll.dll */
-	NMD_INJECTION_METHOD_MANUAL_MAPPING,
-};
+} nmd_proc;
 
 /* Taken from x64dbg */
 
@@ -287,6 +279,22 @@ typedef struct _NMD_PEB
     ULONG CloudFileFlags;
 } NMD_PEB, *NMD_PPEB;
 
+enum NMD_INJECTION_FLAGS
+{
+    /* Common flags */
+    NMD_INJECTION_FLAGS_NONE          = 0,
+    NMD_INJECTION_FLAGS_ERASE_HEADER  = (1 << 0),
+    NMD_INJECTION_FLAGS_FAKE_HEADER   = (1 << 1),
+
+    /* Load Library flags */
+    NMD_INJECTION_FLAGS_UNLINK_MODULE = (1 << 2),
+
+    /* Manual mapping flags */
+    NMD_INJECTION_FLAGS_LINK_MODULE   = (1 << 3),
+    NMD_INJECTION_FLAGS_TLS_CALLBACKS = (1 << 4), /* Execute TLS callbacks */
+    NMD_INJECTION_FLAGS_EXCEPTIONS    = (1 << 5), /* Add support for exceptions */
+};
+
 /* Returns the last error code set. */
 uint32_t nmd_get_error_code();
 
@@ -373,18 +381,26 @@ uint32_t nmd_mex_get_pid_by_wname(const wchar_t* process_name);
 
 /* "Opens" a process by verifying if the given handle is a valid process handle. Returns true if the operation is successful, false otherwise.
 Parameters:
- - mex    [out] A pointer to a variablev of type 'nmd_mex'.
+ - mex    [out] A pointer to a variablev of type 'nmd_proc'.
  - handle [in]  The process handle.
 */
-bool nmd_mex_open_by_handle(nmd_mex* mex, HANDLE handle);
+bool nmd_mex_open_by_handle(nmd_proc* mex, HANDLE handle);
 
 /* Injects a dll on the specified process. Returns the base address of the injected module or zero if he operation failed. 
 Parameters:
- - mex  [in] A pointer to a variable of type 'nmd_mex'.
- - path [in] The path to the dll.
+ - h_process [in] A handle to the target process.
+ - dll_path  [in] The path to the dll.
+ - flags     [in] A mask of flags(members of the NMD_INJECTION_FLAGS enum) which change the behaviour of the function.
+*/
+uintptr_t nmd_inject_load_library(HANDLE h_process, const wchar_t* dll_path, uint32_t flags);
 
- - */
-uintptr_t nmd_mex_inject(nmd_mex* m, const wchar_t* path);
+/* Injects a dll on the specified process. Returns the base address of the injected module or zero if he operation failed.
+Parameters:
+ - h_process [in] A handle to the target process.
+ - dll       [in] A pointer to the dll in memory.
+ - flags     [in] A mask of flags(members of the NMD_INJECTION_FLAGS enum) which change the behaviour of the function.
+*/
+uintptr_t nmd_inject_manual(HANDLE h_process, const void* dll, uint32_t flags);
 
 #ifdef NMD_MEMORY_IMPLEMENTATION
 
@@ -544,102 +560,170 @@ _NMD_NAKED NTSTATUS nmd_query_system_information(SYSTEM_INFORMATION_CLASS info, 
         
 #endif
     }
+}*/
+
+extern "C" uint32_t __stdcall NtAllocateVirtualMemory(HANDLE ProcessHandle, void** BaseAddress, uint32_t ZeroBits, size_t* RegionSize, uint32_t AllocationType, uint32_t Protect);
+extern "C" uint32_t __stdcall NtFreeVirtualMemory(HANDLE ProcessHandle, void** BaseAddress, PULONG RegionSize, ULONG FreeType);
+extern "C" uint32_t __stdcall NtProtectVirtualMemory(HANDLE ProcessHandle, void** BaseAddress, uint32_t* NumberOfBytesToProtect, uint32_t NewAccessProtection, uint32_t* OldAccessProtection);
+extern "C" uint32_t __stdcall NtQueryVirtualMemory(HANDLE ProcessHandle, void* BaseAddress, uint32_t MemoryInformationClass, void* Buffer, size_t Length, size_t* ResultLength);
+extern "C" uint32_t __stdcall NtReadVirtualMemory(HANDLE ProcessHandle, PVOID BaseAddress, PVOID Buffer, ULONG NumberOfBytesToRead, PULONG NumberOfBytesReaded);
+extern "C" uint32_t __stdcall NtWriteVirtualMemory(HANDLE ProcessHandle, void* BaseAddress, void* Buffer, uint32_t NumberOfBytesToWrite, uint32_t* NumberOfBytesWritten);
+extern "C" uint32_t __stdcall NtCreateThreadEx(HANDLE * pHandle, ACCESS_MASK DesiredAccess, void* pAttr, HANDLE hProc, void* pFunc, void* pArg, ULONG Flags, SIZE_T ZeroBits, SIZE_T StackSize, SIZE_T MaxStackSize, void* pAttrListOut);
+extern "C" uint32_t __stdcall NtWaitForSingleObject(HANDLE ObjectHandle, BOOLEAN Alertable, PLARGE_INTEGER TimeOut);
+extern "C" uint32_t __stdcall NtClose(HANDLE ObjectHandle);
+extern "C" uint32_t __stdcall NtQueryInformationThread(HANDLE ThreadHandle, uint32_t ThreadInformationClass, PVOID ThreadInformation, ULONG ThreadInformationLength, PULONG ReturnLength);
+
+#define nmd_memset(ptr, value, num) { size_t _nmd_index = num-1; while(_nmd_index){((uint8_t*)ptr)[_nmd_index--] = value;}}
+
+typedef struct NMD_CLIENT_ID {
+    HANDLE UniqueProcess;
+    HANDLE UniqueThread;
+} NMD_CLIENT_ID;
+
+typedef struct NMD_THREAD_BASIC_INFORMATION {
+    NTSTATUS ExitStatus;
+    PVOID TebBaseAddress;
+    NMD_CLIENT_ID ClientId;
+    KAFFINITY AffinityMask;
+    uint32_t Priority;
+    uint32_t BasePriority;
+} NMD_THREAD_BASIC_INFORMATION, * NMD_PTHREAD_BASIC_INFORMATION;
+
+/* Injects a dll on the specified process. Returns the base address of the injected module or zero if he operation failed.
+Parameters:
+ - h_process [in] A handle to the target process.
+ - dll       [in] A pointer to the dll in memory.
+ - flags     [in] A mask of flags(members of the NMD_INJECTION_FLAGS enum) which change the behaviour of the function.
+*/
+uintptr_t nmd_inject_load_library(HANDLE h_process, const wchar_t* dll_path, uint32_t flags)
+{
+    uintptr_t module_base = 0;
+    HMODULE ntdll = nmd_get_module_handle(L"ntdll.dll");
+    uintptr_t ldrloaddll = (uintptr_t)nmd_get_proc_addr(ntdll, "LdrLoadDll");
+
+    /* Define shellcode */
+#ifdef _WIN64
+    uint8_t shellcode_ldr_load_dll[] = {
+        0x49, 0xb9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* mov r9, ModuleHandle */
+        0x4c, 0x8b, 0xc1,                                           /* mov r8, rcx(PUNICODE_STRING) */
+        0x33, 0xd2,                                                 /* mov rdx, DllCharacteristics: 0 */
+        0x33, 0xc9,                                                 /* mov rcx, DllPath: 0 */
+        0x48, 0x83, 0xec, 0x20,                                     /* sub rsp, 20h ; Allocate shadow space */
+        0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* mov rax, LdrLoadDll */
+        0xff, 0xd0,                                                 /* call rax */
+        0x48, 0x83, 0xc4, 0x20,                                     /* add rsp, 20h ; Deallocate shadow space */
+        0xc3                                                        /* ret */
+    };
+    /* Copy LdrLoadDll address to shellcode */
+    *(uint64_t*)(shellcode_ldr_load_dll + 23) = (uint64_t)ldrloaddll;
+#else
+    uint8_t shellcode_ldr_load_dll[] = {
+        0x68, 0x00, 0x00, 0x00, 0x00, /* push ModuleHandle */
+        0x8b, 0x45, 0x04              /* mov eax, [ebp+4] */
+        0x50,                         /* push eax(PUNICODE_STRING) */
+        0x6a, 0x00,                   /* push DllCharacteristics: 0 */
+        0x6a, 0x00,                   /* push DllPath: 0 */
+        0xb8, 0x00, 0x00, 0x00, 0x00, /* mov eax, LdrLoadDll */
+        0xff, 0xd0,                   /* call eax */
+        0xc3,                         /* ret */
+    };
+    /* Copy LdrLoadDll address to shellcode */
+    *(uint32_t*)(shellcode_ldr_load_dll + 14) = (uint32_t)ldrloaddll;
+#endif
+
+    /* Allocate a buffer on the target process that will be used to store the dll path, shellcode and return value.
+    The buffer will have the following format:
+    uintptr_t dll_base(out): The handle of the loaded dll
+    wchar_t[] dll_path(in):  A wide string containing the dll path
+    UNICODE_STRING(in):      A unicode string describing the dll path
+    shellcode(in):           The shellcode that executes ntdll!LdrLoadDll
+    */
+    void* buffer = 0;
+    size_t size = 0x1000;
+    if (!NtAllocateVirtualMemory(h_process, &buffer, 0, &size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE))
+    {
+        /* Copy ModuleHandle */
+#ifdef _WIN64
+        *(uint64_t*)(shellcode_ldr_load_dll + 2) = (uint64_t)buffer;
+#else
+        *(uint32_t*)(shellcode_ldr_load_dll + 1) = (uint32_t)buffer;
+#endif
+
+        /* Copy the dll path */
+        const size_t dll_path_size = _nmd_strlenw(dll_path) * sizeof(wchar_t) + 2;
+        if (!NtWriteVirtualMemory(h_process, (uint8_t*)buffer + sizeof(uintptr_t), (void*)dll_path, dll_path_size, NULL))
+        {
+            /* Copy the unicode string that describes the dll path */
+            NMD_UNICODE_STRING us;
+            nmd_memset(&us, 0, sizeof(us));
+            us.Length = dll_path_size - 2;
+            us.MaximumLength = dll_path_size;
+            us.Buffer = (PWSTR)((uint8_t*)buffer + sizeof(uintptr_t));
+            if (!NtWriteVirtualMemory(h_process, (uint8_t*)buffer + sizeof(uintptr_t) + dll_path_size, &us, sizeof(us), NULL))
+            {
+                /* Copy the shellcode */
+                if (!NtWriteVirtualMemory(h_process, (uint8_t*)buffer + sizeof(uintptr_t) + dll_path_size + sizeof(us), shellcode_ldr_load_dll, sizeof(shellcode_ldr_load_dll), NULL))
+                {
+                    /* Create a thread on the target process with the entry point as 'buffer', passing the address of the unicode string that describes the dll path as a parameter */
+                    HANDLE h_thread = 0;
+                    if (!NtCreateThreadEx(&h_thread, THREAD_ALL_ACCESS, 0, h_process, (LPTHREAD_START_ROUTINE)((uint8_t*)buffer + sizeof(uintptr_t) + dll_path_size + sizeof(us)), (uint8_t*)buffer + 8 + dll_path_size, FALSE, 0, 0, 0, 0))
+                    {
+                        /* Wait for the thread to terminate */
+                        if (!NtWaitForSingleObject(h_thread, FALSE, 0))
+                        {
+                            /* Get thread's exit code */
+                            NMD_THREAD_BASIC_INFORMATION tbi;
+                            if (!NtQueryInformationThread(h_thread, 0/*ThreadBasicInformation*/, &tbi, sizeof(tbi), 0))
+                            {
+                                /* Set error code */
+                                nmd_set_error_code(tbi.ExitStatus);
+
+                                if (tbi.ExitStatus == 0/*NTSUCCESS*/)
+                                {
+                                    /* Read module base */
+                                    NtReadVirtualMemory(h_process, buffer, &module_base, sizeof(uintptr_t), 0);
+                                }
+                            }
+                        }
+
+                        /* Close handle */
+                        NtClose(h_thread);
+                    }
+                }
+            }
+        }
+
+        /* Free memory */
+        NtFreeVirtualMemory(h_process, &buffer, (PULONG)&size, MEM_RELEASE);
+    }
+    
+    return module_base;
 }
 
 /* Injects a dll on the specified process. Returns the base address of the injected module or zero if he operation failed.
 Parameters:
- - mex              [in] A pointer to a variable of type 'nmd_mex'.
- - dll_path         [in] The path to the dll.
- - injection_method [in] A member of the 
- - */
-uintptr_t nmd_mex_inject(nmd_mex* m, const wchar_t* dll_path)
+ - h_process [in] A handle to the target process.
+ - dll       [in] A pointer to the dll in memory.
+ - flags     [in] A mask of flags(members of the NMD_INJECTION_FLAGS enum) which change the behaviour of the function.
+*/
+uintptr_t nmd_inject_manual(HANDLE h_process, const void* dll, uint32_t flags)
 {
-#ifdef _WIN64
-    uint8_t shellcode_x64_load_library[] = {
-        0x68, 0x00, 0x00, 0x00, 0x00,                               /* mov r8 lpLibFileName: 'path_buffer' */
-        0x6a, 0x00,                                                 /* mov rdx hFile: NULL */
-        0x6a, 0x00,                                                 /* mov rcx dwFlags: 0 */
-        0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* mov rax, LoadLibraryExW */
-        0xff, 0xd0                                                  /* call rax */
-    };
-
-    uint8_t shellcode_x64_ldr_load_dll[] = {
-        0x68, 0x00, 0x00, 0x00, 0x00,                               /* mov r9 DllHandle: 'path_buffer' */
-        0x6a, 0x00,                                                 /* mov r8 PUNICODE_STRING : NULL */
-        0x6a, 0x00,                                                 /* mov rdx DllCharacteristics: 0 */
-        0x6a, 0x00,                                                 /* mov rcx DllPath: 0 */
-        0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* mov rax, LdrLoadDll */
-        0xff, 0xd0                                                  /* call rax */
-    };
-#else
-    uint8_t shellcode_x86_load_library[] = {
-        0x68, 0x00, 0x00, 0x00, 0x00, /* push lpLibFileName: 'path_buffer' */
-        0x6a, 0x00,                   /* push hFile: NULL */
-        0x6a, 0x00,                   /* push dwFlags: 0 */
-        0xe8, 0x00, 0x00, 0x00, 0x00, /* call LoadLibraryExW */
-    };
-
-    uint8_t shellcode_x86_ldr_load_dll[] = {
-        0x68, 0x00, 0x00, 0x00, 0x00, /* push DllHandle: 'path_buffer' */
-        0x6a, 0x00,                   /* push PUNICODE_STRING : NULL */
-        0x6a, 0x00,                   /* push DllCharacteristics: 0 */
-        0x6a, 0x00,                   /* push DllPath: 0 */
-        0xe8, 0x00, 0x00, 0x00, 0x00, /* call LdrLoadDll */
-    };
-#endif
-
-    /* Allocate a buffer on the target process that will be used to store the dll path, shellcode and return value. */
-    uint8_t* buffer = (uint8_t*)VirtualAllocEx(m->h_process, NULL, 4096, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    if (!buffer)
+    /* Allocate memory to map dll */
+    void* address = 0;
+    const PIMAGE_OPTIONAL_HEADER optional_header = (const PIMAGE_OPTIONAL_HEADER)(((uint8_t*)dll + *(uint32_t*)((uint8_t*)dll + 0x3c)) + 4 + sizeof(IMAGE_FILE_HEADER));
+    size_t size = optional_header->SizeOfImage;
+    if (NtAllocateVirtualMemory(h_process, &address, 0, &size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE))
         return 0;
 
-    /* Copy the dll path to the buffer */
-    const size_t dll_path_size = (_nmd_strlenw(dll_path) + 1) * sizeof(wchar_t);
-    if (!WriteProcessMemory(m->h_process, buffer + 8, dll_path, dll_path_size, NULL))
+    /* Copy image header */
+    uint32_t num_bytes_written;
+    if (NtWriteVirtualMemory(h_process, address, (void*)dll, 0x1000, &num_bytes_written))
         return 0;
 
-    /* Create a thread on the target process with the entry point as LoadLibraryA(), passing the address of the buffer containing the path as the parameter */
-    HANDLE h_thread = CreateRemoteThread(m->h_process, NULL, 0, (LPTHREAD_START_ROUTINE)(buffer + 8 + dll_path_size), buffer, NULL, NULL);
-    if (!h_thread)
-        return 0;
+    /* Copy image sections */
 
-    /* Wait for the thread to terminate */
-    if (WaitForSingleObject(h_thread, INFINITE) == WAIT_FAILED)
-        return 0;
-
-    uintptr_t module_base;
-    if (!GetExitCodeThread(h_thread, (LPDWORD)&module_base))
-        return 0;
-
-    /* Free resources */
-    CloseHandle(h_thread);
-    VirtualFreeEx(m->h_process, buffer, 0, MEM_RELEASE);
-
-    return module_base;
-
-    /* Open file */
-    /*HANDLE h_file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (h_file == INVALID_HANDLE_VALUE)
-        return 0; */
-    
-    /* Get file size */
-    /*DWORD file_size = GetFileSize(h_file, NULL); */
-    
-    /* Allocate buffer for the file */
-    /*LPVOID file_buffer = VirtualAlloc(NULL, file_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!file_buffer)
-        return 0; */
-    
-    /* Read file */ 
-    /*if (!ReadFile(h_file, file_buffer, file_size, NULL, NULL))
-        return 0; */
-    
-    /* Call 'nmd_mex_inject_from_memory()' */
+    /* Copy shellcode(resolver imports, tls,exceptions,adjust page protection, */
 }
-
-extern "C" uint32_t __stdcall NtAllocateVirtualMemory(void* ProcessHandle, void** BaseAddress, uint32_t ZeroBits, size_t* RegionSize, uint32_t AllocationType, uint32_t Protect);
-extern "C" uint32_t __stdcall NtProtectVirtualMemory(void* ProcessHandle, void** BaseAddress, uint32_t* NumberOfBytesToProtect, uint32_t NewAccessProtection, uint32_t* OldAccessProtection);
-extern "C" uint32_t __stdcall NtQueryVirtualMemory(void* ProcessHandle, void* BaseAddress, uint32_t MemoryInformationClass, void* Buffer, size_t Length, size_t* ResultLength);
 
 void* nmd_read_multi_level_pointer(void* base, int32_t* offsets, size_t num_offsets)
 {    
