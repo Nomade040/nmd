@@ -1,7 +1,7 @@
 /* This is a platform independent C89 mini libc library.
 
- Most of the functions were found somewhere in the internet. I just put them together.
- I did howerver make the string and memory related functions.
+Most of the functions were found somewhere in the internet. I just put them together.
+I did however make the string and memory related functions.
 
 Setup:
 Define the 'NMD_LIBC_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
