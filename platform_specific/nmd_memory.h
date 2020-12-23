@@ -21,7 +21,7 @@ nmd_get_proc_addr(): Similar to GetProcAddress()
 #ifndef NMD_MEMORY_H
 #define NMD_MEMORY_H
 
-#ifdef NMD_MEMORY_NO_INCLUDES
+#ifdef NMD_MEMORY_DEFINE_INT_TYPES
 
 #ifndef __cplusplus
 
@@ -64,12 +64,12 @@ typedef unsigned long long uint64_t;
 
 #else
 
-/* Dependencies when 'NMD_MEMORY_NO_INCLUDES' is not defined. */
+/* Dependencies when 'NMD_MEMORY_DEFINE_INT_TYPES' is not defined. */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
-#endif /* NMD_MEMORY_NO_INCLUDES */
+#endif /* NMD_MEMORY_DEFINE_INT_TYPES */
 
 
 #ifdef __clang__
@@ -81,6 +81,7 @@ typedef unsigned long long uint64_t;
         #define _NMD_NAKED __declspec(naked)
     #endif
 #endif /* __clang__ */
+
 #include <Windows.h>
 
 typedef struct nmd_proc
@@ -310,9 +311,26 @@ Also, on WoW64 every parameter after the fourth must be 8-byte long.
 Example: nmd_syscall(0x1234, arg1, arg2, arg3, arg4, (uint64_t)arg5, (uint64_t)arg6)
 Parameters:
  - id  [in] The syscall id.
- - ... [in] The parameters used by the syscall.
+ - ... [in] The syscall's parameters.
 */
 NTSTATUS nmd_syscall(size_t id, ...);
+
+/* Calls a function written for x86-64
+Be aware: On WoW64 the function may expect structures with 8-byte sizes(such as pointers and size_t).
+Also, on WoW64 every parameter must be 8-byte long.
+Example: nmd_syscall(some_x64_function, (uint64_t)arg1, (uint64_t)arg2, (uint64_t)arg3, (uint64_t)arg4, (uint64_t)arg5, (uint64_t)arg6)
+Parameters:
+ - func [in] The function to be called.
+ - ...  [in] The function's parameters.
+*/
+int64_t nmd_call_x64(size_t id, ...);
+
+/* Performs a system call using the specified id.
+Parameters:
+ - func [in] The function to be called.
+ - ...  [in] The function's parameters.
+*/
+int64_t nmd_call_x86(size_t id, ...);
 
 /* Open a handle to the process specified by the id. Returns the handle if successful, zero otherwise.
 Parameters:
@@ -597,14 +615,17 @@ Parameters:
 */
 uintptr_t nmd_inject_load_library(HANDLE h_process, const wchar_t* dll_path, uint32_t flags)
 {
+    nmd_set_error_code(0);
+
     uintptr_t module_base = 0;
     HMODULE ntdll = nmd_get_module_handle(L"ntdll.dll");
     uintptr_t ldrloaddll = (uintptr_t)nmd_get_proc_addr(ntdll, "LdrLoadDll");
 
-    /* Define shellcode */
+    /* Shellcode */
 #ifdef _WIN64
     uint8_t shellcode_ldr_load_dll[] = {
         0x49, 0xb9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* mov r9, ModuleHandle */
+        0x4d, 0x89, 0xcc,                                           /* mov r12, r9 ; save ModuleHandle */
         0x4c, 0x8b, 0xc1,                                           /* mov r8, rcx(PUNICODE_STRING) */
         0x33, 0xd2,                                                 /* mov rdx, DllCharacteristics: 0 */
         0x33, 0xc9,                                                 /* mov rcx, DllPath: 0 */
@@ -612,10 +633,47 @@ uintptr_t nmd_inject_load_library(HANDLE h_process, const wchar_t* dll_path, uin
         0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* mov rax, LdrLoadDll */
         0xff, 0xd0,                                                 /* call rax */
         0x48, 0x83, 0xc4, 0x20,                                     /* add rsp, 20h ; Deallocate shadow space */
+
+        /* Return if the function failed */
+        0x85, 0xc0,                                                 /* test eax, eax */
+        0x75, 0x02,                                                 /* jnz ret */
+
+        /* unlink from PEB */
+        0xeb, 0x00,                                                 /* jmp $+1 if b_unlink_from_peb else $+0 */
+        0xc3,                                                       /* ret */
+        0xb1, 0x03,                                                 /* mov cl, 3 ; set # of lists */
+        0x4d, 0x8b, 0x1c, 0x24,                                     /* mov r11, [r12] ; save module base */
+        0x65, 0x48, 0x8b, 0x04, 0x25, 0x60, 0x00, 0x00, 0x00,       /* mov rax, gs:[60h] ; ppeb */
+        0x48, 0x8b, 0x40, 0x18,                                     /* mov rax, [rax+18] ; Ldr */
+        0x4c, 0x8d, 0x50, 0x10,                                     /* lea r10, [rax+10h] ; first list */
+        /* parse_list_entry: */
+        0x49, 0x8b, 0x02,                                           /* mov rax, [r10]  ; dereference first entry */
+        0x4d, 0x8d, 0x42, 0x08,                                     /* lea r8, [r10 + 8] ; last entry */
+        /* check_entry: */
+        0x4c, 0x39, 0x58, 0x30,                                     /* cmp [rax+30h], r11 ; NMD_LDR_MODULE::BaseAddress == module_base(r11) */
+        0x75, 0x08,                                                 /* jne next_entry */
+        0x48, 0x8b, 0x00,                                           /* mov rax, [rax] ; get next entry */
+        0x49, 0x89, 0x01,                                           /* mov [r9], rax ; unlink entry */
+        0xeb, 0x0b,                                                 /* jmp next_list */
+
+        /* next_entry: */
+        0x49, 0x89, 0xc1,                                           /* mov r9, rax ; save entry */
+        0x48, 0x8b, 0x00,                                           /* mov rax, [rax] */
+        0x4c, 0x39, 0xc0,                                           /* cmp rax, r8 ; this_entry == last_entry */
+        0x75, 0xe7,                                                 /* jne check_entry */
+        /* next_list*/
+        0xfe, 0xc9,                                                 /* dec cl */
+        0x49, 0x83, 0xc2, 0x10,                                     /* add r10, 10h */
+        0x84, 0xc9,                                                 /* test cl, cl */
+        0x75, 0xd6,                                                 /* jnz parse_list_entry */
         0xc3                                                        /* ret */
     };
     /* Copy LdrLoadDll address to shellcode */
-    *(uint64_t*)(shellcode_ldr_load_dll + 23) = (uint64_t)ldrloaddll;
+    *(uint64_t*)(shellcode_ldr_load_dll + 26) = (uint64_t)ldrloaddll;
+
+    /* Determine if the shellcode unlinks the module */
+    if (flags & NMD_INJECTION_FLAGS_UNLINK_MODULE)
+        shellcode_ldr_load_dll[45] = 1;
 #else
     uint8_t shellcode_ldr_load_dll[] = {
         0x68, 0x00, 0x00, 0x00, 0x00, /* push ModuleHandle */
@@ -631,12 +689,12 @@ uintptr_t nmd_inject_load_library(HANDLE h_process, const wchar_t* dll_path, uin
     *(uint32_t*)(shellcode_ldr_load_dll + 14) = (uint32_t)ldrloaddll;
 #endif
 
-    /* Allocate a buffer on the target process that will be used to store the dll path, shellcode and return value.
+    /* Allocate a buffer on the target process that will be used to store the dll path, shellcode.
     The buffer will have the following format:
-    uintptr_t dll_base(out): The handle of the loaded dll
-    wchar_t[] dll_path(in):  A wide string containing the dll path
-    UNICODE_STRING(in):      A unicode string describing the dll path
-    shellcode(in):           The shellcode that executes ntdll!LdrLoadDll
+    uintptr_t dll_base [OUT] The handle of the loaded dll
+    wchar_t[] dll_path [IN]  A wide string containing the dll path
+    UNICODE_STRING     [IN]  A unicode string describing the dll path
+    shellcode          [IN]  The shellcode that executes ntdll!LdrLoadDll
     */
     void* buffer = 0;
     size_t size = 0x1000;
@@ -675,13 +733,25 @@ uintptr_t nmd_inject_load_library(HANDLE h_process, const wchar_t* dll_path, uin
                             NMD_THREAD_BASIC_INFORMATION tbi;
                             if (!NtQueryInformationThread(h_thread, 0/*ThreadBasicInformation*/, &tbi, sizeof(tbi), 0))
                             {
-                                /* Set error code */
-                                nmd_set_error_code(tbi.ExitStatus);
-
-                                if (tbi.ExitStatus == 0/*NTSUCCESS*/)
+                                /* Read module base */
+                                if (!NtReadVirtualMemory(h_process, buffer, &module_base, sizeof(uintptr_t), 0))
                                 {
-                                    /* Read module base */
-                                    NtReadVirtualMemory(h_process, buffer, &module_base, sizeof(uintptr_t), 0);
+                                    /* Set error code */
+                                    nmd_set_error_code(module_base ? 0 : tbi.ExitStatus);
+
+                                    if (tbi.ExitStatus == 0/*NTSUCCESS*/)
+                                    {
+                                        if (flags & NMD_INJECTION_FLAGS_ERASE_HEADER)
+                                        {
+                                            uint8_t null_buffer[0x1000];
+                                            nmd_memset(null_buffer, 0, 0x1000);
+                                            NtWriteVirtualMemory(h_process, buffer, null_buffer, 0x1000, 0);
+                                        }
+                                        else if (flags & NMD_INJECTION_FLAGS_FAKE_HEADER)
+                                        {
+                                            NtWriteVirtualMemory(h_process, buffer, ntdll, 0x1000, 0);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1269,7 +1339,7 @@ Also, on WoW64 every parameter after the fourth must be 8-byte long.
 Example: nmd_syscall(0x1234, arg1, arg2, arg3, arg4, (uint64_t)arg5, (uint64_t)arg6)
 Parameters:
  - id  [in] The syscall id.
- - ... [in] The parameters used by the syscall.
+ - ... [in] The syscall's parameters.
 */
 _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
 {
@@ -1310,6 +1380,51 @@ _NMD_NAKED NTSTATUS nmd_syscall(size_t id, ...)
         ret                     ; Return
     }
 #endif
+}
+
+/* Calls a function written for x86-64
+Be aware: On WoW64 the function may expect structures with 8-byte sizes(such as pointers and size_t).
+Also, on WoW64 every parameter must be 8-byte long.
+Example: nmd_syscall(some_x64_function, (uint64_t)arg1, (uint64_t)arg2, (uint64_t)arg3, (uint64_t)arg4, (uint64_t)arg5, (uint64_t)arg6)
+Parameters:
+ - func [in] The function to be called.
+ - ...  [in] The function's parameters.
+*/
+_NMD_NAKED int64_t nmd_call_x64(void* func, ...)
+{
+#ifdef _WIN64
+    return 0;
+#else
+    _asm
+    {
+        ; Transition to x86-64
+        push 0x33
+        _NMD_DB(0xe8) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) ; call $+0
+        _NMD_DB(0x83) _NMD_DB(0x04) _NMD_DB(0x24) _NMD_DB(0x05)               ; add dword ptr[esp], 5
+        retf
+
+        mov rax, func
+        call rax
+
+        ; Transition back to x86-32
+        _NMD_DB(0xe8) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) _NMD_DB(0x00) ; call $+0
+        _NMD_DB(0xC7) _NMD_DB(0x44) _NMD_DB(0x24) _NMD_DB(0x04) _NMD_DB(0x23) _NMD_DB(0x00) _NMD_DB(0x20) _NMD_DB(0x00) ; mov dword ptr[rsp + 0x4], 0x23
+        _NMD_DB(0x83) _NMD_DB(0x04) _NMD_DB(0x24) _NMD_DB(0x0d)               ; add dword ptr[rsp], 13
+        retf
+
+        ret                     ; Return
+    }
+#endif
+}
+
+/* Calls a function written for x86-32
+Parameters:
+ - func [in] The function to be called.
+ - ...  [in] The function's parameters.
+*/
+_NMD_NAKED int64_t nmd_call_x86(size_t id, ...)
+{
+
 }
 
 #endif /* NMD_MEMORY_IMPLEMENTATION */

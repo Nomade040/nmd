@@ -6339,6 +6339,8 @@ void nmd_add_rect_filled(float x0, float y0, float x1, float y1, nmd_color color
     if (rounding > 0.0f)
     {
         nmd_path_rect(x0, y0, x1, y1, rounding, corner_flags);
+        //_nmd_context.draw_list.num_points = 0;
+        //return;
         nmd_path_fill_convex(color);
     }
     else
@@ -6532,7 +6534,7 @@ void nmd_path_arc_to(float x0, float y0, float radius, float start_angle, float 
 
     _nmd_context.draw_list.num_points = (start_at_center ? 1 : 0) + num_segments + 1;
 }
-
+std::vector<nmd_vec2> points;
 void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t start_angle_of12, size_t end_angle_of12, bool start_at_center)
 {
     if (!_nmd_reserve_points((start_at_center ? 1 : 0) + (end_angle_of12 - start_angle_of12)))
@@ -6545,12 +6547,14 @@ void nmd_path_arc_to_cached(float x0, float y0, float radius, size_t start_angle
         path->x = x0, path->y = y0;
         path++;
     }
-
+    
     for (size_t angle = start_angle_of12; angle <= end_angle_of12; angle++)
     {
+        
         const nmd_vec2* point = &_nmd_context.draw_list.cached_circle_vertices12[angle % 12];
         path->x = x0 + point->x * radius;
         path->y = y0 + point->y * radius;
+        //points.push_back({ path->x, path->y });
         path++;
     }
 
@@ -6615,13 +6619,15 @@ void nmd_add_line(float x0, float y0, float x1, float y1, nmd_color color, float
     nmd_path_to(x1, y1);
     nmd_path_stroke(color, false, thickness);
 }
-
+#include <random>
+#include <time.h>
 void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t num_points, nmd_color color)
 {
+    srand(time(0));
     if (num_points < 3)
         return;
 
-    if (_nmd_context.draw_list.fill_anti_aliasing)
+    if (0&&_nmd_context.draw_list.fill_anti_aliasing)
     {
         /* Anti-aliased fill */
         const float AA_SIZE = 1.0f;
@@ -6703,7 +6709,7 @@ void nmd_add_convex_polygon_filled(const nmd_vec2* points, size_t num_points, nm
 
         nmd_vertex* vertices = _nmd_context.draw_list.vertices + _nmd_context.draw_list.num_vertices;
         for (size_t i = 0; i < num_points; i++)
-            vertices[i].pos.x = points[i].x, vertices[i].pos.y = points[i].y, vertices[i].color = color;
+            vertices[i].pos.x = points[i].x, vertices[i].pos.y = points[i].y, vertices[i].color = nmd_rgb(rand() % 255, rand() % 255, rand() % 255);
         _nmd_context.draw_list.num_vertices += num_points;
     }
 }
