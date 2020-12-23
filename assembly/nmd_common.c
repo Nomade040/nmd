@@ -134,6 +134,13 @@ NMD_ASSEMBLY_API const char* _nmd_strstr_ex(const char* s, const char* s2, const
 			i++;
 	}
 
+	if (s2[i] == '\0')
+	{
+		if (s3_opt)
+			*s3_opt = s;
+		return s - i;
+	}
+
 	return 0;
 }
 

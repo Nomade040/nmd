@@ -20,7 +20,7 @@ NMD_ASSEMBLY_API void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
 	if (si->flags & NMD_X86_FORMAT_FLAGS_HEX)
 	{
 		size_t num_digits = _NMD_GET_NUM_DIGITS_HEX(n);
-		buffer_offset = num_digits + 1;
+		buffer_offset = num_digits;
 
 		const bool condition = n > 9 || si->flags & NMD_X86_FORMAT_FLAGS_ENFORCE_HEX_ID;
 		if (si->flags & NMD_X86_FORMAT_FLAGS_0X_PREFIX && condition)
@@ -29,7 +29,7 @@ NMD_ASSEMBLY_API void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
 		const uint8_t base_char = (uint8_t)(si->flags & NMD_X86_FORMAT_FLAGS_HEX_LOWERCASE ? 0x57 : 0x37);
 		do {
 			size_t num = n % 16;
-			*(si->buffer + num_digits--) = (char)((num > 9 ? base_char : '0') + num);
+			*(si->buffer + --num_digits) = (char)((num > 9 ? base_char : '0') + num);
 		} while ((n /= 16) > 0);
 
 		if (si->flags & NMD_X86_FORMAT_FLAGS_H_SUFFIX && condition)
@@ -41,7 +41,7 @@ NMD_ASSEMBLY_API void _nmd_append_number(_nmd_string_info* const si, uint64_t n)
 		buffer_offset = num_digits + 1;
 
 		do {
-			*(si->buffer + num_digits--) = (char)('0' + n % 10);
+			*(si->buffer + --num_digits) = (char)('0' + n % 10);
 		} while ((n /= 10) > 0);
 	}
 
@@ -109,7 +109,7 @@ NMD_ASSEMBLY_API void _nmd_append_relative_address16_32(_nmd_string_info* const 
 	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
-		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
+		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), false);
 	}
 	else
 		_nmd_append_number(si, ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == NMD_X86_MODE_64 ?
