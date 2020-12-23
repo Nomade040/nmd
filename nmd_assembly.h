@@ -3596,11 +3596,13 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			size_t j = 0;
 			for (; j < _NMD_NUM_ELEMENTS(_nmd_reg8); j++)
 			{
-				//char* s;
-				//if (_nmd_strstr_ex(ai->s, _nmd_reg8[j], &s) == ai->s)
-				//{
-				//	
-				//}
+				/*
+				char* s;
+				if (_nmd_strstr_ex(ai->s, _nmd_reg8[j], &s) == ai->s)
+				{
+					
+				}
+				*/
 			}
 
 			nmd_x86_memory_operand memory_operand;
