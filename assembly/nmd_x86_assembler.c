@@ -683,6 +683,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		{ "fwait",   0x9b },
 		{ "hlt",     0xf4 },
 		{ "cmc",     0xf5 },
+		{ "clc",     0xf8 },
 		{ "sahf",    0x9e },
 		{ "lahf",    0x9f },
 		{ "into",    0xce },
