@@ -1748,7 +1748,6 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 							else
 								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CWD : NMD_X86_INSTRUCTION_CDQ);
 							break;
-						case 0xd6: instruction->id = NMD_X86_INSTRUCTION_SALC; break;
 
 						/* Floating-point opcodes. */
 #define _NMD_F_OP_GET_OFFSET() ((_NMD_R(modrm.modrm) - 0xc) << 1) + (_NMD_C(op) >= 8 ? 1 : 0)
