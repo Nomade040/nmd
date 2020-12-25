@@ -5047,7 +5047,10 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 				if (_NMD_R(op) == 4 || _NMD_R(op) == 8 || _NMD_R(op) == 9) /* Conditional Move (CMOVcc),Conditional jump(Jcc),Byte set on condition(SETcc) */
 					_nmd_decode_conditional_flag(instruction, _NMD_C(op));
 				else if (op == 0x05 || op == 0x07) /* syscall,sysret */
-					instruction->modified_flags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_DF | NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_AC | NMD_X86_EFLAGS_VIF | NMD_X86_EFLAGS_VIP | NMD_X86_EFLAGS_ID;
+				{
+					instruction->cleared_flags.eflags = op == 0x05 ? NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_RF : NMD_X86_EFLAGS_RF;
+					instruction->modified_flags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_DF | NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_AC | NMD_X86_EFLAGS_VIF | NMD_X86_EFLAGS_VIP | NMD_X86_EFLAGS_ID;
+				}
 				else if (op == 0xaf) /* mul */
 				{
 					instruction->modified_flags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_OF;
