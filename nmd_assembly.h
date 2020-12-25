@@ -805,7 +805,7 @@ enum NMD_X86_INSTRUCTION
 	/* Optimized for the 13th row of the 1 byte opcode map. */
 	NMD_X86_INSTRUCTION_AAM,
 	NMD_X86_INSTRUCTION_AAD,
-	NMD_X86_INSTRUCTION_BLENDVPS, /* padding*/
+	NMD_X86_INSTRUCTION_SALC,
 	NMD_X86_INSTRUCTION_XLAT,
 
 	/* Optimized for the 14th row of the 1 byte opcode map. */
@@ -1391,6 +1391,7 @@ enum NMD_X86_INSTRUCTION
 	NMD_X86_INSTRUCTION_PF2IW,
 	NMD_X86_INSTRUCTION_PFACC,
 	NMD_X86_INSTRUCTION_PFADD,
+	NMD_X86_INSTRUCTION_BLENDVPS, /* padding*/
 	NMD_X86_INSTRUCTION_PFCMPEQ,
 	NMD_X86_INSTRUCTION_PFCMPGE,
 	NMD_X86_INSTRUCTION_PFCMPGT,
@@ -1446,7 +1447,6 @@ enum NMD_X86_INSTRUCTION
 	NMD_X86_INSTRUCTION_RSM,
 	NMD_X86_INSTRUCTION_SAHF,
 	NMD_X86_INSTRUCTION_SAL,
-	NMD_X86_INSTRUCTION_SALC,
 	NMD_X86_INSTRUCTION_SARX,
 	NMD_X86_INSTRUCTION_SCASB,
 	NMD_X86_INSTRUCTION_SCASD,
@@ -5842,7 +5842,6 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 							else
 								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CWD : NMD_X86_INSTRUCTION_CDQ);
 							break;
-						case 0xd6: instruction->id = NMD_X86_INSTRUCTION_SALC; break;
 
 						/* Floating-point opcodes. */
 #define _NMD_F_OP_GET_OFFSET() ((_NMD_R(modrm.modrm) - 0xc) << 1) + (_NMD_C(op) >= 8 ? 1 : 0)
