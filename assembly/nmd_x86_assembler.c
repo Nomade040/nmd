@@ -686,8 +686,6 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		{ "sahf",    0x9e },
 		{ "lahf",    0x9f },
 		{ "into",    0xce },
-		{ "cwde",    0x98 },
-		{ "cdq",     0x99 },
 		{ "salc",    0xd6 },
 		{ "slc",     0xf8 },
 		{ "stc",     0xf9 },
@@ -1118,18 +1116,6 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			return 1;
 		}
 	}
-	else if (_nmd_strcmp(ai->s, "cbw"))
-	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0x98;
-		return 2;
-	}
-	else if (_nmd_strcmp(ai->s, "cwd"))
-	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0x99;
-		return 2;
-	}
 	else if (_nmd_strcmp(ai->s, "pushf"))
 	{
 		ai->b[0] = 0x66;
@@ -1142,7 +1128,39 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		ai->b[1] = 0x9d;
 		return 2;
 	}
-	
+	else if (_nmd_strcmp(ai->s, "cwde"))
+	{
+		int offset = 0;
+		if (ai->mode == NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0x98;
+		return offset;
+	}
+	else if (_nmd_strcmp(ai->s, "cbw"))
+	{
+		int offset = 0;
+		if (ai->mode != NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0x98;
+		return offset;
+	}
+	else if (_nmd_strcmp(ai->s, "cdq"))
+	{
+		int offset = 0;
+		if (ai->mode == NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0x99;
+		return offset;
+	}
+	else if (_nmd_strcmp(ai->s, "cwd"))
+	{
+		int offset = 0;
+		if (ai->mode != NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0x99;
+		return offset;
+	}
+
 	return 0;
 }
 

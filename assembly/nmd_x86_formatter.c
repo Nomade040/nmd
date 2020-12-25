@@ -1521,8 +1521,22 @@ NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, cha
 						else
 							str = operand_size ? "iret" : "iretd";
 						break;
-					case 0x98: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cdqe" : (operand_size ? "cbw" : "cwde")); break;
-					case 0x99: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cqo" : (operand_size ? "cwd" : "cdq")); break;
+					case 0x98:
+						if (instruction->prefixes & NMD_X86_PREFIXES_REX_W)
+							str = "cdqe";
+						else if (instruction->mode == NMD_X86_MODE_16)
+							str = operand_size ? "cwde" : "cbw";
+						else
+							str = operand_size ? "cbw" : "cwde";
+						break;
+					case 0x99:
+						if (instruction->prefixes & NMD_X86_PREFIXES_REX_W)
+							str = "cqo";
+						else if (instruction->mode == NMD_X86_MODE_16)
+							str = operand_size ? "cdq" : "cwd";
+						else
+							str = operand_size ? "cwd" : "cdq";
+						break;
 					case 0xd6: str = "salc"; break;
 					case 0xf8: str = "clc"; break;
 					case 0xf9: str = "stc"; break;

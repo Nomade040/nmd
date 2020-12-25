@@ -1732,8 +1732,22 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						case 0xAD: instruction->id = (uint16_t)(instruction->rex_w_prefix ? NMD_X86_INSTRUCTION_LODSQ : (operand_size ? NMD_X86_INSTRUCTION_LODSW : NMD_X86_INSTRUCTION_LODSD)); break;
 						case 0xAE: instruction->id = NMD_X86_INSTRUCTION_SCASB; break;
 						case 0xAF: instruction->id = (uint16_t)(instruction->rex_w_prefix ? NMD_X86_INSTRUCTION_SCASQ : (operand_size ? NMD_X86_INSTRUCTION_SCASW : NMD_X86_INSTRUCTION_SCASD)); break;
-						case 0x98: instruction->id = (uint16_t)(instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_INSTRUCTION_CDQE : (operand_size ? NMD_X86_INSTRUCTION_CBW : NMD_X86_INSTRUCTION_CWDE)); break;
-						case 0x99: instruction->id = (uint16_t)(instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_INSTRUCTION_CQO : (operand_size ? NMD_X86_INSTRUCTION_CWD : NMD_X86_INSTRUCTION_CDQ)); break;
+						case 0x98:
+							if(instruction->prefixes & NMD_X86_PREFIXES_REX_W)
+								instruction->id = (uint16_t)NMD_X86_INSTRUCTION_CDQE;
+							else if(instruction->mode == NMD_X86_MODE_16)
+								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CWDE : NMD_X86_INSTRUCTION_CBW);
+							else
+								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CBW : NMD_X86_INSTRUCTION_CWDE);
+							break;
+						case 0x99:
+							if (instruction->prefixes & NMD_X86_PREFIXES_REX_W)
+								instruction->id = (uint16_t)NMD_X86_INSTRUCTION_CQO;
+							else if (instruction->mode == NMD_X86_MODE_16)
+								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CDQ : NMD_X86_INSTRUCTION_CWD);
+							else
+								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CWD : NMD_X86_INSTRUCTION_CDQ);
+							break;
 						case 0xd6: instruction->id = NMD_X86_INSTRUCTION_SALC; break;
 
 						/* Floating-point opcodes. */
@@ -1832,11 +1846,17 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
 				if (flags & NMD_X86_DECODER_FLAGS_CPU_FLAGS)
 				{
-					if (op == 0xcc || op == 0xcd || op == 0xce) /* int3,int,into */
+					if (op == 0xcc || op == 0xcd) /* int3,int */
 					{
 						instruction->cleared_flags.eflags = NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_RF;
-						instruction->tested_flags.eflags = NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_VM;
+						instruction->tested_flags.eflags = NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_VM;
 						instruction->modified_flags.eflags = NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_AC | NMD_X86_EFLAGS_VIF;
+					}
+					else if (op == 0xce) /* into */
+					{
+						instruction->cleared_flags.eflags = NMD_X86_EFLAGS_RF;
+						instruction->tested_flags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_VM;
+						instruction->modified_flags.eflags = NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_AC;
 					}
 					else if (_NMD_R(op) == 7) /* conditional jump */
 						_nmd_decode_conditional_flag(instruction, _NMD_C(op));

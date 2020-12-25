@@ -2352,7 +2352,7 @@ enum NMD_X86_EFLAGS
 	NMD_X86_EFLAGS_VM   = (1 << 17),
 	NMD_X86_EFLAGS_RF   = (1 << 16),
 	NMD_X86_EFLAGS_NT   = (1 << 14),
-	NMD_X86_EFLAGS_IOPL = (1 << 12) | (1 << 13),
+	NMD_X86_EFLAGS_IOPL = (1 << 12) /*| (1 << 13)*/,
 	NMD_X86_EFLAGS_OF   = (1 << 11),
 	NMD_X86_EFLAGS_DF   = (1 << 10),
 	NMD_X86_EFLAGS_IF   = (1 << 9),
