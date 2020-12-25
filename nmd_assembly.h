@@ -2352,7 +2352,7 @@ enum NMD_X86_EFLAGS
 	NMD_X86_EFLAGS_VM   = (1 << 17),
 	NMD_X86_EFLAGS_RF   = (1 << 16),
 	NMD_X86_EFLAGS_NT   = (1 << 14),
-	NMD_X86_EFLAGS_IOPL = (1 << 12) | (1 << 13),
+	NMD_X86_EFLAGS_IOPL = (1 << 12) /*| (1 << 13)*/,
 	NMD_X86_EFLAGS_OF   = (1 << 11),
 	NMD_X86_EFLAGS_DF   = (1 << 10),
 	NMD_X86_EFLAGS_IF   = (1 << 9),
@@ -3533,8 +3533,6 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		{ "sahf",    0x9e },
 		{ "lahf",    0x9f },
 		{ "into",    0xce },
-		{ "cwde",    0x98 },
-		{ "cdq",     0x99 },
 		{ "salc",    0xd6 },
 		{ "slc",     0xf8 },
 		{ "stc",     0xf9 },
@@ -3965,18 +3963,6 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			return 1;
 		}
 	}
-	else if (_nmd_strcmp(ai->s, "cbw"))
-	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0x98;
-		return 2;
-	}
-	else if (_nmd_strcmp(ai->s, "cwd"))
-	{
-		ai->b[0] = 0x66;
-		ai->b[1] = 0x99;
-		return 2;
-	}
 	else if (_nmd_strcmp(ai->s, "pushf"))
 	{
 		ai->b[0] = 0x66;
@@ -3989,7 +3975,39 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		ai->b[1] = 0x9d;
 		return 2;
 	}
-	
+	else if (_nmd_strcmp(ai->s, "cwde"))
+	{
+		int offset = 0;
+		if (ai->mode == NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0x98;
+		return offset;
+	}
+	else if (_nmd_strcmp(ai->s, "cbw"))
+	{
+		int offset = 0;
+		if (ai->mode != NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0x98;
+		return offset;
+	}
+	else if (_nmd_strcmp(ai->s, "cdq"))
+	{
+		int offset = 0;
+		if (ai->mode == NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0x99;
+		return offset;
+	}
+	else if (_nmd_strcmp(ai->s, "cwd"))
+	{
+		int offset = 0;
+		if (ai->mode != NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0x99;
+		return offset;
+	}
+
 	return 0;
 }
 
@@ -5806,8 +5824,22 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						case 0xAD: instruction->id = (uint16_t)(instruction->rex_w_prefix ? NMD_X86_INSTRUCTION_LODSQ : (operand_size ? NMD_X86_INSTRUCTION_LODSW : NMD_X86_INSTRUCTION_LODSD)); break;
 						case 0xAE: instruction->id = NMD_X86_INSTRUCTION_SCASB; break;
 						case 0xAF: instruction->id = (uint16_t)(instruction->rex_w_prefix ? NMD_X86_INSTRUCTION_SCASQ : (operand_size ? NMD_X86_INSTRUCTION_SCASW : NMD_X86_INSTRUCTION_SCASD)); break;
-						case 0x98: instruction->id = (uint16_t)(instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_INSTRUCTION_CDQE : (operand_size ? NMD_X86_INSTRUCTION_CBW : NMD_X86_INSTRUCTION_CWDE)); break;
-						case 0x99: instruction->id = (uint16_t)(instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_INSTRUCTION_CQO : (operand_size ? NMD_X86_INSTRUCTION_CWD : NMD_X86_INSTRUCTION_CDQ)); break;
+						case 0x98:
+							if(instruction->prefixes & NMD_X86_PREFIXES_REX_W)
+								instruction->id = (uint16_t)NMD_X86_INSTRUCTION_CDQE;
+							else if(instruction->mode == NMD_X86_MODE_16)
+								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CWDE : NMD_X86_INSTRUCTION_CBW);
+							else
+								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CBW : NMD_X86_INSTRUCTION_CWDE);
+							break;
+						case 0x99:
+							if (instruction->prefixes & NMD_X86_PREFIXES_REX_W)
+								instruction->id = (uint16_t)NMD_X86_INSTRUCTION_CQO;
+							else if (instruction->mode == NMD_X86_MODE_16)
+								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CDQ : NMD_X86_INSTRUCTION_CWD);
+							else
+								instruction->id = (uint16_t)(operand_size ? NMD_X86_INSTRUCTION_CWD : NMD_X86_INSTRUCTION_CDQ);
+							break;
 						case 0xd6: instruction->id = NMD_X86_INSTRUCTION_SALC; break;
 
 						/* Floating-point opcodes. */
@@ -5906,11 +5938,17 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS
 				if (flags & NMD_X86_DECODER_FLAGS_CPU_FLAGS)
 				{
-					if (op == 0xcc || op == 0xcd || op == 0xce) /* int3,int,into */
+					if (op == 0xcc || op == 0xcd) /* int3,int */
 					{
 						instruction->cleared_flags.eflags = NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_RF;
-						instruction->tested_flags.eflags = NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_VM;
+						instruction->tested_flags.eflags = NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_VM;
 						instruction->modified_flags.eflags = NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_AC | NMD_X86_EFLAGS_VIF;
+					}
+					else if (op == 0xce) /* into */
+					{
+						instruction->cleared_flags.eflags = NMD_X86_EFLAGS_RF;
+						instruction->tested_flags.eflags = NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_VM;
+						instruction->modified_flags.eflags = NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_AC;
 					}
 					else if (_NMD_R(op) == 7) /* conditional jump */
 						_nmd_decode_conditional_flag(instruction, _NMD_C(op));
@@ -8567,8 +8605,22 @@ NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, cha
 						else
 							str = operand_size ? "iret" : "iretd";
 						break;
-					case 0x98: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cdqe" : (operand_size ? "cbw" : "cwde")); break;
-					case 0x99: str = (instruction->prefixes & NMD_X86_PREFIXES_REX_W ? "cqo" : (operand_size ? "cwd" : "cdq")); break;
+					case 0x98:
+						if (instruction->prefixes & NMD_X86_PREFIXES_REX_W)
+							str = "cdqe";
+						else if (instruction->mode == NMD_X86_MODE_16)
+							str = operand_size ? "cwde" : "cbw";
+						else
+							str = operand_size ? "cbw" : "cwde";
+						break;
+					case 0x99:
+						if (instruction->prefixes & NMD_X86_PREFIXES_REX_W)
+							str = "cqo";
+						else if (instruction->mode == NMD_X86_MODE_16)
+							str = operand_size ? "cdq" : "cwd";
+						else
+							str = operand_size ? "cwd" : "cdq";
+						break;
 					case 0xd6: str = "salc"; break;
 					case 0xf8: str = "clc"; break;
 					case 0xf9: str = "stc"; break;
