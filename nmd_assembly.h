@@ -3612,28 +3612,30 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				NMD_X86_REG reg = _nmd_parse_reg(&ai->s);
 				return _nmd_assemble_mem_reg(ai->b, &memory_operand, base_opcode, (reg - 1) % 8);
 
-				//size_t offset = 0;
-				//if (memory_operand.segment && memory_operand.segment != ((memory_operand.base == NMD_X86_REG_ESP || memory_operand.index == NMD_X86_REG_ESP) ? NMD_X86_REG_SS : NMD_X86_REG_DS))
-				//	ai->b[offset++] = _nmd_encode_segment_reg((NMD_X86_REG)memory_operand.segment);
-				//
-				//if (pointer_size == 1)
-				//{
-				//	ai->b[offset++] = base_opcode + 0;
-				//
-				//	if (*ai->s++ != ',')
-				//		return 0;
-				//
-				//	NMD_X86_REG reg = _nmd_parse_reg(&ai->s);
-				//
-				//	nmd_x86_modrm modrm;
-				//	modrm.fields.mod = 0;
-				//	modrm.fields.reg = (reg - 1) % 8;
-				//	modrm.fields.rm = (memory_operand.base - 1) % 8;
-				//
-				//	ai->b[offset++] = modrm.modrm;
-				//
-				//	return offset;
-				//}
+				/*
+				size_t offset = 0;
+				if (memory_operand.segment && memory_operand.segment != ((memory_operand.base == NMD_X86_REG_ESP || memory_operand.index == NMD_X86_REG_ESP) ? NMD_X86_REG_SS : NMD_X86_REG_DS))
+					ai->b[offset++] = _nmd_encode_segment_reg((NMD_X86_REG)memory_operand.segment);
+				
+				if (pointer_size == 1)
+				{
+					ai->b[offset++] = base_opcode + 0;
+				
+					if (*ai->s++ != ',')
+						return 0;
+				
+					NMD_X86_REG reg = _nmd_parse_reg(&ai->s);
+				
+					nmd_x86_modrm modrm;
+					modrm.fields.mod = 0;
+					modrm.fields.reg = (reg - 1) % 8;
+					modrm.fields.rm = (memory_operand.base - 1) % 8;
+				
+					ai->b[offset++] = modrm.modrm;
+				
+					return offset;
+				}
+				*/
 			}
 			else if (_nmd_strstr(ai->s, "al,") == ai->s) /* column 04 / 0C */
 			{
