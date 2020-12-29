@@ -405,11 +405,11 @@ typedef enum NMD_X86_REG
 	NMD_X86_REG_EDI,
 
 	NMD_X86_REG_RAX,
-	NMD_X86_REG_RBX,
 	NMD_X86_REG_RCX,
 	NMD_X86_REG_RDX,
-	NMD_X86_REG_RBP,
+	NMD_X86_REG_RBX,
 	NMD_X86_REG_RSP,
+	NMD_X86_REG_RBP,
 	NMD_X86_REG_RSI,
 	NMD_X86_REG_RDI,
 
@@ -606,6 +606,10 @@ typedef enum NMD_X86_REG
 	NMD_X86_REG_ZMM29,
 	NMD_X86_REG_ZMM30,
 	NMD_X86_REG_ZMM31,
+
+	NMD_X86_REG_IP,
+	NMD_X86_REG_EIP,
+	NMD_X86_REG_RIP
 } NMD_X86_REG;
 
 enum NMD_GROUP {
@@ -2261,21 +2265,21 @@ enum NMD_X86_OPERAND_ACTION
 {
 	NMD_X86_OPERAND_ACTION_NONE = 0, /* The operand is neither read from nor written to. */
 
-	NMD_X86_OPERAND_ACTION_READ              = (1 << 0), /* The operand is read. */
-	NMD_X86_OPERAND_ACTION_WRITE             = (1 << 1), /* The operand is modified. */
-	NMD_X86_OPERAND_ACTION_CONDITIONAL_READ  = (1 << 2), /* The operand may be read depending on some condition. */
-	NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE = (1 << 3), /* The operand may be modified depending on some condition. */
+	NMD_X86_OPERAND_ACTION_READ      = (1 << 0), /* The operand is read. */
+	NMD_X86_OPERAND_ACTION_WRITE     = (1 << 1), /* The operand is modified. */
+	NMD_X86_OPERAND_ACTION_CONDREAD  = (1 << 2), /* The operand may be read depending on some condition(conditional read). */
+	NMD_X86_OPERAND_ACTION_CONDWRITE = (1 << 3), /* The operand may be modified depending on some condition(conditional write). */
 
 	/* These are not actual actions, but rather masks of actions. */
-	NMD_X86_OPERAND_ACTION_READ_WRITE = (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_WRITE),
-	NMD_X86_OPERAND_ACTION_ANY_READ   = (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_CONDITIONAL_READ),
-	NMD_X86_OPERAND_ACTION_ANY_WRITE  = (NMD_X86_OPERAND_ACTION_WRITE | NMD_X86_OPERAND_ACTION_CONDITIONAL_WRITE)
+	NMD_X86_OPERAND_ACTION_READWRITE = (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_WRITE),
+	NMD_X86_OPERAND_ACTION_ANY_READ  = (NMD_X86_OPERAND_ACTION_READ | NMD_X86_OPERAND_ACTION_CONDREAD),
+	NMD_X86_OPERAND_ACTION_ANY_WRITE = (NMD_X86_OPERAND_ACTION_WRITE | NMD_X86_OPERAND_ACTION_CONDWRITE)
 };
 
 typedef struct nmd_x86_operand
 {
 	uint8_t type;                  /* The operand's type. A member of 'NMD_X86_OPERAND_TYPE'. */
-	uint8_t size;                  /* The operand's size in bytes. */
+	/* uint8_t size;               /* The operand's size. (I don't really know what this `size` variable represents or how it would be useful) */
 	bool is_implicit;              /* If true, the operand does not appear on the intruction's formatted form. */
 	uint8_t action;                /* The action on the operand. A member of 'NMD_X86_OPERAND_ACTION'. */
 	union {                        /* The operand's "raw" data. */
@@ -2337,7 +2341,7 @@ typedef union nmd_x86_cpu_flags
 		uint8_t TOP : 3; /* Bit 11-13. Top of Stack Pointer (TOP) */
 		uint8_t C3  : 1; /* Bit 14.    Condition code 3 (C3) */
 		uint8_t B   : 1; /* Bit 15.    FPU Busy (B) */
-	} fpuFields;
+	} fpu_fields;
 	uint8_t l8;
 	uint32_t eflags;
 	uint16_t fpu_flags;
@@ -2388,7 +2392,7 @@ typedef struct nmd_x86_instruction
 	uint16_t prefixes;                                      /* A mask of prefixes. See 'NMD_X86_PREFIXES'. */
 	uint8_t num_prefixes;                                   /* Number of prefixes. */
 	uint8_t num_operands;                                   /* The number of operands. */
-	uint8_t group;                                          /* The instruction's group(e.g. jmp, prvileged...). A member of 'NMD_X86_GROUP'. */
+	uint8_t group;                                          /* The instruction's group(e.g. jmp, prvileged...). A member of 'NMD_GROUP'. */
 	uint8_t buffer[NMD_X86_MAXIMUM_INSTRUCTION_LENGTH];     /* A buffer containing the full instruction. */
 	nmd_x86_operand operands[NMD_X86_MAXIMUM_NUM_OPERANDS]; /* Operands. */
 	nmd_x86_modrm modrm;                                    /* The Mod/RM byte. Check 'flags.fields.has_modrm'. */
@@ -2562,7 +2566,7 @@ Parameters:
  - buffer_size     [in]         The size of the buffer in bytes.
  - runtime_address [in]         The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
  - mode            [in]         The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
- - count           [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be null.
+ - count           [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed, and on output the number of instructions parsed. This parameter may be null.
 */
 NMD_ASSEMBLY_API size_t nmd_x86_assemble(const char* string, void* buffer, size_t buffer_size, uint64_t runtime_address, NMD_X86_MODE mode, size_t* count);
 

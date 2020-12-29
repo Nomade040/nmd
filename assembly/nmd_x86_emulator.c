@@ -549,7 +549,7 @@ NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count)
 		{
 
 		}
-		else /* if (instruction.opcode_map == NMD_X86_OPCODE_MAP_0F_38) */
+		else /* if (instruction.opcode_map == NMD_X86_OPCODE_MAP_0F_3A) */
 		{
 
 		}
