@@ -16,6 +16,12 @@
 #define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? c + 0x20 : c)
 #define _NMD_IS_DECIMAL_NUMBER(c) (c >= '0' && c <= '9')
 
+#define _NMD_SET_REG_OPERAND(operand, _is_implicit, _action, _reg) {operand.type = NMD_X86_OPERAND_TYPE_REGISTER; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.reg = _reg;}
+#define _NMD_SET_IMM_OPERAND(operand, _is_implicit, _action, _imm) {operand.type = NMD_X86_OPERAND_TYPE_IMMEDIATE; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.imm = _imm;}
+#define _NMD_SET_MEM_OPERAND(operand, _is_implicit, _action, _segment, _base, _index, _scale, _disp) {operand.type = NMD_X86_OPERAND_TYPE_MEMORY; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.mem.segment = _segment; operand.fields.mem.base = _base; operand.fields.mem.index = _index; operand.fields.mem.scale = _scale; operand.fields.mem.disp = _disp;}
+#define _NMD_GET_GPR(reg) (reg + (instruction->mode>>2)*8) /* reg(16),reg(32),reg(64). e.g. ax,eax,rax */
+#define _NMD_GET_IP() (NMD_X86_REG_IP + (instruction->mode>>2)) /* ip,eip,rip */
+
 NMD_ASSEMBLY_API const char* const _nmd_reg8[8];
 NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[8];
 NMD_ASSEMBLY_API const char* const _nmd_reg16[8];

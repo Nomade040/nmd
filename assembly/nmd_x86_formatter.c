@@ -109,7 +109,7 @@ NMD_ASSEMBLY_API void _nmd_append_relative_address16_32(_nmd_string_info* const 
 	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
-		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), false);
+		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
 	}
 	else
 		_nmd_append_number(si, ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == NMD_X86_MODE_64 ?
@@ -578,7 +578,10 @@ Parameters:
 NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags)
 {
 	if (!instruction->valid)
+	{
+		buffer[0] = '\0';
 		return;
+	}
 
 	_nmd_string_info si;
 	si.buffer = buffer;
@@ -1137,7 +1140,7 @@ NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, cha
 				}
 				else if (op == 0xca)
 				{
-					_nmd_append_string(&si, "ret far");
+					_nmd_append_string(&si, "retf ");
 					_nmd_append_number(&si, instruction->immediate);
 				}
 				else if (op == 0xcd)
