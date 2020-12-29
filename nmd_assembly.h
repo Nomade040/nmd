@@ -5648,6 +5648,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 		if (flags & NMD_X86_DECODER_FLAGS_EVEX && op == 0x62 && !instruction->has_modrm)
 		{
 			instruction->encoding = NMD_X86_ENCODING_EVEX;
+			return false;
 		}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_EVEX */
 #if !defined(NMD_ASSEMBLY_DISABLE_DECODER_EVEX) && !defined(NMD_ASSEMBLY_DISABLE_DECODER_VEX)
