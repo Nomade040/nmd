@@ -214,7 +214,7 @@ typedef unsigned long long uint64_t;
 
 #define NMD_X86_INVALID_RUNTIME_ADDRESS -1
 #define NMD_X86_MAXIMUM_INSTRUCTION_LENGTH 15
-#define NMD_X86_MAXIMUM_NUM_OPERANDS 4
+#define NMD_X86_MAXIMUM_NUM_OPERANDS 10
 
 /* Define the api macro to potentially change functions's attributes. */
 #ifndef NMD_ASSEMBLY_API

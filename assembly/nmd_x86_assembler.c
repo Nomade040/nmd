@@ -290,6 +290,18 @@ NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_reg8(const char** string)
 	return NMD_X86_REG_NONE;
 }
 
+NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_regrxb(const char** string)
+{
+	const char* s = *string;
+	size_t i;
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_regrxb); i++)
+	{
+		if (_nmd_strstr_ex(s, _nmd_regrxb[i], string) == s)
+			return (NMD_X86_REG)(NMD_X86_REG_R8B + i);
+	}
+	return NMD_X86_REG_NONE;
+}
+
 /* Parses a register */
 NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_reg(const char** string)
 {
@@ -588,9 +600,46 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 	/* Parse opcodes */
 	if (ai->mode == NMD_X86_MODE_64) /* Only x86-64. */
 	{
-		if (_nmd_strstr(ai->s, "add ") == ai->s)
+		if (_nmd_strstr(ai->s, "mov "))
 		{
-			
+			const char* s = ai->s + 4;
+			const NMD_X86_REG reg = _nmd_parse_regrxb(&s);
+			if (reg)
+			{
+				ai->b[0] = 0x41;
+				ai->b[1] = 0xb0 + (reg - NMD_X86_REG_R8B);
+
+				if (*s++ != ',')
+					return 0;
+
+				int64_t num = 0;
+				size_t num_digits;
+				if (_nmd_parse_number(s, &num, &num_digits))
+				{
+					ai->b[2] = num;
+					return 3;
+				}
+			}
+		}
+		else if (_nmd_strstr(ai->s, "add ") == ai->s)
+		{
+			ai->s += 4;
+			const NMD_X86_REG reg = _nmd_parse_reg8(&ai->s);
+			if(reg)
+			{
+				ai->b[0] = 0xb0 + (reg - NMD_X86_REG_AL);
+
+				if (*ai->s++ != ',')
+					return 0;
+
+				int64_t num = 0;
+				size_t num_digits;
+				if (_nmd_parse_number(ai->s, &num, &num_digits))
+				{
+					ai->b[1] = num;
+					return 2;
+				}
+			}
 		}
 		else if (_nmd_strcmp(ai->s, "xchg r8,rax") || _nmd_strcmp(ai->s, "xchg rax,r8"))
 		{
@@ -637,25 +686,59 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 	{
 		if (_nmd_strcmp(ai->s, "pushad"))
 		{
-			ai->b[0] = 0x60;
-			return 1;
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x60;
+				return 2;
+			}
+			else
+			{
+				ai->b[0] = 0x60;
+				return 1;
+			}
 		}
 		else if (_nmd_strcmp(ai->s, "pusha"))
 		{
-			ai->b[0] = 0x66;
-			ai->b[1] = 0x60;
-			return 2;
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = 0x60;
+				return 1;
+			}
+			else
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x60;
+				return 2;
+			}
 		}
 		else if (_nmd_strcmp(ai->s, "popad"))
 		{
-			ai->b[0] = 0x61;
-			return 1;
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x61;
+				return 2;
+			}
+			else
+			{
+				ai->b[0] = 0x61;
+				return 1;
+			}
 		}
 		else if (_nmd_strcmp(ai->s, "popa"))
 		{
-			ai->b[0] = 0x66;
-			ai->b[1] = 0x62;
-			return 2;
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = 0x61;
+				return 1;
+			}
+			else
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x61;
+				return 2;
+			}
 		}
 		else if (_nmd_strcmp(ai->s, "pushfd"))
 		{
@@ -1086,7 +1169,6 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				ai->b[1] = num;
 				return 2;
 			}
-
 		}
 	}
 
