@@ -5326,7 +5326,16 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 				else if (op == 0xa4 || op == 0xa5 || op == 0xc2 || (op >= 0xc4 && op <= 0xc6))
 					instruction->num_operands = 3;
 
-				if (op == 0xa0 || op == 0xa8) /* push fs,push gs */
+				if (op == 0x05 || op == 0x07) /* syscall,sysret */
+				{
+					instruction->num_operands = 5;
+					_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_WRITE, _NMD_GET_IP());
+					_NMD_SET_REG_OPERAND(instruction->operands[1], true, op == 0x05 ? NMD_X86_OPERAND_ACTION_WRITE : NMD_X86_OPERAND_ACTION_READ, NMD_X86_REG_RCX);
+					_NMD_SET_REG_OPERAND(instruction->operands[2], true, op == 0x05 ? NMD_X86_OPERAND_ACTION_WRITE : NMD_X86_OPERAND_ACTION_READ, NMD_X86_REG_R11);
+					_NMD_SET_REG_OPERAND(instruction->operands[3], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_CS);
+					_NMD_SET_REG_OPERAND(instruction->operands[4], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_SS);
+				}
+				else if (op == 0xa0 || op == 0xa8) /* push fs,push gs */
 				{
 					instruction->num_operands = 3;
 					_NMD_SET_REG_OPERAND(instruction->operands[0], false, NMD_X86_OPERAND_ACTION_READ, op == 0xa0 ? NMD_X86_REG_FS : NMD_X86_REG_GS);
