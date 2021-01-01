@@ -882,7 +882,7 @@ NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, cha
 				else if (_NMD_R(op) == 4 || _NMD_R(op) == 5) /* inc,dec,push,pop [0x40, 0x5f] */
 				{
 					_nmd_append_string(&si, _NMD_C(op) < 8 ? (_NMD_R(op) == 4 ? "inc " : "push ") : (_NMD_R(op) == 4 ? "dec " : "pop "));
-					_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? _nmd_regrx : (instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) ? _nmd_reg64 : (opszprfx ? _nmd_reg16 : _nmd_reg32)))[op % 8]);
+					_nmd_append_string(&si, (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? (opszprfx ? _nmd_regrxw : _nmd_regrx) : (opszprfx ? (instruction->mode == NMD_X86_MODE_16 ? _nmd_reg32 : _nmd_reg16) : ((instruction->mode == NMD_X86_MODE_32 ? _nmd_reg32 : (instruction->mode == NMD_X86_MODE_64 ? _nmd_reg64 : _nmd_reg16)))))[op % 8]);
 				}
 				else if (op >= 0x80 && op < 0x84) /* add,adc,and,xor,or,sbb,sub,cmp [80,83] */
 				{

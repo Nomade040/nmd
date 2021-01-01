@@ -89,6 +89,7 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 	size_t i;
 	const char* s = string;
 	bool is_negative = false;
+	bool force_positive = false;
 	bool h_suffix = false;
 
 	if (s[0] == '-')
@@ -97,7 +98,10 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 		s++;
 	}
 	else if (s[0] == '+')
+	{
+		force_positive = true;
 		s++;
+	}
 
 	if (s[0] == '0')
 	{
@@ -173,12 +177,17 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 
 	if (p_len)
 	{
-		if (s != string) /* There's either a "0x" or "0b" prefix. */
-			*p_len = num_digits + 2;
-		else if (h_suffix)
-			*p_len = num_digits + 1;
-		else
-			*p_len = num_digits;
+		size_t offset = 0;
+
+		if (is_negative || force_positive)
+			offset += 1;
+
+		if (h_suffix)
+			offset += 1;
+		else if (base == _NMD_NUMBER_BASE_HEXADECIMAL || base == _NMD_NUMBER_BASE_BINARY) /* 0x / 0b*/
+			offset += 2;
+		
+		*p_len = offset + num_digits;
 	}
 
 	return true;
@@ -278,6 +287,42 @@ NMD_ASSEMBLY_API size_t _nmd_append_prefix_by_reg_size(uint8_t* b, const char* s
 	return 0;
 }
 
+NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_reg16(const char** string)
+{
+	const char* s = *string;
+	size_t i;
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg16); i++)
+	{
+		if (_nmd_strstr_ex(s, _nmd_reg16[i], string) == s)
+			return (NMD_X86_REG)(NMD_X86_REG_AX + i);
+	}
+	return NMD_X86_REG_NONE;
+}
+
+NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_reg64(const char** string)
+{
+	const char* s = *string;
+	size_t i;
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg64); i++)
+	{
+		if (_nmd_strstr_ex(s, _nmd_reg64[i], string) == s)
+			return (NMD_X86_REG)(NMD_X86_REG_RAX + i);
+	}
+	return NMD_X86_REG_NONE;
+}
+
+NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_reg32(const char** string)
+{
+	const char* s = *string;
+	size_t i;
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_reg32); i++)
+	{
+		if (_nmd_strstr_ex(s, _nmd_reg32[i], string) == s)
+			return (NMD_X86_REG)(NMD_X86_REG_EAX + i);
+	}
+	return NMD_X86_REG_NONE;
+}
+
 NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_reg8(const char** string)
 {
 	const char* s = *string;
@@ -290,6 +335,18 @@ NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_reg8(const char** string)
 	return NMD_X86_REG_NONE;
 }
 
+NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_regrx(const char** string)
+{
+	const char* s = *string;
+	size_t i;
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_regrx); i++)
+	{
+		if (_nmd_strstr_ex(s, _nmd_regrx[i], string) == s)
+			return (NMD_X86_REG)(NMD_X86_REG_R8 + i);
+	}
+	return NMD_X86_REG_NONE;
+}
+
 NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_regrxb(const char** string)
 {
 	const char* s = *string;
@@ -298,6 +355,18 @@ NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_regrxb(const char** string)
 	{
 		if (_nmd_strstr_ex(s, _nmd_regrxb[i], string) == s)
 			return (NMD_X86_REG)(NMD_X86_REG_R8B + i);
+	}
+	return NMD_X86_REG_NONE;
+}
+
+NMD_ASSEMBLY_API NMD_X86_REG _nmd_parse_regrxw(const char** string)
+{
+	const char* s = *string;
+	size_t i;
+	for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_regrxw); i++)
+	{
+		if (_nmd_strstr_ex(s, _nmd_regrxw[i], string) == s)
+			return (NMD_X86_REG)(NMD_X86_REG_R8W + i);
 	}
 	return NMD_X86_REG_NONE;
 }
@@ -621,13 +690,37 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				}
 			}
 		}
+		else if (_nmd_strstr(ai->s, "push ") == ai->s || _nmd_strstr(ai->s, "pop ") == ai->s)
+		{
+			const bool is_push = ai->s[1] == 'u';
+			const char* s = ai->s + (is_push ? 5 : 4);
+			NMD_X86_REG reg;
+			if (((reg = _nmd_parse_reg64(&s))) && !*s)
+			{
+				ai->b[0] = (is_push ? 0x50 : 0x58) + reg % 8;
+				return 1;
+			}
+			else if ((reg = _nmd_parse_regrxw(&s)) && !*s)
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = 0x41;
+				ai->b[2] = (is_push ? 0x50 : 0x58) + reg % 8;
+				return 3;
+			}
+			else if (((reg = _nmd_parse_regrx(&s))) && !*s)
+			{
+				ai->b[0] = 0x41;
+				ai->b[1] = (is_push ? 0x50 : 0x58) + reg % 8;
+				return 2;
+			}
+		}
 		else if (_nmd_strstr(ai->s, "add ") == ai->s)
 		{
 			ai->s += 4;
 			const NMD_X86_REG reg = _nmd_parse_reg8(&ai->s);
 			if(reg)
 			{
-				ai->b[0] = 0xb0 + (reg - NMD_X86_REG_AL);
+				ai->b[0] = 0xb0 + reg % 8;
 
 				if (*ai->s++ != ',')
 					return 0;
@@ -684,7 +777,27 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 	}
 	else /* x86-16 / x86-32 */
 	{
-		if (_nmd_strcmp(ai->s, "pushad"))
+		if (_nmd_strstr(ai->s, "push ") == ai->s || _nmd_strstr(ai->s, "pop ") == ai->s)
+		{
+			const bool is_push = ai->s[1] == 'u';
+			const char* s = ai->s + (is_push ? 5 : 4);
+			NMD_X86_REG reg;
+			if (((reg = _nmd_parse_reg32(&s))) && !*s)
+			{
+				if (ai->mode == NMD_X86_MODE_16)
+				{
+					ai->b[0] = 0x66;
+					ai->b[1] = (is_push ? 0x50 : 0x58) + reg % 8;
+					return 2;
+				}
+				else
+				{
+					ai->b[0] = (is_push ? 0x50 : 0x58) + reg % 8;
+					return 1;
+				}
+			}
+		}
+		else if (_nmd_strcmp(ai->s, "pushad"))
 		{
 			if (ai->mode == NMD_X86_MODE_16)
 			{
@@ -1119,13 +1232,30 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			return 5;
 		}
 	}
-	else if (_nmd_strstr(ai->s, "push ") == ai->s)
+	else if (_nmd_strstr(ai->s, "push ") == ai->s || _nmd_strstr(ai->s, "pop ") == ai->s)
 	{
+		const bool is_push = ai->s[1] == 'u';
+		ai->s += is_push ? 5 : 4;
 		size_t num_digits = 0;
 		int64_t num = 0;
-		if (_nmd_parse_number(ai->s + 5, &num, &num_digits))
+		NMD_X86_REG reg;
+		if (reg = _nmd_parse_reg16(&ai->s))
 		{
-			if (*(ai->s + num_digits) != '\0' || !(num >= -(1 << 31) && num <= ((int64_t)1 << 31) - 1))
+			if (ai->mode == NMD_X86_MODE_16)
+			{
+				ai->b[0] = (is_push ? 0x50 : 0x58) + reg % 8;
+				return 1;
+			}
+			else
+			{
+				ai->b[0] = 0x66;
+				ai->b[1] = (is_push ? 0x50 : 0x58) + reg % 8;
+				return 2;
+			}
+		}
+		else if (is_push && _nmd_parse_number(ai->s, &num, &num_digits))
+		{
+			if (*(ai->s + num_digits) != '\0' || !(num >= -(1 << 31) && num <= ((int64_t)1 << 32) - 1))
 				return 0;
 
 			if (num >= -(1 << 7) && num <= (1 << 7) - 1)
@@ -1136,20 +1266,30 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			}
 			else
 			{
-				ai->b[0] = 0x68;
-				*(int32_t*)(ai->b + 1) = (int32_t)num;
-				return 5;
+				if (ai->mode == NMD_X86_MODE_16)
+				{
+					if (num > 0xffff)
+					{
+						ai->b[0] = 0x66;
+						ai->b[1] = 0x68;
+						*(int32_t*)(ai->b + 2) = (int32_t)num;
+						return 6;
+					}
+					else
+					{
+						ai->b[0] = 0x68;
+						*(int16_t*)(ai->b + 1) = (int16_t)num;
+						return 3;
+					}
+				}
+				else
+				{
+					ai->b[0] = 0x68;
+					*(int32_t*)(ai->b + 1) = (int32_t)num;
+					return 5;
+				}
 			}
 		}
-
-		size_t n = _nmd_assemble_reg(ai, 0x50);
-		if (n > 0)
-			return n;
-	}
-	else if (_nmd_strstr(ai->s, "pop ") == ai->s)
-	{
-		ai->s += 3;
-		return _nmd_assemble_reg(ai, 0x58);
 	}
 	else if (_nmd_strstr(ai->s, "mov ") == ai->s)
 	{
@@ -1171,7 +1311,6 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			}
 		}
 	}
-
 	else if (_nmd_strstr(ai->s, "ret ") == ai->s || _nmd_strstr(ai->s, "retf ") == ai->s)
 	{
 		const bool far = ai->s[3] == 'f';
