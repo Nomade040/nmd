@@ -5248,6 +5248,10 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					instruction->cleared_flags.eflags = op == 0x05 ? NMD_X86_EFLAGS_VM | NMD_X86_EFLAGS_RF : NMD_X86_EFLAGS_RF;
 					instruction->modified_flags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_PF | NMD_X86_EFLAGS_AF | NMD_X86_EFLAGS_ZF | NMD_X86_EFLAGS_SF | NMD_X86_EFLAGS_TF | NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_DF | NMD_X86_EFLAGS_OF | NMD_X86_EFLAGS_IOPL | NMD_X86_EFLAGS_NT | NMD_X86_EFLAGS_AC | NMD_X86_EFLAGS_VIF | NMD_X86_EFLAGS_VIP | NMD_X86_EFLAGS_ID;
 				}
+				else if (op == 0x34) /* sysenter */
+				{
+					instruction->cleared_flags.eflags = NMD_X86_EFLAGS_IF | NMD_X86_EFLAGS_RF | NMD_X86_EFLAGS_VM;
+				}
 				else if (op == 0xaf) /* mul */
 				{
 					instruction->modified_flags.eflags = NMD_X86_EFLAGS_CF | NMD_X86_EFLAGS_OF;
@@ -5310,10 +5314,8 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 			{
 				if (_NMD_R(op) == 8)
 					instruction->group = NMD_GROUP_JUMP | NMD_GROUP_CONDITIONAL_BRANCH | NMD_GROUP_RELATIVE_ADDRESSING;
-				else if ((op == 0x01 && modrm.fields.rm == 0b111 && (modrm.fields.mod == 0b00 || modrm.modrm == 0xf8)) || op == 0x06 || op == 0x08 || op == 0x09 || op == 0x30 || op == 0x32 || op == 0x33)
+				else if ((op == 0x01 && modrm.fields.rm == 0b111 && (modrm.fields.mod == 0b00 || modrm.modrm == 0xf8)) || op == 0x06 || op == 0x08 || op == 0x09 || op == 0x30 || op == 0x32 || op == 0x33 || op == 0x35)
 					instruction->group = NMD_GROUP_PRIVILEGE;
-				else if (op == 0x05)
-					instruction->group = NMD_GROUP_INT;
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_GROUP */
 
@@ -5335,6 +5337,17 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					_NMD_SET_REG_OPERAND(instruction->operands[2], true, op == 0x05 ? NMD_X86_OPERAND_ACTION_WRITE : NMD_X86_OPERAND_ACTION_READ, NMD_X86_REG_R11);
 					_NMD_SET_REG_OPERAND(instruction->operands[3], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_CS);
 					_NMD_SET_REG_OPERAND(instruction->operands[4], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_SS);
+				}
+				else if (op == 0x34 || op == 0x35) /* sysenter,sysexit */
+				{
+					instruction->num_operands = op == 0x34 ? 2 : 4;
+					_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_WRITE, _NMD_GET_IP());
+					_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_WRITE, _NMD_GET_GPR(NMD_X86_REG_SP));
+					if (op == 0x35)
+					{
+						_NMD_SET_REG_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_READ, _NMD_GET_GPR(NMD_X86_REG_CX));
+						_NMD_SET_REG_OPERAND(instruction->operands[3], true, NMD_X86_OPERAND_ACTION_READ, _NMD_GET_GPR(NMD_X86_REG_DX));
+					}
 				}
 				else if (op == 0xa0 || op == 0xa8) /* push fs,push gs */
 				{
