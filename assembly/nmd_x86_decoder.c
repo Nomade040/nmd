@@ -1018,7 +1018,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 			{
 				if (_NMD_R(op) == 8)
 					instruction->group = NMD_GROUP_JUMP | NMD_GROUP_CONDITIONAL_BRANCH | NMD_GROUP_RELATIVE_ADDRESSING;
-				else if ((op == 0x01 && modrm.fields.rm == 0b111 && (modrm.fields.mod == 0b00 || modrm.modrm == 0xf8)) || op == 0x06 || op == 0x08 || op == 0x09)
+				else if ((op == 0x01 && modrm.fields.rm == 0b111 && (modrm.fields.mod == 0b00 || modrm.modrm == 0xf8)) || op == 0x06 || op == 0x08 || op == 0x09 || op == 0x30 || op == 0x32)
 					instruction->group = NMD_GROUP_PRIVILEGE;
 				else if (op == 0x05)
 					instruction->group = NMD_GROUP_INT;
@@ -1050,6 +1050,13 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					_NMD_SET_REG_OPERAND(instruction->operands[0], false, NMD_X86_OPERAND_ACTION_READ, op == 0xa0 ? NMD_X86_REG_FS : NMD_X86_REG_GS);
 					_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_GPR(NMD_X86_REG_SP));
 					_NMD_SET_MEM_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_SS, _NMD_GET_GPR(NMD_X86_REG_SP), NMD_X86_REG_NONE, 0, 0);
+				}
+				else if (op == 0x30 || op == 0x32) /* wrmsr,rdmsr */
+				{
+					instruction->num_operands = 3;
+					_NMD_SET_REG_OPERAND(instruction->operands[0], true, op == 0x30 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_EAX);
+					_NMD_SET_REG_OPERAND(instruction->operands[1], true, op == 0x30 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_EDX);
+					_NMD_SET_REG_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_READ, NMD_X86_REG_ECX);
 				}
 				else if (op == 0xa1 || op == 0xa9) /* pop fs,pop gs */
 				{
