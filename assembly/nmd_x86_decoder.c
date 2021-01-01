@@ -1030,7 +1030,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS
 			if (flags & NMD_X86_DECODER_FLAGS_OPERANDS)
 			{
-				if (op == 0x2 || op == 0x3 || (op >= 0x10 && op <= 0x17) || _NMD_R(op) == 2 || (_NMD_R(op) >= 4 && _NMD_R(op) <= 7) || op == 0xa3 || op == 0xab || op == 0xaf || (_NMD_R(op) >= 0xc && op != 0xc7 && op != 0xff))
+				if (op == 0x2 || op == 0x3 || (op >= 0x10 && op <= 0x17) || _NMD_R(op) == 2 || (_NMD_R(op) >= 4 && _NMD_R(op) <= 7 && op != 0x77) || op == 0xa3 || op == 0xab || op == 0xaf || (_NMD_R(op) >= 0xc && op != 0xc7 && op != 0xff))
 					instruction->num_operands = 2;
 				else if (_NMD_R(op) == 8 || _NMD_R(op) == 9 || op == 0xc7)
 					instruction->num_operands = 1;
@@ -1062,6 +1062,14 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					instruction->num_operands = 2;
 					_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_EAX);
 					_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_EDX);
+				}
+				else if (op == 0xa2) /* cpuid */
+				{
+					instruction->num_operands = 4;
+					_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_READWRITE, NMD_X86_REG_EAX);
+					_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_EBX);
+					_NMD_SET_REG_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_WRITE | NMD_X86_OPERAND_ACTION_CONDREAD, NMD_X86_REG_ECX);
+					_NMD_SET_REG_OPERAND(instruction->operands[3], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_EDX);
 				}
 				else if (op == 0xa0 || op == 0xa8) /* push fs,push gs */
 				{
