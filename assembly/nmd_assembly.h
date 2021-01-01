@@ -373,11 +373,16 @@ typedef struct nmd_x86_vex
 	uint8_t vex[3]; /* The full vex prefix. vex[0] is either C4h(3-byte VEX) or C5h(2-byte VEX).*/
 } nmd_x86_vex;
 
+/* The enums for a some classes of registers always start at a multiple of eight */
 typedef enum NMD_X86_REG
 {
 	NMD_X86_REG_NONE = 0,
 
-	NMD_X86_REG_AL,
+	NMD_X86_REG_IP = 8,
+	NMD_X86_REG_EIP,
+	NMD_X86_REG_RIP,
+
+	NMD_X86_REG_AL = 16,
 	NMD_X86_REG_CL,
 	NMD_X86_REG_DL,
 	NMD_X86_REG_BL,
@@ -430,6 +435,15 @@ typedef enum NMD_X86_REG
 	NMD_X86_REG_R13B,
 	NMD_X86_REG_R14B,
 	NMD_X86_REG_R15B,
+
+	NMD_X86_REG_R8W,
+	NMD_X86_REG_R9W,
+	NMD_X86_REG_R10W,
+	NMD_X86_REG_R11W,
+	NMD_X86_REG_R12W,
+	NMD_X86_REG_R13W,
+	NMD_X86_REG_R14W,
+	NMD_X86_REG_R15W,
 
 	NMD_X86_REG_R8D,
 	NMD_X86_REG_R9D,
@@ -606,10 +620,6 @@ typedef enum NMD_X86_REG
 	NMD_X86_REG_ZMM29,
 	NMD_X86_REG_ZMM30,
 	NMD_X86_REG_ZMM31,
-
-	NMD_X86_REG_IP,
-	NMD_X86_REG_EIP,
-	NMD_X86_REG_RIP
 } NMD_X86_REG;
 
 enum NMD_GROUP {
