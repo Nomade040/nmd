@@ -4188,13 +4188,13 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 	}
 	else if (_nmd_strstr(ai->s, "ret ") == ai->s || _nmd_strstr(ai->s, "retf ") == ai->s)
 	{
-		const bool far = ai->s[3] == 'f';
-		ai->s += far ? 5 : 4;
+		const bool is_far = ai->s[3] == 'f';
+		ai->s += is_far ? 5 : 4;
 		int64_t num = 0;
 		size_t num_digits;
 		if (_nmd_parse_number(ai->s, &num, &num_digits) && ai->s[num_digits] == '\0')
 		{
-			ai->b[0] = far ? 0xca : 0xc2;
+			ai->b[0] = is_far ? 0xca : 0xc2;
 			*(uint16_t*)(ai->b + 1) = (uint16_t)num;
 			return 3;
 		}
