@@ -1,4 +1,4 @@
-/* This is a platform independent C89 x86 assembler(in development), disassembler(almost done), emulator(in development) and length disassembler library.
+/* This is a platform independent C89 x86 assembler and disassembler library.
 
 Features:
  - Support for x86(16/32/64). Intel and AT&T syntax.
@@ -41,21 +41,6 @@ Interfaces(i.e the functions you call from your application):
        - runtime_address [in]  The instruction's runtime address. You may use 'NMD_X86_INVALID_RUNTIME_ADDRESS'.
        - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
       void nmd_x86_format(const nmd_x86_instruction* instruction, char buffer[], uint64_t runtime_address, uint32_t flags);
-
- - The emulator is represented by the following function:
-    Emulates x86 code according to the state of the cpu. You MUST initialize the following variables before calling this
-    function: 'cpu->mode', 'cpu->physical_memory', 'cpu->physical_memory_size', 'cpu->virtual_address' and 'cpu->rip'.
-    You may optionally initialize 'cpu->rsp' if a stack is desirable. Below is a short description of each variable:
-     - 'cpu->mode': The emulator's operating architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
-     - 'cpu->physical_memory': A pointer to a buffer used as the emulator's memory.
-     - 'cpu->physical_memory_size': The size of the 'physical_memory' buffer in bytes.
-     - 'cpu->virtual_address': The starting address of the emulator's virtual address space.
-     - 'cpu->rip': The virtual address where emulation starts.
-     - 'cpu->rsp': The virtual address of the bottom of the stack.
-    Parameters:
-     - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
-     - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
-    bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count);
 
  - The length disassembler is represented by the following function:
     Returns the length of the instruction if it is valid, zero otherwise.
@@ -125,7 +110,7 @@ Conventions:
 TODO:
  Short-Term
   - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
-  - Implement x86 assembler and emulator.
+  - Implement x86 assembler
  Long-Term
   - Add support for other architectures(ARM, MIPS and PowerPC ?).
 
@@ -141,6 +126,7 @@ References:
  - Capstone Engine.
  - Zydis Disassembler.
  - VIA PadLock Programming Guide.
+ - Control registers - Wikipedia.
 
 Contributors(This may not be a complete list):
  - Nomade: Founder and maintainer.
@@ -357,7 +343,7 @@ enum NMD_X86_ENCODING
 	NMD_X86_ENCODING_EVEX,    /* Intel's EVEX(Enhanced vector extension) coding scheme. */
 	NMD_X86_ENCODING_3DNOW,   /* AMD's 3DNow! extension. */
 	NMD_X86_ENCODING_XOP,     /* AMD's XOP(eXtended Operations) instruction set. */
-	/* NMD_X86_ENCODING_MVEX,     MVEX used by Intel's "Xeon Phi" ISA. */
+	/* NMD_X86_ENCODING_MVEX,    MVEX used by Intel's "Xeon Phi" ISA. */
 };
 
 typedef struct nmd_x86_vex
@@ -691,9 +677,9 @@ enum NMD_X86_INSTRUCTION
 	NMD_X86_INSTRUCTION_JO,
 	NMD_X86_INSTRUCTION_JNO,
 	NMD_X86_INSTRUCTION_JB,
-	NMD_X86_INSTRUCTION_JAE,
-	NMD_X86_INSTRUCTION_JE,
-	NMD_X86_INSTRUCTION_JNE,
+	NMD_X86_INSTRUCTION_JNB,
+	NMD_X86_INSTRUCTION_JZ,
+	NMD_X86_INSTRUCTION_JNZ,
 	NMD_X86_INSTRUCTION_JBE,
 	NMD_X86_INSTRUCTION_JA,
 	NMD_X86_INSTRUCTION_JS,
@@ -2424,36 +2410,6 @@ typedef struct nmd_x86_instruction
 	uint16_t simd_prefix;                                   /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
 } nmd_x86_instruction;
 
-typedef enum NMD_X86_EXCEPTION
-{
-	NMD_X86_EXCEPTION_DIVIDE                      = 0,  /* #DE - Divide-by-zero Error */
-	NMD_X86_EXCEPTION_DEBUG                       = 1,  /* #DB - Debug Exception */
-	NMD_X86_EXCEPTION_NMI                         = 2,  /*     - Non-maskable Interrupt */
-	NMD_X86_EXCEPTION_BREAKPOINT                  = 3,  /* #BP - Breakpoint */
-	NMD_X86_EXCEPTION_OVERFLOW                    = 4,  /* #OF - Overflow */
-	NMD_X86_EXCEPTION_BOUND_RANGE                 = 5,  /* #BR - BOUND Range Exceeded */
-	NMD_X86_EXCEPTION_INVALID_OPCODE              = 6,  /* #UD - Invalid Opcode (Undefined Opcode) */
-	NMD_X86_EXCEPTION_DEVICE_NOT_AVAILABLE        = 7,  /* #NM - Device Not Available (No Math Coprocessor) */
-	NMD_X86_EXCEPTION_DOUBLE_FAULT                = 8,  /* #DF - Double Fault */
-	NMD_X86_EXCEPTION_COPROCESSOR_SEGMENT_OVERRUN = 9,  /*     - Coprocessor Segment Overrun */
-	NMD_X86_EXCEPTION_INVALID_TSS                 = 10, /* #TS - Invalid TSS */
-	NMD_X86_EXCEPTION_SEGMENT_NOT_PRESENT         = 11, /* #NP - Segment Not Present */
-	NMD_X86_EXCEPTION_STACK_SEGMENT_FAULT         = 12, /* #SP - Stack-Segment Fault */
-	NMD_X86_EXCEPTION_GENERAL_PROTECTION          = 13, /* #GP - General Protection Fault */
-	NMD_X86_EXCEPTION_PAGE_FAULT                  = 14, /* #PF - Page Fault */
-	/* Reserved (15) */
-	NMD_X86_EXCEPTION_FLOATING_POINT              = 16, /* #MF - x87 Floating-Point Exception */
-	NMD_X86_EXCEPTION_ALIGNMENT_CHECK             = 17, /* #AC - Alignment Check */
-	NMD_X86_EXCEPTION_MACHINE_CHECK               = 18, /* #MC - Machine Check */
-	NMD_X86_EXCEPTION_SIMD_FLOATING_POINT         = 19, /* #XM/#XF - SIMD Floating-Point Exception */
-	NMD_X86_EXCEPTION_VIRTUALIZATION              = 20, /* #VE - Virtualization Exception */
-	/* Reserved (21-29) */
-	NMD_X86_EXCEPTION_SECURITY                    = 30, /* #SX - Security Exception */
-	/* Reserved (31) */
-
-	NMD_X86_EXCEPTION_TRIPLE_FAULT                = 256, /*    - Triple fault */
-} NMD_X86_EXCEPTION;
-
 typedef union nmd_x86_register
 {
 	int8_t  h8;
@@ -2469,104 +2425,6 @@ typedef union nmd_x86_register_512
 	uint64_t ymm0[4];
 	uint64_t zmm0[8];
 } nmd_x86_register_512;
-
-typedef struct nmd_x86_cpu
-{
-	bool running; /* If true, the emulator is running, false otherwise. */
-
-	uint8_t mode; /* The emulator's architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'. */
-
-	void* physical_memory; /* A pointer to a buffer used as the emulator's memory. */
-	size_t physical_memory_size; /* The size of the buffer pointer by 'physical_memory' in bytes. */
-
-	uint64_t virtual_address; /* The starting address of the emulator's virtual address space. This address can be any value. */
-
-	void (*interrupt_handler)(struct nmd_x86_cpu* cpu, const nmd_x86_instruction* instruction, NMD_X86_EXCEPTION exception);
-
-	void* user_data;
-
-	size_t count; /* Internal counter used by the emulator.*/
-
-	uint64_t rip; /* The address of the next instruction to be executed(emulated). */
-
-	nmd_x86_cpu_flags flags;
-
-	nmd_x86_register rax;
-	nmd_x86_register rcx;
-	nmd_x86_register rdx;
-	nmd_x86_register rbx;
-	nmd_x86_register rsp;
-	nmd_x86_register rbp;
-	nmd_x86_register rsi;
-	nmd_x86_register rdi;
-
-	nmd_x86_register r8;
-	nmd_x86_register r9;
-	nmd_x86_register r10;
-	nmd_x86_register r11;
-	nmd_x86_register r12;
-	nmd_x86_register r13;
-	nmd_x86_register r14;
-	nmd_x86_register r15;
-
-	uint16_t es;
-	uint16_t ss;
-	uint16_t cs;
-	uint16_t ds;
-	uint16_t fs;
-	uint16_t gs;
-
-	nmd_x86_register mm0;
-	nmd_x86_register mm1;
-	nmd_x86_register mm2;
-	nmd_x86_register mm3;
-	nmd_x86_register mm4;
-	nmd_x86_register mm5;
-	nmd_x86_register mm6;
-	nmd_x86_register mm7;
-
-	nmd_x86_register_512 zmm0;
-	nmd_x86_register_512 zmm1;
-	nmd_x86_register_512 zmm2;
-	nmd_x86_register_512 zmm3;
-	nmd_x86_register_512 zmm4;
-	nmd_x86_register_512 zmm5;
-	nmd_x86_register_512 zmm6;
-	nmd_x86_register_512 zmm7;
-	nmd_x86_register_512 zmm8;
-	nmd_x86_register_512 zmm9;
-	nmd_x86_register_512 zmm10;
-	nmd_x86_register_512 zmm11;
-	nmd_x86_register_512 zmm12;
-	nmd_x86_register_512 zmm13;
-	nmd_x86_register_512 zmm14;
-	nmd_x86_register_512 zmm15;
-	nmd_x86_register_512 zmm16;
-	nmd_x86_register_512 zmm17;
-	nmd_x86_register_512 zmm18;
-	nmd_x86_register_512 zmm19;
-	nmd_x86_register_512 zmm20;
-	nmd_x86_register_512 zmm21;
-	nmd_x86_register_512 zmm22;
-	nmd_x86_register_512 zmm23;
-	nmd_x86_register_512 zmm24;
-	nmd_x86_register_512 zmm25;
-	nmd_x86_register_512 zmm26;
-	nmd_x86_register_512 zmm27;
-	nmd_x86_register_512 zmm28;
-	nmd_x86_register_512 zmm29;
-	nmd_x86_register_512 zmm30;
-	nmd_x86_register_512 zmm31;
-
-	nmd_x86_register dr0;
-	nmd_x86_register dr1;
-	nmd_x86_register dr2;
-	nmd_x86_register dr3;
-	nmd_x86_register dr4;
-	nmd_x86_register dr5;
-	nmd_x86_register dr6;
-	nmd_x86_register dr7;
-} nmd_x86_cpu;
 
 /*
 Assembles one or more instructions from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using the '\n'(new line) character.
@@ -2600,22 +2458,6 @@ Parameters:
  - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
 */
 NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, char* buffer, uint64_t runtime_address, uint32_t flags);
-
-/*
-Emulates x86 code according to the cpu's state. You MUST initialize the following variables before calling this
-function: 'cpu->mode', 'cpu->physical_memory', 'cpu->physical_memory_size', 'cpu->virtual_address' and 'cpu->rip'.
-You may optionally initialize 'cpu->rsp' if a stack is desirable. Below is a short description of each variable:
- - 'cpu->mode': The emulator's operating architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
- - 'cpu->physical_memory': A pointer to a buffer used as the emulator's memory.
- - 'cpu->physical_memory_size': The size of the buffer pointer by 'physical_memory' in bytes.
- - 'cpu->virtual_address': The starting address of the emulator's virtual address space.
- - 'cpu->rip': The virtual address where emulation starts.
- - 'cpu->rsp': The virtual address of the bottom of the stack.
-Parameters:
- - cpu       [in] A pointer to a variable of type 'nmd_x86_cpu' that holds the state of the cpu.
- - max_count [in] The maximum number of instructions that can be executed, or zero for unlimited instructions.
-*/
-NMD_ASSEMBLY_API bool nmd_x86_emulate(nmd_x86_cpu* cpu, size_t max_count);
 
 /*
 Returns the instruction's length if it's valid, zero otherwise.
