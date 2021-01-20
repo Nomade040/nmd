@@ -2,7 +2,7 @@
 
 typedef struct _nmd_assemble_info
 {
-	const char* s; /* string */
+	char* s; /* string */
 	uint8_t* b; /* buffer */
 	NMD_X86_MODE mode;
 	uint64_t runtime_address;
@@ -672,7 +672,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		if (_nmd_strstr(ai->s, "mov "))
 		{
 			const char* s = ai->s + 4;
-			const NMD_X86_REG reg = _nmd_parse_regrxb(&s);
+			const NMD_X86_REG reg = _nmd_parse_regrxb((const char**)&s);
 			if (reg)
 			{
 				ai->b[0] = 0x41;
@@ -717,7 +717,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		else if (_nmd_strstr(ai->s, "add ") == ai->s)
 		{
 			ai->s += 4;
-			const NMD_X86_REG reg = _nmd_parse_reg8(&ai->s);
+			const NMD_X86_REG reg = _nmd_parse_reg8((const char**)&ai->s);
 			if(reg)
 			{
 				ai->b[0] = 0xb0 + reg % 8;
@@ -777,7 +777,29 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 	}
 	else /* x86-16 / x86-32 */
 	{
-		if (_nmd_strstr(ai->s, "push ") == ai->s || _nmd_strstr(ai->s, "pop ") == ai->s)
+		if (_nmd_strstr(ai->s, "inc ") || _nmd_strstr(ai->s, "dec "))
+		{
+			const bool is_inc = ai->s[0] == 'i';
+			const char* s = ai->s + 4;
+			NMD_X86_REG reg;
+			int offset = 0;
+			if (((reg = _nmd_parse_reg32(&s))) && !*s)
+			{
+				if (ai->mode == NMD_X86_MODE_16)
+					ai->b[offset++] = 0x66;
+			}
+			else if (((reg = _nmd_parse_reg16(&s))) && !*s)
+			{
+				if (ai->mode == NMD_X86_MODE_32)
+					ai->b[offset++] = 0x66;
+			}
+			else
+				return 0;
+
+			ai->b[offset++] = (is_inc ? 0x40 : 0x48) + reg % 8;
+			return offset;
+		}
+		else if (_nmd_strstr(ai->s, "push ") == ai->s || _nmd_strstr(ai->s, "pop ") == ai->s)
 		{
 			const bool is_push = ai->s[1] == 'u';
 			const char* s = ai->s + (is_push ? 5 : 4);
@@ -984,11 +1006,11 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 
 			nmd_x86_memory_operand memory_operand;
 			size_t pointer_size;
-			if (_nmd_parse_memory_operand(&ai->s, &memory_operand, &pointer_size))
+			if (_nmd_parse_memory_operand((const char**)&ai->s, &memory_operand, &pointer_size))
 			{
 				if (*ai->s++ != ',')
 					return 0;
-				NMD_X86_REG reg = _nmd_parse_reg(&ai->s);
+				NMD_X86_REG reg = _nmd_parse_reg((const char**)&ai->s);
 				return _nmd_assemble_mem_reg(ai->b, &memory_operand, base_opcode, (reg - 1) % 8);
 
 				/*
@@ -1079,20 +1101,30 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 
 	if (ai->s[0] == 'j')
 	{
-		const char* s = 0;
+		char* s = ai->s;
+		while (true)
+		{
+			if (*s == ' ')
+			{
+				*s = '\0';
+				break;
+			}
+			else if (*s == '\0')
+				return 0;
+
+			s++;
+		}
+
 		for (i = 0; i < _NMD_NUM_ELEMENTS(_nmd_condition_suffixes); i++)
 		{
-			if (_nmd_strstr_ex(ai->s + 1, _nmd_condition_suffixes[i], &s) == ai->s + 1)
+			if (_nmd_strcmp(ai->s + 1, _nmd_condition_suffixes[i]))
 			{
-				if (s[0] != ' ')
-					return 0;
-
 				int64_t num;
 				size_t num_digits;
 				if (!_nmd_parse_number(s + 1, &num, &num_digits))
 					return 0;
 
-				const int64_t delta = num - ai->runtime_address;
+				const int64_t delta = (ai->runtime_address == -1 ? num : num - ai->runtime_address);
 				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
 				{
 					ai->b[0] = 0x70 + (uint8_t)i;
@@ -1239,7 +1271,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		size_t num_digits = 0;
 		int64_t num = 0;
 		NMD_X86_REG reg;
-		if (reg = _nmd_parse_reg16(&ai->s))
+		if (reg = _nmd_parse_reg16((const char**)&ai->s))
 		{
 			if (ai->mode == NMD_X86_MODE_16)
 			{
@@ -1294,7 +1326,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 	else if (_nmd_strstr(ai->s, "mov ") == ai->s)
 	{
 		ai->s += 4;
-		const NMD_X86_REG reg = _nmd_parse_reg8(&ai->s);
+		const NMD_X86_REG reg = _nmd_parse_reg8((const char**)&ai->s);
 		if (reg)
 		{
 			ai->b[0] = 0xb0 + (reg - NMD_X86_REG_AL);

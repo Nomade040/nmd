@@ -8,7 +8,6 @@ file_names = [
     'nmd_x86_decoder.c',
     'nmd_x86_ldisasm.c',
     'nmd_x86_formatter.c',
-    'nmd_x86_emulator.c'
 ]
 
 file_contents = []
