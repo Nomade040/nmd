@@ -21,7 +21,8 @@
 #define _NMD_GET_GPR(reg) (reg + (instruction->mode>>2)*8) /* reg(16),reg(32),reg(64). e.g. ax,eax,rax */
 #define _NMD_GET_IP() (NMD_X86_REG_IP + (instruction->mode>>2)) /* ip,eip,rip */
 #define _NMD_GET_BY_MODE_OPSZPRFX(mode, _16, _32) (mode == NMD_X86_MODE_16 ? (opszprfx ? (_32) : (_16)) : (opszprfx ? (_16) : (_32))) /* Get something based on mode and operand size prefix. Used for instructions where the the 64-bit mode variant does not exist or is the same as the one for 32-bit mode */
-#define _NMD_GET_BY_MODE_OPSZPRFX_64(mode, _16, _32, _64) (mode == NMD_X86_MODE_16 ? (opszprfx ? _32 : _16) : (opszprfx ? _16 : (instruction->rex_w_prefix ? _64 : _32))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed with the REX.W prefix */
+#define _NMD_GET_BY_MODE_OPSZPRFX_64(mode, rex_w_prefix, _16, _32, _64) (mode == NMD_X86_MODE_16 ? (opszprfx ? _32 : _16) : (opszprfx ? _16 : (rex_w_prefix ? _64 : _32))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed with the REX.W prefix */
+#define _NMD_GET_BY_MODE_OPSZPRFX_D64(mode, _16, _32, _64) (mode == NMD_X86_MODE_16 ? (opszprfx ? _32 : _16) : (opszprfx ? _16 : (mode == NMD_X86_MODE_64 ? _64 : _32))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed by default when mode is NMD_X86_MODE_64 and there's no operand size override prefix. x */
 
 NMD_ASSEMBLY_API const char* const _nmd_reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
 NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };

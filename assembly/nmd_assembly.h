@@ -204,13 +204,11 @@ typedef unsigned long long uint64_t;
 
 /* Define the api macro to potentially change functions's attributes. */
 #ifndef NMD_ASSEMBLY_API
-
 #ifdef NMD_ASSEMBLY_PRIVATE
 	#define NMD_ASSEMBLY_API static
 #else
 	#define NMD_ASSEMBLY_API
 #endif /* NMD_ASSEMBLY_PRIVATE */
-
 #endif /* NMD_ASSEMBLY_API */
 
 /* These flags specify how the formatter should work. */
