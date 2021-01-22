@@ -1099,7 +1099,22 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		}
 	}
 
-	if (ai->s[0] == 'j')
+	if (_nmd_strstr(ai->s, "jmp ") == ai->s)
+	{
+		int64_t num;
+		size_t num_digits;
+		if (!_nmd_parse_number(ai->s + 4, &num, &num_digits) && ai->s[4 + num_digits] == '\0')
+			return 0;
+
+		int64_t offset = 0;
+		if (ai->mode == NMD_X86_MODE_16)
+			ai->b[offset++] = 0x66;
+		ai->b[offset++] = 0xe9;
+		const int64_t size = offset + 4;
+		*(uint32_t*)(ai->b + offset) = (ai->runtime_address == -1) ? num - size : ai->runtime_address + size + num;
+		return size;
+	}
+	else if (ai->s[0] == 'j')
 	{
 		char* s = ai->s;
 		while (true)
