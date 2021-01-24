@@ -1106,11 +1106,11 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		if (!_nmd_parse_number(ai->s + 4, &num, &num_digits) && ai->s[4 + num_digits] == '\0')
 			return 0;
 
-		int64_t offset = 0;
+		size_t offset = 0;
 		if (ai->mode == NMD_X86_MODE_16)
 			ai->b[offset++] = 0x66;
 		ai->b[offset++] = 0xe9;
-		const int64_t size = offset + 4;
+		const int64_t size = (int64_t)offset + 4;
 		*(uint32_t*)(ai->b + offset) = (ai->runtime_address == -1) ? num - size : ai->runtime_address + size + num;
 		return size;
 	}
@@ -1300,11 +1300,8 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				return 2;
 			}
 		}
-		else if (is_push && _nmd_parse_number(ai->s, &num, &num_digits))
+		else if (is_push && _nmd_parse_number(ai->s, &num, &num_digits) && ai->s[num_digits] == '\0')
 		{
-			if (*(ai->s + num_digits) != '\0' || !(num >= -(1 << 31) && num <= ((int64_t)1 << 32) - 1))
-				return 0;
-
 			if (num >= -(1 << 7) && num <= (1 << 7) - 1)
 			{
 				ai->b[0] = 0x6a;
@@ -1313,28 +1310,12 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			}
 			else
 			{
+				size_t offset = 0;
 				if (ai->mode == NMD_X86_MODE_16)
-				{
-					if (num > 0xffff)
-					{
-						ai->b[0] = 0x66;
-						ai->b[1] = 0x68;
-						*(int32_t*)(ai->b + 2) = (int32_t)num;
-						return 6;
-					}
-					else
-					{
-						ai->b[0] = 0x68;
-						*(int16_t*)(ai->b + 1) = (int16_t)num;
-						return 3;
-					}
-				}
-				else
-				{
-					ai->b[0] = 0x68;
-					*(int32_t*)(ai->b + 1) = (int32_t)num;
-					return 5;
-				}
+					ai->b[offset++] = 0x66;
+				ai->b[offset++] = 0x68;
+				*(int32_t*)(ai->b + offset) = (int32_t)num;
+				return offset + 4;
 			}
 		}
 	}

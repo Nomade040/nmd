@@ -1,10 +1,9 @@
 /* This is a platform independent C89 x86 assembler and disassembler library.
 
-Features:
+Overview:
  - Support for x86(16/32/64). Intel and AT&T syntax.
  - No libc, dynamic memory allocation, static/global variables/state/context or runtime initialization.
  - Thread-safe by design.
- - Optimized for speed, size and low memory usage.
  - By default the only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>.
 
 Setup:
@@ -3824,11 +3823,11 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		if (!_nmd_parse_number(ai->s + 4, &num, &num_digits) && ai->s[4 + num_digits] == '\0')
 			return 0;
 
-		int64_t offset = 0;
+		size_t offset = 0;
 		if (ai->mode == NMD_X86_MODE_16)
 			ai->b[offset++] = 0x66;
 		ai->b[offset++] = 0xe9;
-		const int64_t size = offset + 4;
+		const int64_t size = (int64_t)offset + 4;
 		*(uint32_t*)(ai->b + offset) = (ai->runtime_address == -1) ? num - size : ai->runtime_address + size + num;
 		return size;
 	}
@@ -4018,11 +4017,8 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				return 2;
 			}
 		}
-		else if (is_push && _nmd_parse_number(ai->s, &num, &num_digits))
+		else if (is_push && _nmd_parse_number(ai->s, &num, &num_digits) && ai->s[num_digits] == '\0')
 		{
-			if (*(ai->s + num_digits) != '\0' || !(num >= -(1 << 31) && num <= ((int64_t)1 << 32) - 1))
-				return 0;
-
 			if (num >= -(1 << 7) && num <= (1 << 7) - 1)
 			{
 				ai->b[0] = 0x6a;
@@ -4031,28 +4027,12 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			}
 			else
 			{
+				size_t offset = 0;
 				if (ai->mode == NMD_X86_MODE_16)
-				{
-					if (num > 0xffff)
-					{
-						ai->b[0] = 0x66;
-						ai->b[1] = 0x68;
-						*(int32_t*)(ai->b + 2) = (int32_t)num;
-						return 6;
-					}
-					else
-					{
-						ai->b[0] = 0x68;
-						*(int16_t*)(ai->b + 1) = (int16_t)num;
-						return 3;
-					}
-				}
-				else
-				{
-					ai->b[0] = 0x68;
-					*(int32_t*)(ai->b + 1) = (int32_t)num;
-					return 5;
-				}
+					ai->b[offset++] = 0x66;
+				ai->b[offset++] = 0x68;
+				*(int32_t*)(ai->b + offset) = (int32_t)num;
+				return offset + 4;
 			}
 		}
 	}
@@ -6025,6 +6005,8 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					if (instruction->immediate & ((uint64_t)(1) << (instruction->imm_mask * 8 - 1)))
 						instruction->immediate |= 0xffffffffffffffff << (instruction->imm_mask * 8);
 				}
+				else if (op == 0x68 && mode == NMD_X86_MODE_64 && instruction->immediate & (1<<31))
+					instruction->immediate |= 0xffffffff00000000;
 
 				/* These are optional features */
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID

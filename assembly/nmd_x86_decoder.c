@@ -1694,6 +1694,8 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					if (instruction->immediate & ((uint64_t)(1) << (instruction->imm_mask * 8 - 1)))
 						instruction->immediate |= 0xffffffffffffffff << (instruction->imm_mask * 8);
 				}
+				else if (op == 0x68 && mode == NMD_X86_MODE_64 && instruction->immediate & (1<<31))
+					instruction->immediate |= 0xffffffff00000000;
 
 				/* These are optional features */
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
