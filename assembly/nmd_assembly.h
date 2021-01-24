@@ -1,10 +1,9 @@
 /* This is a platform independent C89 x86 assembler and disassembler library.
 
-Features:
+Overview:
  - Support for x86(16/32/64). Intel and AT&T syntax.
  - No libc, dynamic memory allocation, static/global variables/state/context or runtime initialization.
  - Thread-safe by design.
- - Optimized for speed, size and low memory usage.
  - By default the only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>.
 
 Setup:
