@@ -1146,15 +1146,17 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 					*(int8_t*)(ai->b + 1) = (int8_t)(delta - 2);
 					return 2;
 				}
-				else if (delta >= -(1 << 31) + 6 && delta <= ((size_t)(1) << 31) - 1 + 6)
+				else if (delta >= -((int64_t)1 << 31) + 6 && delta <= ((int64_t)1 << 31) - 1 + 6)
 				{
-					ai->b[0] = 0x0f;
-					ai->b[1] = 0x80 + (uint8_t)i;
-					*(int32_t*)(ai->b + 2) = (int32_t)(delta - 6);
-					return 6;
+					size_t offset = 0;
+					if (ai->mode == NMD_X86_MODE_16)
+						ai->b[offset++] = 0x66;
+
+					ai->b[offset++] = 0x0f;
+					ai->b[offset++] = 0x80 + (uint8_t)i;
+					*(int32_t*)(ai->b + offset) = (int32_t)(delta - (offset+4));
+					return offset + 4;
 				}
-				else
-					return 0;
 			}
 		}
 	}

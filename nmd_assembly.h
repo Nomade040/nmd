@@ -3863,15 +3863,17 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 					*(int8_t*)(ai->b + 1) = (int8_t)(delta - 2);
 					return 2;
 				}
-				else if (delta >= -(1 << 31) + 6 && delta <= ((size_t)(1) << 31) - 1 + 6)
+				else if (delta >= -((int64_t)1 << 31) + 6 && delta <= ((int64_t)1 << 31) - 1 + 6)
 				{
-					ai->b[0] = 0x0f;
-					ai->b[1] = 0x80 + (uint8_t)i;
-					*(int32_t*)(ai->b + 2) = (int32_t)(delta - 6);
-					return 6;
+					size_t offset = 0;
+					if (ai->mode == NMD_X86_MODE_16)
+						ai->b[offset++] = 0x66;
+
+					ai->b[offset++] = 0x0f;
+					ai->b[offset++] = 0x80 + (uint8_t)i;
+					*(int32_t*)(ai->b + offset) = (int32_t)(delta - (offset+4));
+					return offset + 4;
 				}
-				else
-					return 0;
 			}
 		}
 	}
@@ -5099,7 +5101,10 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK */
 
 			if (_NMD_R(op) == 8) /* imm32 */
-				instruction->imm_mask = (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_IMM16 : NMD_X86_IMM32);
+			{
+				const bool opszprfx = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE;
+				instruction->imm_mask = (mode == NMD_X86_MODE_64) ? NMD_X86_IMM32 : _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_IMM16, NMD_X86_IMM32);
+			}
 			else if ((_NMD_R(op) == 7 && _NMD_C(op) < 4) || op == 0xA4 || op == 0xC2 || (op > 0xC3 && op <= 0xC6) || op == 0xBA || op == 0xAC) /* imm8 */
 				instruction->imm_mask = NMD_X86_IMM8;
 			else if (op == 0x78 && (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO || instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) /* imm8 + imm8 = "imm16" */
@@ -5353,7 +5358,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 			{
 				if (op == 0x2 || op == 0x3 || (op >= 0x10 && op <= 0x17) || _NMD_R(op) == 2 || (_NMD_R(op) >= 4 && _NMD_R(op) <= 7 && op != 0x77) || op == 0xa3 || op == 0xab || op == 0xaf || (_NMD_R(op) >= 0xc && op != 0xc7 && op != 0xff))
 					instruction->num_operands = 2;
-				else if (_NMD_R(op) == 8 || _NMD_R(op) == 9 || op == 0xc7)
+				else if (_NMD_R(op) == 9 || op == 0xc7)
 					instruction->num_operands = 1;
 				else if (op == 0xa4 || op == 0xa5 || op == 0xc2 || (op >= 0xc4 && op <= 0xc6))
 					instruction->num_operands = 3;
@@ -5377,6 +5382,12 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						_NMD_SET_REG_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_READ, _NMD_GET_GPR(NMD_X86_REG_CX));
 						_NMD_SET_REG_OPERAND(instruction->operands[3], true, NMD_X86_OPERAND_ACTION_READ, _NMD_GET_GPR(NMD_X86_REG_DX));
 					}
+				}
+				else if (_NMD_R(op) == 8) /* jCC rel32 */
+				{
+					instruction->num_operands = 2;
+					_NMD_SET_IMM_OPERAND(instruction->operands[0], false, NMD_X86_OPERAND_ACTION_READ, instruction->immediate);
+					_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_IP());
 				}
 				else if (op == 0x31) /* rdtsc */
 				{
@@ -7377,7 +7388,10 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, 
 #endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK */
 
 			if (_NMD_R(op) == 8) /* imm32 */
-				offset += (operand_prefix ? 2 : 4);
+			{
+				const bool opszprfx = operand_prefix;
+				offset += (mode == NMD_X86_MODE_64) ? 4 : _NMD_GET_BY_MODE_OPSZPRFX(mode, 2, 4);
+			}
 			else if ((_NMD_R(op) == 7 && _NMD_C(op) < 4) || op == 0xA4 || op == 0xC2 || (op > 0xC3 && op <= 0xC6) || op == 0xBA || op == 0xAC) /* imm8 */
 				offset++;
 			else if (op == 0x78 && (repeat_not_zero_prefix || operand_prefix)) /* imm8 + imm8 = "imm16" */
