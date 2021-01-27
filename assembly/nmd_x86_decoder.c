@@ -800,6 +800,8 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 			b++;
 			for (i = 0; i < (size_t)instruction->imm_mask; i++)
 				((uint8_t*)(&instruction->immediate))[i] = b[i];
+			if (_NMD_R(op) == 8 && instruction->immediate & ((uint64_t)(1) << (instruction->imm_mask * 8 - 1)))
+				instruction->immediate |= 0xffffffffffffffff << (instruction->imm_mask * 8);
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID
 			if (flags & NMD_X86_DECODER_FLAGS_INSTRUCTION_ID)
