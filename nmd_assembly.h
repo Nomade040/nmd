@@ -2478,21 +2478,24 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, 
 
 #define _NMD_NUM_ELEMENTS(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#ifndef _NMD_IS_UPPERCASE
 #define _NMD_IS_UPPERCASE(c) ((c) >= 'A' && (c) <= 'Z')
 #define _NMD_IS_LOWERCASE(c) ((c) >= 'a' && (c) <= 'z')
 #define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? (c) + 0x20 : (c))
 #define _NMD_IS_DECIMAL_NUMBER(c) ((c) >= '0' && (c) <= '9')
 #define _NMD_MIN(a, b) ((a)<(b)?(a):(b))
 #define _NMD_MAX(a, b) ((a)>(b)?(a):(b))
+#endif /* _NMD_IS_UPPERCASE */
 
 #define _NMD_SET_REG_OPERAND(operand, _is_implicit, _action, _reg) {operand.type = NMD_X86_OPERAND_TYPE_REGISTER; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.reg = _reg;}
 #define _NMD_SET_IMM_OPERAND(operand, _is_implicit, _action, _imm) {operand.type = NMD_X86_OPERAND_TYPE_IMMEDIATE; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.imm = _imm;}
 #define _NMD_SET_MEM_OPERAND(operand, _is_implicit, _action, _segment, _base, _index, _scale, _disp) {operand.type = NMD_X86_OPERAND_TYPE_MEMORY; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.mem.segment = _segment; operand.fields.mem.base = _base; operand.fields.mem.index = _index; operand.fields.mem.scale = _scale; operand.fields.mem.disp = _disp;}
 #define _NMD_GET_GPR(reg) (reg + (instruction->mode>>2)*8) /* reg(16),reg(32),reg(64). e.g. ax,eax,rax */
-#define _NMD_GET_IP() (NMD_X86_REG_IP + (instruction->mode>>2)) /* ip,eip,rip */
-#define _NMD_GET_BY_MODE_OPSZPRFX(mode, _16, _32) (mode == NMD_X86_MODE_16 ? (opszprfx ? (_32) : (_16)) : (opszprfx ? (_16) : (_32))) /* Get something based on mode and operand size prefix. Used for instructions where the the 64-bit mode variant does not exist or is the same as the one for 32-bit mode */
-#define _NMD_GET_BY_MODE_OPSZPRFX_64(mode, rex_w_prefix, _16, _32, _64) (mode == NMD_X86_MODE_16 ? (opszprfx ? _32 : _16) : (opszprfx ? _16 : (rex_w_prefix ? _64 : _32))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed with the REX.W prefix */
-#define _NMD_GET_BY_MODE_OPSZPRFX_D64(mode, _16, _32, _64) (mode == NMD_X86_MODE_16 ? (opszprfx ? _32 : _16) : (opszprfx ? _16 : (mode == NMD_X86_MODE_64 ? _64 : _32))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed by default when mode is NMD_X86_MODE_64 and there's no operand size override prefix. x */
+#define _NMD_GET_IP() (NMD_X86_REG_IP + (instruction->mode>>2)) /* ip,eip,rip */					
+#define _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, _16, _32) ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : (_32))) /* Get something based on mode and operand size prefix. Used for instructions where the the 64-bit mode variant does not exist or is the same as the one for 32-bit mode */
+#define _NMD_GET_BY_MODE_OPSZPRFX_W64(mode, opszprfx, rex_w_prefix, _16, _32, _64) ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : ((rex_w_prefix) ? (_64) : (_32)))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed with the REX.W prefix */
+#define _NMD_GET_BY_MODE_OPSZPRFX_D64(mode, opszprfx, _16, _32, _64) ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : ((mode) == NMD_X86_MODE_64 ? (_64) : (_32)))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed by default when mode is NMD_X86_MODE_64 and there's no operand size override prefix. */
+#define _NMD_GET_BY_MODE_OPSZPRFX_F64(mode, opszprfx, _16, _32, _64) ((mode) == NMD_X86_MODE_64 ? (_64) : ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : (_32)))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed when mode is NMD_X86_MODE_64 independent of an operand size override prefix. */
 
 NMD_ASSEMBLY_API const char* const _nmd_reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
 NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };
@@ -2850,7 +2853,7 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 		}
 		else if (base == _NMD_NUMBER_BASE_HEXADECIMAL)
 		{
-			if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+			if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
 				break;
 		}
 		else if (c != '0' && c != '1') /* _NMD_NUMBER_BASE_BINARY */
@@ -2869,7 +2872,11 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 	for (i = 0; i < num_digits; i++)
 	{
 		const char c = s[i];
-		num += (c <= '9') ? (c - '0') : (10 + c - 'a');
+		int n = c % 16;
+		if (c >= 'A')
+			n += 9;
+
+		num += n;
 		if (i < num_digits - 1)
 		{
 			/* Return false if number is greater than 2^64-1 */
@@ -5101,10 +5108,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK */
 
 			if (_NMD_R(op) == 8) /* imm32 */
-			{
-				const bool opszprfx = instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE;
-				instruction->imm_mask = (mode == NMD_X86_MODE_64) ? NMD_X86_IMM32 : _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_IMM16, NMD_X86_IMM32);
-			}
+				instruction->imm_mask = _NMD_GET_BY_MODE_OPSZPRFX_F64(mode, instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_IMM16, NMD_X86_IMM32, NMD_X86_IMM32);
 			else if ((_NMD_R(op) == 7 && _NMD_C(op) < 4) || op == 0xA4 || op == 0xC2 || (op > 0xC3 && op <= 0xC6) || op == 0xBA || op == 0xAC) /* imm8 */
 				instruction->imm_mask = NMD_X86_IMM8;
 			else if (op == 0x78 && (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO || instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) /* imm8 + imm8 = "imm16" */
@@ -6118,8 +6122,8 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 							else
 								instruction->id = (uint16_t)(mode == NMD_X86_MODE_16 ? NMD_X86_INSTRUCTION_POPF : (mode == NMD_X86_MODE_32 ? NMD_X86_INSTRUCTION_POPFD : NMD_X86_INSTRUCTION_POPFQ));
 							break;
-						case 0x60: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_INSTRUCTION_PUSHA, NMD_X86_INSTRUCTION_PUSHAD); break;
-						case 0x61: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_INSTRUCTION_POPA, NMD_X86_INSTRUCTION_POPAD); break;
+						case 0x60: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_INSTRUCTION_PUSHA, NMD_X86_INSTRUCTION_PUSHAD); break;
+						case 0x61: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_INSTRUCTION_POPA, NMD_X86_INSTRUCTION_POPAD); break;
 						case 0x07: case 0x17: case 0x1f: instruction->id = NMD_X86_INSTRUCTION_POP; break;
 						case 0x27: instruction->id = NMD_X86_INSTRUCTION_DAA; break;
 						case 0x37: instruction->id = NMD_X86_INSTRUCTION_AAA; break;
@@ -6129,15 +6133,15 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						case 0x9e: instruction->id = NMD_X86_INSTRUCTION_SAHF; break;
 						case 0x9f: instruction->id = NMD_X86_INSTRUCTION_LAHF; break;
 						case 0xA4: instruction->id = NMD_X86_INSTRUCTION_MOVSB; break;
-						case 0xA5: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_64(mode, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_MOVSW, NMD_X86_INSTRUCTION_MOVSD, NMD_X86_INSTRUCTION_MOVSQ); break; /*(uint16_t)(instruction->rex_w_prefix ? NMD_X86_INSTRUCTION_MOVSQ : (opszprfx ? NMD_X86_INSTRUCTION_MOVSW : NMD_X86_INSTRUCTION_MOVSD)); break;*/
+						case 0xA5: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_W64(mode, opszprfx, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_MOVSW, NMD_X86_INSTRUCTION_MOVSD, NMD_X86_INSTRUCTION_MOVSQ); break; /*(uint16_t)(instruction->rex_w_prefix ? NMD_X86_INSTRUCTION_MOVSQ : (opszprfx ? NMD_X86_INSTRUCTION_MOVSW : NMD_X86_INSTRUCTION_MOVSD)); break;*/
 						case 0xA6: instruction->id = NMD_X86_INSTRUCTION_CMPSB; break;
-						case 0xA7: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_64(mode, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_CMPSW, NMD_X86_INSTRUCTION_CMPSD, NMD_X86_INSTRUCTION_CMPSQ); break;
+						case 0xA7: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_W64(mode, opszprfx, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_CMPSW, NMD_X86_INSTRUCTION_CMPSD, NMD_X86_INSTRUCTION_CMPSQ); break;
 						case 0xAA: instruction->id = NMD_X86_INSTRUCTION_STOSB; break;
-						case 0xAB: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_64(mode, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_STOSW, NMD_X86_INSTRUCTION_STOSD, NMD_X86_INSTRUCTION_STOSQ); break;
+						case 0xAB: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_W64(mode, opszprfx, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_STOSW, NMD_X86_INSTRUCTION_STOSD, NMD_X86_INSTRUCTION_STOSQ); break;
 						case 0xAC: instruction->id = NMD_X86_INSTRUCTION_LODSB; break;
-						case 0xAD: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_64(mode, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_LODSW, NMD_X86_INSTRUCTION_LODSD, NMD_X86_INSTRUCTION_LODSQ); break;
+						case 0xAD: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_W64(mode, opszprfx, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_LODSW, NMD_X86_INSTRUCTION_LODSD, NMD_X86_INSTRUCTION_LODSQ); break;
 						case 0xAE: instruction->id = NMD_X86_INSTRUCTION_SCASB; break;
-						case 0xAF: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_64(mode, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_SCASW, NMD_X86_INSTRUCTION_SCASD, NMD_X86_INSTRUCTION_SCASQ); break;
+						case 0xAF: instruction->id = _NMD_GET_BY_MODE_OPSZPRFX_W64(mode, opszprfx, instruction->rex_w_prefix, NMD_X86_INSTRUCTION_SCASW, NMD_X86_INSTRUCTION_SCASD, NMD_X86_INSTRUCTION_SCASQ); break;
 						case 0x98:
 							if(instruction->prefixes & NMD_X86_PREFIXES_REX_W)
 								instruction->id = (uint16_t)NMD_X86_INSTRUCTION_CDQE;
@@ -6552,7 +6556,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					else if (_NMD_R(op) == 4) /* inc,dec*/
 					{
 						instruction->num_operands = 1;
-						_NMD_SET_REG_OPERAND(instruction->operands[0], false, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_REG_AX, NMD_X86_REG_EAX) + (op % 8));
+						_NMD_SET_REG_OPERAND(instruction->operands[0], false, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_REG_AX, NMD_X86_REG_EAX) + (op % 8));
 					}
 					else if (op == 0xcc || op == 0xf1 || op == 0xce) /* int3,int1,into */
 					{
@@ -6632,7 +6636,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					else if (op == 0x60) /* pusha,pushad */
 					{
 						instruction->num_operands = 10;
-						const uint32_t base_reg = _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_REG_AX, NMD_X86_REG_EAX);
+						const uint32_t base_reg = _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_REG_AX, NMD_X86_REG_EAX);
 						_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_READ, base_reg + 0);
 						_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_READ, base_reg + 1);
 						_NMD_SET_REG_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_READ, base_reg + 2);
@@ -6641,13 +6645,13 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						_NMD_SET_REG_OPERAND(instruction->operands[5], true, NMD_X86_OPERAND_ACTION_READ, base_reg + 5);
 						_NMD_SET_REG_OPERAND(instruction->operands[6], true, NMD_X86_OPERAND_ACTION_READ, base_reg + 6);
 						_NMD_SET_REG_OPERAND(instruction->operands[7], true, NMD_X86_OPERAND_ACTION_READ, base_reg + 7);
-						_NMD_SET_REG_OPERAND(instruction->operands[8], true, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_REG_SP, NMD_X86_REG_ESP));
-						_NMD_SET_MEM_OPERAND(instruction->operands[9], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_SS, _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_REG_SP, NMD_X86_REG_ESP), NMD_X86_REG_NONE, 0, 0);
+						_NMD_SET_REG_OPERAND(instruction->operands[8], true, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_REG_SP, NMD_X86_REG_ESP));
+						_NMD_SET_MEM_OPERAND(instruction->operands[9], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_SS, _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_REG_SP, NMD_X86_REG_ESP), NMD_X86_REG_NONE, 0, 0);
 					}
 					else if (op == 0x61) /* popa,popad */
 					{
 						instruction->num_operands = 10;
-						const uint32_t base_reg = _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_REG_AX, NMD_X86_REG_EAX);
+						const uint32_t base_reg = _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_REG_AX, NMD_X86_REG_EAX);
 						_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_WRITE, base_reg + 0);
 						_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_WRITE, base_reg + 1);
 						_NMD_SET_REG_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_WRITE, base_reg + 2);
@@ -6656,8 +6660,8 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						_NMD_SET_REG_OPERAND(instruction->operands[5], true, NMD_X86_OPERAND_ACTION_WRITE, base_reg + 5);
 						_NMD_SET_REG_OPERAND(instruction->operands[6], true, NMD_X86_OPERAND_ACTION_WRITE, base_reg + 6);
 						_NMD_SET_REG_OPERAND(instruction->operands[7], true, NMD_X86_OPERAND_ACTION_WRITE, base_reg + 7);
-						_NMD_SET_REG_OPERAND(instruction->operands[8], true, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_REG_SP, NMD_X86_REG_ESP));
-						_NMD_SET_MEM_OPERAND(instruction->operands[9], true, NMD_X86_OPERAND_ACTION_READ, NMD_X86_REG_SS, _NMD_GET_BY_MODE_OPSZPRFX(mode, NMD_X86_REG_SP, NMD_X86_REG_ESP), NMD_X86_REG_NONE, 0, 0);
+						_NMD_SET_REG_OPERAND(instruction->operands[8], true, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_REG_SP, NMD_X86_REG_ESP));
+						_NMD_SET_MEM_OPERAND(instruction->operands[9], true, NMD_X86_OPERAND_ACTION_READ, NMD_X86_REG_SS, _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, NMD_X86_REG_SP, NMD_X86_REG_ESP), NMD_X86_REG_NONE, 0, 0);
 					}
 					else if (op == 0x27 || op == 0x2f) /* daa,das */
 					{
@@ -7390,10 +7394,7 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, 
 #endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK */
 
 			if (_NMD_R(op) == 8) /* imm32 */
-			{
-				const bool opszprfx = operand_prefix;
-				offset += (mode == NMD_X86_MODE_64) ? 4 : _NMD_GET_BY_MODE_OPSZPRFX(mode, 2, 4);
-			}
+				offset += _NMD_GET_BY_MODE_OPSZPRFX_F64(mode, operand_prefix, 2, 4, 4);
 			else if ((_NMD_R(op) == 7 && _NMD_C(op) < 4) || op == 0xA4 || op == 0xC2 || (op > 0xC3 && op <= 0xC6) || op == 0xBA || op == 0xAC) /* imm8 */
 				offset++;
 			else if (op == 0x78 && (repeat_not_zero_prefix || operand_prefix)) /* imm8 + imm8 = "imm16" */
@@ -9058,8 +9059,8 @@ NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, cha
 							str = (instruction->mode == NMD_X86_MODE_16) ? "popf" : ((instruction->mode == NMD_X86_MODE_32) ? "popfd" : "popfq");
 						break;
 					}
-					case 0x60: str = _NMD_GET_BY_MODE_OPSZPRFX(instruction->mode, "pusha", "pushad"); break;
-					case 0x61: str = _NMD_GET_BY_MODE_OPSZPRFX(instruction->mode, "popa", "popad"); break;
+					case 0x60: str = _NMD_GET_BY_MODE_OPSZPRFX(instruction->mode, opszprfx, "pusha", "pushad"); break;
+					case 0x61: str = _NMD_GET_BY_MODE_OPSZPRFX(instruction->mode, opszprfx, "popa", "popad"); break;
 					case 0xcb: str = "retf"; break;
 					case 0xc9: str = "leave"; break;
 					case 0xf1: str = "int1"; break;

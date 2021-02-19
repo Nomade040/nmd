@@ -8,21 +8,24 @@
 
 #define _NMD_NUM_ELEMENTS(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#ifndef _NMD_IS_UPPERCASE
 #define _NMD_IS_UPPERCASE(c) ((c) >= 'A' && (c) <= 'Z')
 #define _NMD_IS_LOWERCASE(c) ((c) >= 'a' && (c) <= 'z')
 #define _NMD_TOLOWER(c) (_NMD_IS_UPPERCASE(c) ? (c) + 0x20 : (c))
 #define _NMD_IS_DECIMAL_NUMBER(c) ((c) >= '0' && (c) <= '9')
 #define _NMD_MIN(a, b) ((a)<(b)?(a):(b))
 #define _NMD_MAX(a, b) ((a)>(b)?(a):(b))
+#endif /* _NMD_IS_UPPERCASE */
 
 #define _NMD_SET_REG_OPERAND(operand, _is_implicit, _action, _reg) {operand.type = NMD_X86_OPERAND_TYPE_REGISTER; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.reg = _reg;}
 #define _NMD_SET_IMM_OPERAND(operand, _is_implicit, _action, _imm) {operand.type = NMD_X86_OPERAND_TYPE_IMMEDIATE; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.imm = _imm;}
 #define _NMD_SET_MEM_OPERAND(operand, _is_implicit, _action, _segment, _base, _index, _scale, _disp) {operand.type = NMD_X86_OPERAND_TYPE_MEMORY; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.mem.segment = _segment; operand.fields.mem.base = _base; operand.fields.mem.index = _index; operand.fields.mem.scale = _scale; operand.fields.mem.disp = _disp;}
 #define _NMD_GET_GPR(reg) (reg + (instruction->mode>>2)*8) /* reg(16),reg(32),reg(64). e.g. ax,eax,rax */
-#define _NMD_GET_IP() (NMD_X86_REG_IP + (instruction->mode>>2)) /* ip,eip,rip */
-#define _NMD_GET_BY_MODE_OPSZPRFX(mode, _16, _32) (mode == NMD_X86_MODE_16 ? (opszprfx ? (_32) : (_16)) : (opszprfx ? (_16) : (_32))) /* Get something based on mode and operand size prefix. Used for instructions where the the 64-bit mode variant does not exist or is the same as the one for 32-bit mode */
-#define _NMD_GET_BY_MODE_OPSZPRFX_64(mode, rex_w_prefix, _16, _32, _64) (mode == NMD_X86_MODE_16 ? (opszprfx ? _32 : _16) : (opszprfx ? _16 : (rex_w_prefix ? _64 : _32))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed with the REX.W prefix */
-#define _NMD_GET_BY_MODE_OPSZPRFX_D64(mode, _16, _32, _64) (mode == NMD_X86_MODE_16 ? (opszprfx ? _32 : _16) : (opszprfx ? _16 : (mode == NMD_X86_MODE_64 ? _64 : _32))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed by default when mode is NMD_X86_MODE_64 and there's no operand size override prefix. x */
+#define _NMD_GET_IP() (NMD_X86_REG_IP + (instruction->mode>>2)) /* ip,eip,rip */					
+#define _NMD_GET_BY_MODE_OPSZPRFX(mode, opszprfx, _16, _32) ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : (_32))) /* Get something based on mode and operand size prefix. Used for instructions where the the 64-bit mode variant does not exist or is the same as the one for 32-bit mode */
+#define _NMD_GET_BY_MODE_OPSZPRFX_W64(mode, opszprfx, rex_w_prefix, _16, _32, _64) ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : ((rex_w_prefix) ? (_64) : (_32)))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed with the REX.W prefix */
+#define _NMD_GET_BY_MODE_OPSZPRFX_D64(mode, opszprfx, _16, _32, _64) ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : ((mode) == NMD_X86_MODE_64 ? (_64) : (_32)))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed by default when mode is NMD_X86_MODE_64 and there's no operand size override prefix. */
+#define _NMD_GET_BY_MODE_OPSZPRFX_F64(mode, opszprfx, _16, _32, _64) ((mode) == NMD_X86_MODE_64 ? (_64) : ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : (_32)))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed when mode is NMD_X86_MODE_64 independent of an operand size override prefix. */
 
 NMD_ASSEMBLY_API const char* const _nmd_reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
 NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };

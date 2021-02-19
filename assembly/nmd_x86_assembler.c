@@ -133,7 +133,7 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 		}
 		else if (base == _NMD_NUMBER_BASE_HEXADECIMAL)
 		{
-			if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+			if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
 				break;
 		}
 		else if (c != '0' && c != '1') /* _NMD_NUMBER_BASE_BINARY */
@@ -152,7 +152,11 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 	for (i = 0; i < num_digits; i++)
 	{
 		const char c = s[i];
-		num += (c <= '9') ? (c - '0') : (10 + c - 'a');
+		int n = c % 16;
+		if (c >= 'A')
+			n += 9;
+
+		num += n;
 		if (i < num_digits - 1)
 		{
 			/* Return false if number is greater than 2^64-1 */

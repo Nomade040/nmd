@@ -400,10 +400,7 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, 
 #endif /* NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK */
 
 			if (_NMD_R(op) == 8) /* imm32 */
-			{
-				const bool opszprfx = operand_prefix;
-				offset += (mode == NMD_X86_MODE_64) ? 4 : _NMD_GET_BY_MODE_OPSZPRFX(mode, 2, 4);
-			}
+				offset += _NMD_GET_BY_MODE_OPSZPRFX_F64(mode, operand_prefix, 2, 4, 4);
 			else if ((_NMD_R(op) == 7 && _NMD_C(op) < 4) || op == 0xA4 || op == 0xC2 || (op > 0xC3 && op <= 0xC6) || op == 0xBA || op == 0xAC) /* imm8 */
 				offset++;
 			else if (op == 0x78 && (repeat_not_zero_prefix || operand_prefix)) /* imm8 + imm8 = "imm16" */

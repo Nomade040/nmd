@@ -1491,8 +1491,8 @@ NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, cha
 							str = (instruction->mode == NMD_X86_MODE_16) ? "popf" : ((instruction->mode == NMD_X86_MODE_32) ? "popfd" : "popfq");
 						break;
 					}
-					case 0x60: str = _NMD_GET_BY_MODE_OPSZPRFX(instruction->mode, "pusha", "pushad"); break;
-					case 0x61: str = _NMD_GET_BY_MODE_OPSZPRFX(instruction->mode, "popa", "popad"); break;
+					case 0x60: str = _NMD_GET_BY_MODE_OPSZPRFX(instruction->mode, opszprfx, "pusha", "pushad"); break;
+					case 0x61: str = _NMD_GET_BY_MODE_OPSZPRFX(instruction->mode, opszprfx, "popa", "popad"); break;
 					case 0xcb: str = "retf"; break;
 					case 0xc9: str = "leave"; break;
 					case 0xf1: str = "int1"; break;

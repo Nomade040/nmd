@@ -834,6 +834,17 @@ TEST(side_tests_suite, side_tests)
 	
 }
 
+TEST(side_tests_suite, generic_tests)
+{
+	int64_t num;
+	size_t num_length;
+	{ num = -1; num_length = -1; EXPECT_TRUE(_nmd_parse_number("0", &num, &num_length)); EXPECT_EQ(num, 0); EXPECT_EQ(num_length, 1); }
+	{ num = -1; num_length = -1; EXPECT_TRUE(_nmd_parse_number("0xd", &num, &num_length)); EXPECT_EQ(num, 0xd); EXPECT_EQ(num_length, 3); }
+	{ num = -1; num_length = -1; EXPECT_TRUE(_nmd_parse_number("0xD", &num, &num_length)); EXPECT_EQ(num, 0xd); EXPECT_EQ(num_length, 3); }
+	{ num = -1; num_length = -1; EXPECT_TRUE(_nmd_parse_number("0xc0de", &num, &num_length)); EXPECT_EQ(num, 0xc0de); EXPECT_EQ(num_length, 6); }
+	{ num = -1; num_length = -1; EXPECT_TRUE(_nmd_parse_number("0xC0DE", &num, &num_length)); EXPECT_EQ(num, 0xc0de); EXPECT_EQ(num_length, 6); }
+}
+
 int main(int argc, char** argv)
 {
 	::testing::InitGoogleTest(&argc, argv);
