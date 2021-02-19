@@ -843,6 +843,7 @@ TEST(side_tests_suite, generic_tests)
 	{ num = -1; num_length = -1; EXPECT_TRUE(_nmd_parse_number("0xD", &num, &num_length)); EXPECT_EQ(num, 0xd); EXPECT_EQ(num_length, 3); }
 	{ num = -1; num_length = -1; EXPECT_TRUE(_nmd_parse_number("0xc0de", &num, &num_length)); EXPECT_EQ(num, 0xc0de); EXPECT_EQ(num_length, 6); }
 	{ num = -1; num_length = -1; EXPECT_TRUE(_nmd_parse_number("0xC0DE", &num, &num_length)); EXPECT_EQ(num, 0xc0de); EXPECT_EQ(num_length, 6); }
+	{ num = -1; num_length = -1; EXPECT_FALSE(_nmd_parse_number("$", &num, &num_length)); }
 }
 
 int main(int argc, char** argv)

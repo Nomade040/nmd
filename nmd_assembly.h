@@ -2843,7 +2843,7 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 
 		if (base == _NMD_NUMBER_BASE_DECIMAL)
 		{
-			if (c >= 'a' && c <= 'f')
+			if ((c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
 			{
 				base = _NMD_NUMBER_BASE_HEXADECIMAL;
 				continue;
@@ -2866,7 +2866,9 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 		h_suffix = true;
 	}
 
-	size_t num_digits = i;
+	const size_t num_digits = i;
+	if (num_digits == 0)
+		return false;
 
 	int64_t num = 0;
 	for (i = 0; i < num_digits; i++)
