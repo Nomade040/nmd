@@ -12,7 +12,7 @@ file_names = [
 
 file_contents = []
 
-with open('../nmd_assembly.h', 'w') as out:
+with open('../nmd_assembly.h', 'w', newline='') as out:
     for file_name in file_names:
         with open(file_name, 'r') as file:
             # Read file's content
