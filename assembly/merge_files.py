@@ -12,7 +12,19 @@ file_names = [
 
 file_contents = []
 
-with open('../nmd_assembly.h', 'w') as out:
+import sys
+if sys.version_info < (3, 0):
+    # If we are running Python 2, ignore the 'newline' arg.
+    def wrap(opn):
+        def open_py2(*args, **kwargs):
+            if 'newline' in kwargs:
+                del kwargs['newline'] 
+            return opn(*args, **kwargs)
+        return open_py2
+    open = wrap(open)
+
+
+with open('../nmd_assembly.h', 'w', newline='') as out:
     for file_name in file_names:
         with open(file_name, 'r') as file:
             # Read file's content
