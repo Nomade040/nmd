@@ -1550,7 +1550,10 @@ NMD_ASSEMBLY_API size_t nmd_x86_assemble(const char* string, void* buffer, size_
 		{
 			/* Ignore(skip) the current character if it's a space and the previous character is one of the following: ' ', '+', '*', '[' */
 			if (c == ' ' && (prev_c == ' ' || prev_c == '+' || prev_c == '*' || prev_c == '['))
+			{
+				c = *++string;
 				continue;
+			}
 
 			/* Append character */
 			parsed_string[length++] = _NMD_TOLOWER(c);
