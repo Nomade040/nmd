@@ -1,8 +1,5 @@
 name: coverity-scan
 on:
-  push:
-    branches:
-      - master
   schedule:
     - cron: '00 00 * * 0' # Runs at 00:00 UTC on Sun
 
