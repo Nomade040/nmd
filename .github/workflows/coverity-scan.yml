@@ -1,8 +1,10 @@
 name: coverity-scan
 on:
+  push:
+    branches:
+      - master
   schedule:
-    - cron: '06 15 * * 3' # Force run to test script
-    #- cron: '00 00 * * 0' # Runs at 00:00 UTC on Sun
+    - cron: '00 00 * * 0' # Runs at 00:00 UTC on Sun
 
 jobs:
   latest:
