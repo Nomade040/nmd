@@ -160,7 +160,7 @@ NMD_ASSEMBLY_API bool _nmd_parse_number(const char* string, int64_t* p_num, size
 			{
 				if ((base == _NMD_NUMBER_BASE_DECIMAL && (uint64_t)num >= (uint64_t)1844674407370955162) || /* ceiling((2^64-1) / 10) */
 					(base == _NMD_NUMBER_BASE_HEXADECIMAL && (uint64_t)num >= (uint64_t)1152921504606846976) || /* *ceiling((2^64-1) / 16) */
-					(base == _NMD_NUMBER_BASE_BINARY && (uint64_t)num >= (uint64_t)9223372036854775808)) /* ceiling((2^64-1) / 2) */
+					(base == _NMD_NUMBER_BASE_BINARY && (uint64_t)num >= (uint64_t)9223372036854775808U)) /* ceiling((2^64-1) / 2) */
 				{
 					return false;
 				}
