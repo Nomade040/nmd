@@ -4005,7 +4005,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 		size_t num_digits = 0;
 		int64_t num = 0;
 		NMD_X86_REG reg;
-		if (reg = _nmd_parse_reg16((const char**)&ai->s))
+		if ((reg = _nmd_parse_reg16((const char**)&ai->s)))
 		{
 			if (ai->mode == NMD_X86_MODE_16)
 			{
