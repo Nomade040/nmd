@@ -8336,6 +8336,7 @@ NMD_ASSEMBLY_API void nmd_x86_format(const nmd_x86_instruction* instruction, cha
 			case 0xb7: mnemonic = "pmulhrw"; break;
 			case 0xbb: mnemonic = "pswapd"; break;
 			case 0xbf: mnemonic = "pavgusb"; break;
+			default: return;
 			}
 
 			_nmd_append_string(&si, mnemonic);
