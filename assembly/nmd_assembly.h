@@ -2272,7 +2272,7 @@ enum NMD_X86_OPERAND_ACTION
 typedef struct nmd_x86_operand
 {
 	uint8_t type;                  /* The operand's type. A member of 'NMD_X86_OPERAND_TYPE'. */
-	/* uint8_t size;               /* The operand's size. (I don't really know what this `size` variable represents or how it would be useful) */
+	/* uint8_t size;                The operand's size. (I don't really know what this `size` variable represents or how it would be useful) */
 	bool is_implicit;              /* If true, the operand does not appear on the intruction's formatted form. */
 	uint8_t action;                /* The action on the operand. A member of 'NMD_X86_OPERAND_ACTION'. */
 	union {                        /* The operand's "raw" data. */

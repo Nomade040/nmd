@@ -2272,7 +2272,7 @@ enum NMD_X86_OPERAND_ACTION
 typedef struct nmd_x86_operand
 {
 	uint8_t type;                  /* The operand's type. A member of 'NMD_X86_OPERAND_TYPE'. */
-	/* uint8_t size;               /* The operand's size. (I don't really know what this `size` variable represents or how it would be useful) */
+	/* uint8_t size;                The operand's size. (I don't really know what this `size` variable represents or how it would be useful) */
 	bool is_implicit;              /* If true, the operand does not appear on the intruction's formatted form. */
 	uint8_t action;                /* The action on the operand. A member of 'NMD_X86_OPERAND_ACTION'. */
 	union {                        /* The operand's "raw" data. */
@@ -5119,6 +5119,10 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 			else if (op == 0x78 && (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO || instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) /* imm8 + imm8 = "imm16" */
 				instruction->imm_mask = NMD_X86_IMM16;
 
+			/* Make sure we can read the immediate */
+			if (instruction->imm_mask > remaining_size - 2)
+				return false;
+
 			b++;
 			for (i = 0; i < (size_t)instruction->imm_mask; i++)
 				((uint8_t*)(&instruction->immediate))[i] = b[i];
@@ -6017,6 +6021,10 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 				else if (op == 0xC8) /* imm16 + imm8 */
 					instruction->imm_mask = NMD_X86_IMM16 | NMD_X86_IMM8;
 				
+				/* Make sure we can read the immediate */
+				if (instruction->imm_mask > remaining_size - 1)
+					return false;
+
 				b++;
 				for (i = 0; i < (size_t)instruction->imm_mask; i++)
 					((uint8_t*)(&instruction->immediate))[i] = b[i];
