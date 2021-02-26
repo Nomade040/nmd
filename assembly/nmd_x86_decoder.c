@@ -795,7 +795,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 				instruction->imm_mask = NMD_X86_IMM16;
 
 			/* Make sure we can read the immediate */
-			if (instruction->imm_mask > remaining_size - 2)
+			if (instruction->imm_mask > remaining_size - 2 - (int)instruction->has_modrm - (int)instruction->has_sib - instruction->disp_mask)
 				return false;
 
 			b++;
@@ -1697,7 +1697,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					instruction->imm_mask = NMD_X86_IMM16 | NMD_X86_IMM8;
 				
 				/* Make sure we can read the immediate */
-				if (instruction->imm_mask > remaining_size - 1)
+				if (instruction->imm_mask > remaining_size - 1 - (int)instruction->has_modrm - (int)instruction->has_sib - instruction->disp_mask)
 					return false;
 
 				b++;
