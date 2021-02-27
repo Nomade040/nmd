@@ -81,7 +81,7 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, 
 	uint8_t opcode_size = 0;
 
 	bool has_modrm = false;
-	nmd_x86_modrm modrm = { 0,0,0 };
+	nmd_x86_modrm modrm;
 
 	size_t offset = 0;
 

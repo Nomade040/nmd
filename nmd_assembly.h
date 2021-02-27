@@ -197,7 +197,7 @@ typedef unsigned long long uint64_t;
 #define NMD_X86_FORMATTER_NUM_PADDING_BYTES 10
 #endif /* NMD_X86_FORMATTER_NUM_PADDING_BYTES */
 
-#define NMD_X86_INVALID_RUNTIME_ADDRESS -1
+#define NMD_X86_INVALID_RUNTIME_ADDRESS ((uint64_t)(-1))
 #define NMD_X86_MAXIMUM_INSTRUCTION_LENGTH 15
 #define NMD_X86_MAXIMUM_NUM_OPERANDS 10
 
@@ -3411,7 +3411,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				size_t num_digits;
 				if (_nmd_parse_number(s, &num, &num_digits))
 				{
-					ai->b[2] = num;
+					ai->b[2] = (uint8_t)num;
 					return 3;
 				}
 			}
@@ -3455,7 +3455,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				size_t num_digits;
 				if (_nmd_parse_number(ai->s, &num, &num_digits))
 				{
-					ai->b[1] = num;
+					ai->b[1] = (uint8_t)num;
 					return 2;
 				}
 			}
@@ -3837,7 +3837,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			ai->b[offset++] = 0x66;
 		ai->b[offset++] = 0xe9;
 		const int64_t size = (int64_t)offset + 4;
-		*(uint32_t*)(ai->b + offset) = (ai->runtime_address == -1) ? num - size : ai->runtime_address + size + num;
+		*(uint32_t*)(ai->b + offset) = (uint32_t)((ai->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS) ? (num - size) : (ai->runtime_address + size + num));
 		return size;
 	}
 	else if (ai->s[0] == 'j')
@@ -3865,7 +3865,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				if (!_nmd_parse_number(s + 1, &num, &num_digits))
 					return 0;
 
-				const int64_t delta = (ai->runtime_address == -1 ? num : num - ai->runtime_address);
+				const int64_t delta = (ai->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS ? num : num - ai->runtime_address);
 				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
 				{
 					ai->b[0] = 0x70 + (uint8_t)i;
@@ -4062,7 +4062,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			size_t num_digits;
 			if (_nmd_parse_number(ai->s, &num, &num_digits))
 			{
-				ai->b[1] = num;
+				ai->b[1] = (uint8_t)num;
 				return 2;
 			}
 		}
@@ -4507,16 +4507,17 @@ NMD_ASSEMBLY_API void _nmd_decode_conditional_flag(nmd_x86_instruction* instruct
 	}
 }
 
-/* 'remaningSize' in the context of this function is the number of bytes the instruction takes not counting prefixes and opcode. */
-NMD_ASSEMBLY_API bool _nmd_decode_modrm(const uint8_t** b, nmd_x86_instruction* const instruction, const size_t remaining_size)
-{
-	if (remaining_size == 0)
-		return false;
+/* Make sure we can read a byte, read a byte, increment the buffer and decrement the buffer's size */
+#define _NMD_READ_BYTE(buffer_, buffer_size_, var_) { if ((buffer_size_) < sizeof(uint8_t)) { return false; } var_ = *((uint8_t*)(buffer_)); buffer_ = ((uint8_t*)(buffer_)) + sizeof(uint8_t); (buffer_size_) -= sizeof(uint8_t); }
 
+NMD_ASSEMBLY_API bool _nmd_decode_modrm(const uint8_t** p_buffer, size_t* p_buffer_size, nmd_x86_instruction* const instruction)
+{
 	instruction->has_modrm = true;
-	instruction->modrm.modrm = *++*b;
+	_NMD_READ_BYTE(*p_buffer, *p_buffer_size, instruction->modrm.modrm);
+	
 	const bool address_prefix = (bool)(instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE);
 
+	/* Check for 16-Bit Addressing Form */
 	if (instruction->mode == NMD_X86_MODE_16)
 	{
 		if (instruction->modrm.fields.mod != 0b11)
@@ -4532,8 +4533,10 @@ NMD_ASSEMBLY_API bool _nmd_decode_modrm(const uint8_t** b, nmd_x86_instruction* 
 	}
 	else
 	{
+		/* Check for 16-Bit Addressing Form */
 		if (address_prefix && instruction->mode == NMD_X86_MODE_32)
 		{
+			/* Check for displacement */
 			if ((instruction->modrm.fields.mod == 0b00 && instruction->modrm.fields.rm == 0b110) || instruction->modrm.fields.mod == 0b10)
 				instruction->disp_mask = NMD_X86_DISP16;
 			else if (instruction->modrm.fields.mod == 0b01)
@@ -4544,13 +4547,11 @@ NMD_ASSEMBLY_API bool _nmd_decode_modrm(const uint8_t** b, nmd_x86_instruction* 
 			/* Check for SIB byte */
 			if (instruction->modrm.modrm < 0xC0 && instruction->modrm.fields.rm == 0b100 && (!address_prefix || (address_prefix && instruction->mode == NMD_X86_MODE_64)))
 			{
-				if (remaining_size < 2)
-					return false;
-
 				instruction->has_sib = true;
-				instruction->sib.sib = *++*b;
+				_NMD_READ_BYTE(*p_buffer, *p_buffer_size, instruction->sib.sib);
 			}
 
+			/* Check for displacement */
 			if (instruction->modrm.fields.mod == 0b01) /* disp8 (ModR/M) */
 				instruction->disp_mask = NMD_X86_DISP8;
 			else if ((instruction->modrm.fields.mod == 0b00 && instruction->modrm.fields.rm == 0b101) || instruction->modrm.fields.mod == 0b10) /* disp16,32 (ModR/M) */
@@ -4560,12 +4561,18 @@ NMD_ASSEMBLY_API bool _nmd_decode_modrm(const uint8_t** b, nmd_x86_instruction* 
 		}
 	}
 
-	if (remaining_size - (instruction->has_sib ? 2 : 1) < instruction->disp_mask)
+	/* Make sure we can read 'instruction->disp_mask' bytes from the buffer */
+	if (*p_buffer_size < instruction->disp_mask)
 		return false;
-
+	
+	/* Copy 'instruction->disp_mask' bytes from the buffer */
 	size_t i = 0;
-	for (; i < (size_t)instruction->disp_mask; i++, (*b)++)
-		((uint8_t*)(&instruction->displacement))[i] = *(*b + 1);
+	for (; i < (size_t)instruction->disp_mask; i++)
+		((uint8_t*)(&instruction->displacement))[i] = (*p_buffer)[i];
+	
+	/* Increment the buffer and decrement the buffer's size */
+	*p_buffer += instruction->disp_mask;
+	*p_buffer_size -= instruction->disp_mask;
 
 	return true;
 }
@@ -4579,23 +4586,37 @@ Parameters:
  - mode        [in]  The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
  - flags       [in]  A mask of 'NMD_X86_DECODER_FLAGS_XXX' that specifies which features the decoder is allowed to use. If uncertain, use 'NMD_X86_DECODER_FLAGS_MINIMAL'.
 */
-NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags)
+NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags)
 {
-	/* Clear 'instruction'. */
+	/* Security practices to avoid access violations:
+	The contents of 'buffer' should  be considered untrusted and parsed carefully.
+	We assume 'buffer_size' to be a trusted variable. We have no other option.
+	
+	'buffer' should always point to the start of the buffer. We use the 'b'
+	buffer iterator to read data from the buffer, however before accessing it
+	make sure to check 'buffer_size' to see if we can safely access it. Then,
+	after reading data from the buffer we increment 'b' and decrement
+	'buffer_size'.
+	Helper macros: _NMD_READ_BYTE()
+	*/
+	
+	/* Clear 'instruction' */
 	size_t i = 0;
 	for (; i < sizeof(nmd_x86_instruction); i++)
 		((uint8_t*)(instruction))[i] = 0x00;
 
-	/* Set mode. */
+	/* Set mode */
 	instruction->mode = (uint8_t)mode;
 
-	/* Set buffer iterator. */
+	/* Set buffer iterator */
 	const uint8_t* b = (const uint8_t*)buffer;
-
-	/* Decode legacy and REX prefixes. Make sure we only read up to imposed limits(num_max_bytes). */
-	i = 0;
-	const size_t num_max_bytes = _NMD_MIN(buffer_size, NMD_X86_MAXIMUM_INSTRUCTION_LENGTH);
-	for (; i < num_max_bytes; i++, b++)
+	
+	/*  Clamp 'buffer_size' to 15. We will only read up to 15 bytes(NMD_X86_MAXIMUM_INSTRUCTION_LENGTH) */
+	if (buffer_size > 15)
+		buffer_size = 15;
+	
+	/* Decode legacy and REX prefixes */
+	for (; buffer_size > 0; b++, buffer_size--)
 	{
 		switch (*b)
 		{
@@ -4611,19 +4632,19 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 		case 0x66: instruction->prefixes = (instruction->prefixes | (instruction->simd_prefix = NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)), instruction->rex_w_prefix = false; continue;
 		case 0x67: instruction->prefixes = (instruction->prefixes | NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE); continue;
 		default:
-			if ((mode == NMD_X86_MODE_64) && _NMD_R(*b) == 4) /* REX prefixes(0x40). */
+			if (mode == NMD_X86_MODE_64 && _NMD_R(*b) == 4) /* REX prefixes [0x40,0x4f] */
 			{
 				instruction->has_rex = true;
 				instruction->rex = *b;
 				instruction->prefixes = (instruction->prefixes & ~(NMD_X86_PREFIXES_REX_B | NMD_X86_PREFIXES_REX_X | NMD_X86_PREFIXES_REX_R | NMD_X86_PREFIXES_REX_W));
 
-				if (*b & 0b0001) /* Bit position 0. */
+				if (*b & 0b0001) /* Bit position 0 */
 					instruction->prefixes = instruction->prefixes | NMD_X86_PREFIXES_REX_B;
-				if (*b & 0b0010) /* Bit position 1. */
+				if (*b & 0b0010) /* Bit position 1 */
 					instruction->prefixes = instruction->prefixes | NMD_X86_PREFIXES_REX_X;
-				if (*b & 0b0100) /* Bit position 2. */
+				if (*b & 0b0100) /* Bit position 2 */
 					instruction->prefixes = instruction->prefixes | NMD_X86_PREFIXES_REX_R;
-				if (*b & 0b1000) /* Bit position 3. */
+				if (*b & 0b1000) /* Bit position 3 */
 				{
 					instruction->prefixes = instruction->prefixes | NMD_X86_PREFIXES_REX_W;
 					instruction->rex_w_prefix = true;
@@ -4636,50 +4657,31 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 		break;
 	}
 
-	/* Calculate the number of prefixes based on how much the iterator moved. */
+	/* Calculate the number of prefixes based on how much the iterator moved */
 	instruction->num_prefixes = (uint8_t)((ptrdiff_t)(b)-(ptrdiff_t)(buffer));
 
-	/* Calculate the remaining number of bytes the instruction can still have. If from now on we decode more than this value the instruction would have more than 15 bytes which is not allowed by the architecture. */
-	const size_t remaining_valid_bytes = (NMD_X86_MAXIMUM_INSTRUCTION_LENGTH) - instruction->num_prefixes;
-
-	/* Calculate the remainig buffer size(after reading prefixes). */
-	const size_t remaining_buffer_size = buffer_size - instruction->num_prefixes;
-
-	/* 'remaining_size' is the lowest size between the two. We should not read more bytes than this from the buffer or the instruction's size should not be greater than this value. */
-	const size_t remaining_size = _NMD_MIN(remaining_valid_bytes, remaining_buffer_size);
-	if (remaining_size == 0)
-		return false;
-
-	/* Assume the instruction uses legacy encoding. It is most likely the case. */
+	/* Assume the instruction uses legacy encoding. It is most likely the case */
 	instruction->encoding = NMD_X86_ENCODING_LEGACY;
 
-	/* Opcode byte. This variable is used because it's easier to write 'op' than 'instruction->opcode'. */
-	uint8_t op = 0;
+	/* Opcode byte. This variable is used because 'op' is simpler than 'instruction->opcode' */
+	uint8_t op;
+	_NMD_READ_BYTE(b, buffer_size, op);	
 
-	/* Parse opcode. */
-	if (*b == 0x0F) /* 2 or 3 byte opcode. */
+	/* Parse opcode */
+	if (op == 0x0F) /* 2 or 3 byte opcode. */
 	{
-		/* The instruction should be at least two bytes because one is already the 0F opcode map prefix. */
-		if (remaining_size < 2)
-			return false;
+		_NMD_READ_BYTE(b, buffer_size, op);	
 
-		b++;
-
-		if (*b == 0x38 || *b == 0x3A) /* 3 byte opcode. */
+		if (op == 0x38 || op == 0x3A) /* 3 byte opcode. */
 		{
-			if (remaining_size < 4)
-				return false;
+			_NMD_READ_BYTE(b, buffer_size, op);
 
-			instruction->opcode_map = (uint8_t)(*b == 0x38 ? NMD_X86_OPCODE_MAP_0F38 : NMD_X86_OPCODE_MAP_0F3A);
+			instruction->opcode_map = (uint8_t)(op == 0x38 ? NMD_X86_OPCODE_MAP_0F38 : NMD_X86_OPCODE_MAP_0F3A);
 			instruction->opcode_size = 3;
-			instruction->opcode = *++b;
+			instruction->opcode = op;
 
-			op = instruction->opcode;
-
-			if (!_nmd_decode_modrm(&b, instruction, remaining_size - 3))
+			if (!_nmd_decode_modrm(&b, &buffer_size, instruction))
 				return false;
-
-			b++;
 
 			const nmd_x86_modrm modrm = instruction->modrm;
 			if (instruction->opcode_map == NMD_X86_OPCODE_MAP_0F38)
@@ -4847,9 +4849,6 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 			}
 			else /* 0x3a */
 			{
-				if (remaining_size < 5)
-					return false;
-
 				instruction->imm_mask = NMD_X86_IMM8;
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
@@ -4930,28 +4929,24 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS */
 			}
 		}
-		else if (*b == 0x0f) /* 3DNow! opcode map*/
+		else if (op == 0x0f) /* 3DNow! opcode map*/
 		{
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_3DNOW
 			if (flags & NMD_X86_DECODER_FLAGS_3DNOW)
 			{
-				if (remaining_size < 5)
-					return false;
-			
-				if (!_nmd_decode_modrm(&b, instruction, remaining_size - 2))
+				if (!_nmd_decode_modrm(&b, &buffer_size, instruction))
 					return false;
 
 				instruction->encoding = NMD_X86_ENCODING_3DNOW;
 				instruction->opcode = 0x0f;
 				instruction->imm_mask = NMD_X86_IMM8; /* The real opcode is encoded as the immediate byte. */
-				instruction->immediate = *(b + 1);
+				_NMD_READ_BYTE(b, buffer_size, instruction->immediate);
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 				if (!_nmd_find_byte(_nmd_valid_3DNow_opcodes, sizeof(_nmd_valid_3DNow_opcodes), (uint8_t)instruction->immediate))
 					return false;
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK */
 
-				b++;
 			}
 			else
 				return false;
@@ -4962,17 +4957,18 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 		else /* 2 byte opcode. */
 		{
 			instruction->opcode_size = 2;
-			instruction->opcode = *b;
+			instruction->opcode = op;
 			instruction->opcode_map = NMD_X86_OPCODE_MAP_0F;
-
-			op = instruction->opcode;
-
+			
 			/* Check for ModR/M, SIB and displacement. */
-			if (op >= 0x20 && op <= 0x23 && remaining_size == 2)
-				instruction->has_modrm = true, instruction->modrm.modrm = *++b;
+			if (op >= 0x20 && op <= 0x23 && buffer_size == 2)
+			{
+				instruction->has_modrm = true;
+				_NMD_READ_BYTE(b, buffer_size, instruction->modrm.modrm);
+			}
 			else if (op < 4 || (_NMD_R(op) != 3 && _NMD_R(op) > 0 && _NMD_R(op) < 7) || (op >= 0xD0 && op != 0xFF) || (_NMD_R(op) == 7 && _NMD_C(op) != 7) || _NMD_R(op) == 9 || _NMD_R(op) == 0xB || (_NMD_R(op) == 0xC && _NMD_C(op) < 8) || (_NMD_R(op) == 0xA && (op % 8) >= 3) || op == 0x0ff || op == 0x00 || op == 0x0d)
 			{
-				if (!_nmd_decode_modrm(&b, instruction, remaining_size - 2))
+				if (!_nmd_decode_modrm(&b, &buffer_size, instruction))
 					return false;
 			}
 
@@ -5119,13 +5115,18 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 			else if (op == 0x78 && (instruction->simd_prefix == NMD_X86_PREFIXES_REPEAT_NOT_ZERO || instruction->simd_prefix == NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) /* imm8 + imm8 = "imm16" */
 				instruction->imm_mask = NMD_X86_IMM16;
 
-			/* Make sure we can read the immediate */
-			if (instruction->imm_mask > remaining_size - 2 - (int)instruction->has_modrm - (int)instruction->has_sib - instruction->disp_mask)
+			/* Make sure we can read 'instruction->imm_mask' bytes from the buffer */
+			if (buffer_size < instruction->imm_mask)
 				return false;
-
-			b++;
-			for (i = 0; i < (size_t)instruction->imm_mask; i++)
+			
+			/* Copy 'instruction->imm_mask' bytes from the buffer */
+			for (i = 0; i < instruction->imm_mask; i++)
 				((uint8_t*)(&instruction->immediate))[i] = b[i];
+			
+			/* Increment the buffer and decrement the buffer's size */
+			b += instruction->imm_mask;
+			buffer_size -= instruction->imm_mask;
+			
 			if (_NMD_R(op) == 8 && instruction->immediate & ((uint64_t)(1) << (instruction->imm_mask * 8 - 1)))
 				instruction->immediate |= 0xffffffffffffffff << (instruction->imm_mask * 8);
 
@@ -5613,8 +5614,10 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 								_nmd_decode_operand_Vdq(instruction, &instruction->operands[i++]);
 							_nmd_decode_operand_Udq(instruction, &instruction->operands[i + 0]);
 							instruction->operands[i + 1].type = instruction->operands[i + 2].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+							/* FIXME: We should not access the buffer from here
 							instruction->operands[i + 1].fields.imm = b[1];
 							instruction->operands[i + 2].fields.imm = b[2];
+							*/
 						}
 						else
 						{
@@ -5811,7 +5814,6 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
 				}
-				/*}*/
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS */
 		}
@@ -5819,15 +5821,13 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 	else /* 1 byte opcode */
 	{
 		instruction->opcode_size = 1;
-		instruction->opcode = *b;
+		instruction->opcode = op;
 		instruction->opcode_map = NMD_X86_OPCODE_MAP_DEFAULT;
 
-		op = instruction->opcode;
-
 		/* Check for ModR/M, SIB and displacement. */
-		if (_NMD_R(op) == 8 || _nmd_find_byte(_nmd_op1_modrm, sizeof(_nmd_op1_modrm), op) || (_NMD_R(op) < 4 && (_NMD_C(op) < 4 || (_NMD_C(op) >= 8 && _NMD_C(op) < 0xC))) || (_NMD_R(op) == 0xD && _NMD_C(op) >= 8) || (remaining_size > 1 && ((nmd_x86_modrm*)(b + 1))->fields.mod != 0b11 && (op == 0xc4 || op == 0xc5 || op == 0x62)))
+		if (_NMD_R(op) == 8 || _nmd_find_byte(_nmd_op1_modrm, sizeof(_nmd_op1_modrm), op) || (_NMD_R(op) < 4 && (_NMD_C(op) < 4 || (_NMD_C(op) >= 8 && _NMD_C(op) < 0xC))) || (_NMD_R(op) == 0xD && _NMD_C(op) >= 8) /* FIXME: We should not access the buffer directly from here || (remaining_size > 1 && ((nmd_x86_modrm*)(b + 1))->fields.mod != 0b11 && (op == 0xc4 || op == 0xc5 || op == 0x62)) */)
 		{
-			if (!_nmd_decode_modrm(&b, instruction, remaining_size - 1))
+			if (!_nmd_decode_modrm(&b, &buffer_size, instruction))
 				return false;
 		}
 
@@ -5849,26 +5849,27 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 				instruction->encoding = NMD_X86_ENCODING_VEX;
 
 				instruction->vex.vex[0] = op;
-				if (remaining_size < 4)
-					return false;
 
-				const uint8_t byte1 = *++b;
+				uint8_t byte1;
+				_NMD_READ_BYTE(b, buffer_size, byte1);
 
 				instruction->vex.R = byte1 & 0b10000000;
-				if (instruction->vex.vex[0] == 0xc4)
+				if (instruction->vex.vex[0] == 0xc4) /* 0xc4 */
 				{
 					instruction->vex.X = (byte1 & 0b01000000) == 0b01000000;
 					instruction->vex.B = (byte1 & 0b00100000) == 0b00100000;
 					instruction->vex.m_mmmm = (uint8_t)(byte1 & 0b00011111);
 
-					const uint8_t byte2 = *++b;
+					uint8_t byte2;
+					_NMD_READ_BYTE(b, buffer_size, byte2);
+					
 					instruction->vex.W = (byte2 & 0b10000000) == 0b10000000;
 					instruction->vex.vvvv = (uint8_t)((byte2 & 0b01111000) >> 3);
 					instruction->vex.L = (byte2 & 0b00000100) == 0b00000100;
 					instruction->vex.pp = (uint8_t)(byte2 & 0b00000011);
 
-					instruction->opcode = *++b;
-					op = instruction->opcode;
+					_NMD_READ_BYTE(b, buffer_size, op);
+					instruction->opcode = op;
 
 					if (op == 0x0c || op == 0x0d || op == 0x40 || op == 0x41 || op == 0x17 || op == 0x21 || op == 0x42)
 						instruction->imm_mask = NMD_X86_IMM8;
@@ -5892,12 +5893,11 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					instruction->vex.L = byte1 & 0b00000100;
 					instruction->vex.pp = (uint8_t)(byte1 & 0b00000011);
 
-					b++;
-					instruction->opcode = *b;
-					op = instruction->opcode;
+					_NMD_READ_BYTE(b, buffer_size, op);
+					instruction->opcode = op;
 				}
 
-				if (!_nmd_decode_modrm(&b, instruction, remaining_size - (instruction->vex.vex[0] == 0xc4 ? 4 : 3)))
+				if (!_nmd_decode_modrm(&b, &buffer_size, instruction))
 					return false;
 			}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_VEX */
@@ -6000,7 +6000,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						instruction->imm_mask = (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_IMM64 : (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || (mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? NMD_X86_IMM16 : NMD_X86_IMM32));
 					else
 					{
-						if (mode == NMD_X86_MODE_16 && instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || mode != NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE))
+						if ((mode == NMD_X86_MODE_16 && instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) || (mode != NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)))
 							instruction->imm_mask = NMD_X86_IMM32;
 						else
 							instruction->imm_mask = NMD_X86_IMM16;
@@ -6021,13 +6021,17 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 				else if (op == 0xC8) /* imm16 + imm8 */
 					instruction->imm_mask = NMD_X86_IMM16 | NMD_X86_IMM8;
 				
-				/* Make sure we can read the immediate */
-				if (instruction->imm_mask > remaining_size - 1 - (int)instruction->has_modrm - (int)instruction->has_sib - instruction->disp_mask)
+				/* Make sure we can read 'instruction->imm_mask' bytes from the buffer */
+				if (buffer_size < instruction->imm_mask)
 					return false;
 
-				b++;
-				for (i = 0; i < (size_t)instruction->imm_mask; i++)
+				/* Copy 'instruction->imm_mask' bytes from the buffer */
+				for (i = 0; i < instruction->imm_mask; i++)
 					((uint8_t*)(&instruction->immediate))[i] = b[i];
+				
+				/* Increment the buffer and decrement the buffer's size */
+				b += instruction->imm_mask;
+				buffer_size -= instruction->imm_mask;
 
 				/* Sign extend immediate for specific instructions */
 				if (op == 0xe9 || op == 0xeb || op == 0xe8 || _NMD_R(op) == 7)
@@ -6035,7 +6039,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					if (instruction->immediate & ((uint64_t)(1) << (instruction->imm_mask * 8 - 1)))
 						instruction->immediate |= 0xffffffffffffffff << (instruction->imm_mask * 8);
 				}
-				else if (op == 0x68 && mode == NMD_X86_MODE_64 && instruction->immediate & (1<<31))
+				else if (op == 0x68 && mode == NMD_X86_MODE_64 && instruction->immediate & ((uint64_t)1<<31))
 					instruction->immediate |= 0xffffffff00000000;
 
 				/* These are optional features */
@@ -6701,14 +6705,14 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					else if (op == 0x98) /* cbw,cwde,cdqe */
 					{
 						instruction->num_operands = 2;
-						const NMD_X86_REG reg = instruction->mode == NMD_X86_MODE_64 && instruction->rex_w_prefix ? NMD_X86_REG_RAX : ((instruction->mode == NMD_X86_MODE_16 && instruction->simd_prefix & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || instruction->mode != NMD_X86_MODE_16 && !(instruction->simd_prefix & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? NMD_X86_REG_EAX : NMD_X86_REG_AX);
+						const NMD_X86_REG reg = instruction->mode == NMD_X86_MODE_64 && instruction->rex_w_prefix ? NMD_X86_REG_RAX : (((instruction->mode == NMD_X86_MODE_16 && instruction->simd_prefix & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) || (instruction->mode != NMD_X86_MODE_16 && !(instruction->simd_prefix & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE))) ? NMD_X86_REG_EAX : NMD_X86_REG_AX);
 						_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_WRITE, reg);
 						_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_READ, reg-8);
 					}
 					else if (op == 0x99) /* cwd,cdq,cqo */
 					{
 						instruction->num_operands = 2;
-						const NMD_X86_REG reg = instruction->mode == NMD_X86_MODE_64 && instruction->rex_w_prefix ? NMD_X86_REG_RAX : ((instruction->mode == NMD_X86_MODE_16 && instruction->simd_prefix & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE || instruction->mode != NMD_X86_MODE_16 && !(instruction->simd_prefix & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? NMD_X86_REG_EAX : NMD_X86_REG_AX);
+						const NMD_X86_REG reg = instruction->mode == NMD_X86_MODE_64 && instruction->rex_w_prefix ? NMD_X86_REG_RAX : (((instruction->mode == NMD_X86_MODE_16 && instruction->simd_prefix & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE) || (instruction->mode != NMD_X86_MODE_16 && !(instruction->simd_prefix & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE))) ? NMD_X86_REG_EAX : NMD_X86_REG_AX);
 						_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_WRITE, reg + 2);
 						_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_READ, reg);
 					}
@@ -6870,7 +6874,11 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						instruction->operands[op < 0xa2 ? 0 : 1].type = NMD_X86_OPERAND_TYPE_REGISTER;
 						instruction->operands[op < 0xa2 ? 0 : 1].fields.reg = (uint8_t)(op % 2 == 0 ? NMD_X86_REG_AL : (instruction->rex_w_prefix ? NMD_X86_REG_RAX : ((instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && mode != NMD_X86_MODE_16) || (mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? NMD_X86_REG_AX : NMD_X86_REG_EAX)));
 						instruction->operands[op < 0xa2 ? 1 : 0].type = NMD_X86_OPERAND_TYPE_MEMORY;
+						
+						/* FIXME: We should not access the buffer from here
 						instruction->operands[op < 0xa2 ? 1 : 0].fields.mem.disp = (mode == NMD_X86_MODE_64) ? *(uint64_t*)(b + 1) : *(uint32_t*)(b + 1);
+						*/
+						
 						_nmd_decode_operand_segment_reg(instruction, &instruction->operands[op < 0xa2 ? 1 : 0]);
 						instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 						instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
@@ -6904,8 +6912,10 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 					else if (op == 0xc8)
 					{
 						instruction->operands[0].type = instruction->operands[1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+						/* FIXME: We should not access the buffer from here
 						instruction->operands[0].fields.imm = *(uint16_t*)(b + 1);
 						instruction->operands[1].fields.imm = b[3];
+						*/
 					}
 					else if (op >= 0xd0 && op <= 0xd3)
 					{
@@ -6984,7 +6994,6 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 						_nmd_decode_operand_Ev(instruction, &instruction->operands[0]);
 						instruction->operands[0].action = (uint8_t)(op == 0xff && instruction->modrm.fields.reg >= 0b010 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_READWRITE);
 					}
-					/*}*/
 				}
 #endif /* NMD_ASSEMBLY_DISABLE_DECODER_OPERANDS */
 			}
@@ -6998,9 +7007,9 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* buffer, size_t buffer_size, nmd
 			return false;
 	}
 
-	instruction->length = (uint8_t)((ptrdiff_t)(b + (size_t)instruction->imm_mask) - (ptrdiff_t)(buffer));
+	instruction->length = (uint8_t)((ptrdiff_t)(b) - (ptrdiff_t)(buffer));
 	for (i = 0; i < instruction->length; i++)
-		instruction->buffer[i] = ((const uint8_t*)(buffer))[i];
+		instruction->buffer[i] = ((const uint8_t* const)(buffer))[i];
 
 	instruction->valid = true;
 
@@ -7088,7 +7097,7 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, 
 	uint8_t opcode_size = 0;
 
 	bool has_modrm = false;
-	nmd_x86_modrm modrm = { 0,0,0 };
+	nmd_x86_modrm modrm;
 
 	size_t offset = 0;
 
@@ -7667,7 +7676,7 @@ NMD_ASSEMBLY_API void _nmd_append_signed_number_memory_view(_nmd_string_info* co
 
 NMD_ASSEMBLY_API void _nmd_append_relative_address8(_nmd_string_info* const si)
 {
-	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		_nmd_append_signed_number(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
@@ -7676,26 +7685,26 @@ NMD_ASSEMBLY_API void _nmd_append_relative_address8(_nmd_string_info* const si)
 	{
 		uint64_t n;
 		if (si->instruction->mode == NMD_X86_MODE_64)
-			n = (uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else if (si->instruction->mode == NMD_X86_MODE_16)
-			n = (uint16_t)((int16_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint16_t)((int16_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else
-			n = (uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint32_t)((int32_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int8_t)(si->instruction->immediate));
 		_nmd_append_number(si, n);
 	}
 }
 
 NMD_ASSEMBLY_API void _nmd_append_relative_address16_32(_nmd_string_info* const si)
 {
-	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
 	}
 	else
 		_nmd_append_number(si, ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == NMD_X86_MODE_64 ?
-			(uint64_t)((uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int32_t)(si->instruction->immediate))) :
-			(uint64_t)((uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int32_t)(si->instruction->immediate)))
+			(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate))) :
+			(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate)))
 		));
 }
 
@@ -7800,7 +7809,7 @@ NMD_ASSEMBLY_API void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 		if (si->instruction->modrm.fields.rm == 0b101 && si->instruction->mode == NMD_X86_MODE_64 && si->instruction->modrm.fields.mod == 0b00 && si->runtime_address != NMD_X86_INVALID_RUNTIME_ADDRESS)
 		{
 			if (si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE)
-				_nmd_append_number(si, (uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int32_t)si->instruction->displacement));
+				_nmd_append_number(si, (uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)si->instruction->displacement));
 			else
 				_nmd_append_number(si, (uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int64_t)((int32_t)si->instruction->displacement)));
 		}

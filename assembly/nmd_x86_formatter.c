@@ -86,7 +86,7 @@ NMD_ASSEMBLY_API void _nmd_append_signed_number_memory_view(_nmd_string_info* co
 
 NMD_ASSEMBLY_API void _nmd_append_relative_address8(_nmd_string_info* const si)
 {
-	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		_nmd_append_signed_number(si, (int64_t)((int8_t)(si->instruction->immediate) + (int8_t)(si->instruction->length)), true);
@@ -95,26 +95,26 @@ NMD_ASSEMBLY_API void _nmd_append_relative_address8(_nmd_string_info* const si)
 	{
 		uint64_t n;
 		if (si->instruction->mode == NMD_X86_MODE_64)
-			n = (uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else if (si->instruction->mode == NMD_X86_MODE_16)
-			n = (uint16_t)((int16_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint16_t)((int16_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int8_t)(si->instruction->immediate));
 		else
-			n = (uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int8_t)(si->instruction->immediate));
+			n = (uint32_t)((int32_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int8_t)(si->instruction->immediate));
 		_nmd_append_number(si, n);
 	}
 }
 
 NMD_ASSEMBLY_API void _nmd_append_relative_address16_32(_nmd_string_info* const si)
 {
-	if (si->runtime_address == (uint64_t)NMD_X86_INVALID_RUNTIME_ADDRESS)
+	if (si->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
 		/* *si->buffer++ = '$'; */
 		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
 	}
 	else
 		_nmd_append_number(si, ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == NMD_X86_MODE_64 ?
-			(uint64_t)((uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int32_t)(si->instruction->immediate))) :
-			(uint64_t)((uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int32_t)(si->instruction->immediate)))
+			(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate))) :
+			(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate)))
 		));
 }
 
@@ -219,7 +219,7 @@ NMD_ASSEMBLY_API void _nmd_append_modrm32_upper(_nmd_string_info* const si)
 		if (si->instruction->modrm.fields.rm == 0b101 && si->instruction->mode == NMD_X86_MODE_64 && si->instruction->modrm.fields.mod == 0b00 && si->runtime_address != NMD_X86_INVALID_RUNTIME_ADDRESS)
 		{
 			if (si->instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE)
-				_nmd_append_number(si, (uint32_t)((int32_t)(si->runtime_address + si->instruction->length) + (int32_t)si->instruction->displacement));
+				_nmd_append_number(si, (uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)si->instruction->displacement));
 			else
 				_nmd_append_number(si, (uint64_t)((int64_t)(si->runtime_address + si->instruction->length) + (int64_t)((int32_t)si->instruction->displacement)));
 		}

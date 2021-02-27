@@ -691,7 +691,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				size_t num_digits;
 				if (_nmd_parse_number(s, &num, &num_digits))
 				{
-					ai->b[2] = num;
+					ai->b[2] = (uint8_t)num;
 					return 3;
 				}
 			}
@@ -735,7 +735,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				size_t num_digits;
 				if (_nmd_parse_number(ai->s, &num, &num_digits))
 				{
-					ai->b[1] = num;
+					ai->b[1] = (uint8_t)num;
 					return 2;
 				}
 			}
@@ -1117,7 +1117,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			ai->b[offset++] = 0x66;
 		ai->b[offset++] = 0xe9;
 		const int64_t size = (int64_t)offset + 4;
-		*(uint32_t*)(ai->b + offset) = (ai->runtime_address == -1) ? num - size : ai->runtime_address + size + num;
+		*(uint32_t*)(ai->b + offset) = (uint32_t)((ai->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS) ? (num - size) : (ai->runtime_address + size + num));
 		return size;
 	}
 	else if (ai->s[0] == 'j')
@@ -1145,7 +1145,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				if (!_nmd_parse_number(s + 1, &num, &num_digits))
 					return 0;
 
-				const int64_t delta = (ai->runtime_address == -1 ? num : num - ai->runtime_address);
+				const int64_t delta = (ai->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS ? num : num - ai->runtime_address);
 				if (delta >= -(1 << 7) + 2 && delta <= (1 << 7) - 1 + 2)
 				{
 					ai->b[0] = 0x70 + (uint8_t)i;
@@ -1342,7 +1342,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			size_t num_digits;
 			if (_nmd_parse_number(ai->s, &num, &num_digits))
 			{
-				ai->b[1] = num;
+				ai->b[1] = (uint8_t)num;
 				return 2;
 			}
 		}
