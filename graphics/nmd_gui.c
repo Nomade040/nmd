@@ -9,6 +9,40 @@ LRESULT nmd_win32_wnd_proc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         _nmd_context.io.mouse_pos.y = ((int)(short)HIWORD(lParam));
     }
 
+	/* Handle raw input */
+    if (uMsg == WM_INPUT) 
+    {
+        RAWINPUT ri;
+        UINT sz = sizeof(RAWINPUT);
+        if (GetRawInputData((HRAWINPUT)lParam, RID_HEADER, &ri, &sz, sizeof(RAWINPUTHEADER)) > 0)
+        {
+            if (ri.header.dwType == RIM_TYPEMOUSE)
+            {
+                if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, &ri, &sz, sizeof(RAWINPUTHEADER)) > 0)
+                {
+                    if (ri.data.mouse.usFlags == MOUSE_MOVE_RELATIVE)
+                    {
+                        _nmd_context.io.mouse_pos.x += (float)ri.data.mouse.lLastX;
+                        _nmd_context.io.mouse_pos.y += (float)ri.data.mouse.lLastY;
+
+                        if (ri.data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)
+                            _nmd_context.io.mouse_down[0] = true, _nmd_context.io.mouse_clicked_pos[0] = _nmd_context.io.mouse_pos;
+                        else if (ri.data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)
+                            _nmd_context.io.mouse_down[0] = false, _nmd_context.io.mouse_released[0] = true;
+                        if (ri.data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)
+                            _nmd_context.io.mouse_down[1] = true, _nmd_context.io.mouse_clicked_pos[1] = _nmd_context.io.mouse_pos;
+                        else if (ri.data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)
+                            _nmd_context.io.mouse_down[1] = false, _nmd_context.io.mouse_released[1] = true;
+                        if (ri.data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN)
+                            _nmd_context.io.mouse_down[2] = true, _nmd_context.io.mouse_clicked_pos[2] = _nmd_context.io.mouse_pos;
+                        else if (ri.data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)
+                            _nmd_context.io.mouse_down[2] = false, _nmd_context.io.mouse_released[2] = true;
+                    }
+                }
+            }
+        }
+    }
+
     switch (uMsg)
     {
     /* Handle keyboard keys */
