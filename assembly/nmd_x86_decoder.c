@@ -263,15 +263,13 @@ Parameters:
 */
 NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_size, nmd_x86_instruction* instruction, NMD_X86_MODE mode, uint32_t flags)
 {
-	/* Security practices to avoid access violations:
-	The contents of 'buffer' should  be considered untrusted and parsed carefully.
-	We assume 'buffer_size' to be a trusted variable. We have no other option.
+	/* Security considerations for memory safety:
+	The contents of 'buffer' should be considered untrusted and decoded carefully.
 	
 	'buffer' should always point to the start of the buffer. We use the 'b'
 	buffer iterator to read data from the buffer, however before accessing it
 	make sure to check 'buffer_size' to see if we can safely access it. Then,
-	after reading data from the buffer we increment 'b' and decrement
-	'buffer_size'.
+	after reading data from the buffer we increment 'b' and decrement 'buffer_size'.
 	Helper macros: _NMD_READ_BYTE()
 	*/
 	
@@ -340,19 +338,18 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 
 	/* Opcode byte. This variable is used because 'op' is simpler than 'instruction->opcode' */
 	uint8_t op;
-	_NMD_READ_BYTE(b, buffer_size, op);	
+	_NMD_READ_BYTE(b, buffer_size, op);
 
-	/* Parse opcode */
-	if (op == 0x0F) /* 2 or 3 byte opcode. */
+	if (op == 0x0F) /* 2 or 3 byte opcode */
 	{
-		_NMD_READ_BYTE(b, buffer_size, op);	
+		_NMD_READ_BYTE(b, buffer_size, op);
 
-		if (op == 0x38 || op == 0x3A) /* 3 byte opcode. */
+		if (op == 0x38 || op == 0x3A) /* 3 byte opcode */
 		{
-			_NMD_READ_BYTE(b, buffer_size, op);
-
-			instruction->opcode_map = (uint8_t)(op == 0x38 ? NMD_X86_OPCODE_MAP_0F38 : NMD_X86_OPCODE_MAP_0F3A);
 			instruction->opcode_size = 3;
+			instruction->opcode_map = (uint8_t)(op == 0x38 ? NMD_X86_OPCODE_MAP_0F38 : NMD_X86_OPCODE_MAP_0F3A);
+            
+			_NMD_READ_BYTE(b, buffer_size, op);
 			instruction->opcode = op;
 
 			if (!_nmd_decode_modrm(&b, &buffer_size, instruction))
@@ -525,6 +522,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 			else /* 0x3a */
 			{
 				instruction->imm_mask = NMD_X86_IMM8;
+                _NMD_READ_BYTE(b, buffer_size, instruction->immediate);
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 				if (flags & NMD_X86_DECODER_FLAGS_VALIDITY_CHECK)
@@ -635,7 +633,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 			instruction->opcode = op;
 			instruction->opcode_map = NMD_X86_OPCODE_MAP_0F;
 			
-			/* Check for ModR/M, SIB and displacement. */
+			/* Check for ModR/M, SIB and displacement */
 			if (op >= 0x20 && op <= 0x23 && buffer_size == 2)
 			{
 				instruction->has_modrm = true;
@@ -1529,7 +1527,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 				_NMD_READ_BYTE(b, buffer_size, byte1);
 
 				instruction->vex.R = byte1 & 0b10000000;
-				if (instruction->vex.vex[0] == 0xc4) /* 0xc4 */
+				if (instruction->vex.vex[0] == 0xc4)
 				{
 					instruction->vex.X = (byte1 & 0b01000000) == 0b01000000;
 					instruction->vex.B = (byte1 & 0b00100000) == 0b00100000;
@@ -1547,7 +1545,10 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 					instruction->opcode = op;
 
 					if (op == 0x0c || op == 0x0d || op == 0x40 || op == 0x41 || op == 0x17 || op == 0x21 || op == 0x42)
+                    {
 						instruction->imm_mask = NMD_X86_IMM8;
+                        _NMD_READ_BYTE(b, buffer_size, instruction->immediate);
+                    }
 
 #ifndef NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK
 					/* Check if the instruction is invalid. */
