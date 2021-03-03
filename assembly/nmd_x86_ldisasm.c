@@ -78,6 +78,7 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* const buffer, size_t buffer_
 	uint8_t opcode_size = 0;
 	bool has_modrm = false;
 	nmd_x86_modrm modrm;
+    modrm.modrm = 0;
     
     /* Security considerations for memory safety:
 	The contents of 'buffer' should be considered untrusted and decoded carefully.

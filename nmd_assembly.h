@@ -12,7 +12,7 @@ Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the inc
 #include "nmd_assembly.h"
 
 Interfaces(i.e the functions you call from your application):
- - The assembler is represented by the following function:
+ - The assembler is implemented by the following function:
     Assembles an instruction from a string. Returns the number of bytes written to the buffer on success, zero otherwise. Instructions can be separated using the '\n'(new line) character.
     Parameters:
      - string          [in]         A pointer to a string that represents one or more instructions in assembly language.
@@ -23,7 +23,7 @@ Interfaces(i.e the functions you call from your application):
      - count           [in/out/opt] A pointer to a variable that on input is the maximum number of instructions that can be parsed(or zero for unlimited instructions), and on output is the number of instructions parsed. This parameter may be zero.
     size_t nmd_x86_assemble(const char* string, void* buffer, size_t buffer_size, uint64_t runtime_address, NMD_X86_MODE mode, size_t* const count);
 
- - The disassembler is composed of a decoder and a formatter represented by these two functions respectively:
+ - The disassembler is composed of a decoder and a formatter implemented by these two functions respectively:
 	- Decodes an instruction. Returns true if the instruction is valid, false otherwise.
       Parameters:
        - buffer      [in]  A pointer to a buffer containing an encoded instruction.
@@ -41,7 +41,7 @@ Interfaces(i.e the functions you call from your application):
        - flags           [in]  A mask of 'NMD_X86_FORMAT_FLAGS_XXX' that specifies how the function should format the instruction. If uncertain, use 'NMD_X86_FORMAT_FLAGS_DEFAULT'.
       void nmd_x86_format(const nmd_x86_instruction* instruction, char buffer[], uint64_t runtime_address, uint32_t flags);
 
- - The length disassembler is represented by the following function:
+ - The length disassembler is implemented by the following function:
     Returns the length of the instruction if it is valid, zero otherwise.
     Parameters:
      - buffer      [in] A pointer to a buffer containing an encoded instruction.
@@ -7095,6 +7095,7 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* const buffer, size_t buffer_
 	uint8_t opcode_size = 0;
 	bool has_modrm = false;
 	nmd_x86_modrm modrm;
+    modrm.modrm = 0;
     
     /* Security considerations for memory safety:
 	The contents of 'buffer' should be considered untrusted and decoded carefully.
@@ -7714,10 +7715,16 @@ NMD_ASSEMBLY_API void _nmd_append_relative_address16_32(_nmd_string_info* const 
 		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
 	}
 	else
+    {
+        _nmd_append_number(si,(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate))));
+    }
+    
+    /*
 		_nmd_append_number(si, ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == NMD_X86_MODE_64 ?
 			(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate))) :
 			(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate)))
 		));
+    */
 }
 
 NMD_ASSEMBLY_API void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* addr_specifier_reg)

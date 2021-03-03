@@ -112,10 +112,16 @@ NMD_ASSEMBLY_API void _nmd_append_relative_address16_32(_nmd_string_info* const 
 		_nmd_append_signed_number(si, (int64_t)((int32_t)(si->instruction->immediate) + (int32_t)(si->instruction->length)), true);
 	}
 	else
+    {
+        _nmd_append_number(si,(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate))));
+    }
+    
+    /*
 		_nmd_append_number(si, ((si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && si->instruction->mode == NMD_X86_MODE_32) || (si->instruction->mode == NMD_X86_MODE_16 && !(si->instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? 0xFFFF : 0xFFFFFFFFFFFFFFFF) & (si->instruction->mode == NMD_X86_MODE_64 ?
 			(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate))) :
 			(uint64_t)((int64_t)(si->runtime_address + (uint64_t)si->instruction->length) + (int64_t)((int32_t)(si->instruction->immediate)))
 		));
+    */
 }
 
 NMD_ASSEMBLY_API void _nmd_append_modrm_memory_prefix(_nmd_string_info* const si, const char* addr_specifier_reg)
