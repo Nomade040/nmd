@@ -29,7 +29,7 @@ jobs:
           
       - name: Copy gtest libraries
         working-directory: /usr/src/gtest
-        run: sudo cp *.a /usr/lib
+        run: sudo cp ./lib/*.a /usr/lib
         
       - name: Merge files
         working-directory: assembly
