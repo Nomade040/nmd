@@ -1,10 +1,10 @@
 /* This is a platform independent C89 x86 assembler and disassembler library.
 
-Overview:
+Features:
  - Support for x86(16/32/64). Intel and AT&T syntax.
  - No libc, dynamic memory allocation, static/global variables/state/context or runtime initialization.
  - Thread-safe by design.
- - By default the only dependencies are <stdbool.h>, <stdint.h> and <stddef.h>.
+ - No header files need to be included.
 
 Setup:
 Define the 'NMD_ASSEMBLY_IMPLEMENTATION' macro in one source file before the include statement to instantiate the implementation.
@@ -49,10 +49,10 @@ Interfaces(i.e the functions you call from your application):
      - mode        [in] The architecture mode. 'NMD_X86_MODE_32', 'NMD_X86_MODE_64' or 'NMD_X86_MODE_16'.
     size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, NMD_X86_MODE mode);
 
-Enabling and disabling features of the decoder:
+Enabling and disabling features of the decoder at compile-time:
 To dynamically choose which features are used by the decoder, use the 'flags' parameter of nmd_x86_decode(). The less features specified in the mask, the
 faster the decoder runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
-the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
+the following macros:
  - 'NMD_ASSEMBLY_DISABLE_DECODER_VALIDITY_CHECK': the decoder does not check if the instruction is invalid.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_INSTRUCTION_ID': the decoder does not fill the 'id' variable.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_CPU_FLAGS': the decoder does not fill the variables related to cpu fags.
@@ -62,10 +62,10 @@ the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' i
  - 'NMD_ASSEMBLY_DISABLE_DECODER_EVEX': the decoder does not support EVEX instructions.
  - 'NMD_ASSEMBLY_DISABLE_DECODER_3DNOW': the decoder does not support 3DNow! instructions.
 
-Enabling and disabling features of the formatter:
+Enabling and disabling features of the formatter at compile-time:
 To dynamically choose which features are used by the formatter, use the 'flags' parameter of nmd_x86_format(). The less features specified in the mask, the
 faster the function runs. By default all features are available, some can be completely disabled at compile time(thus reducing code size and increasing code speed) by defining
-the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' is defined):
+the following macros:
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_POINTER_SIZE': the formatter does not support pointer size.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_BYTES: the formatter does not support instruction bytes. You may define the 'NMD_X86_FORMATTER_NUM_PADDING_BYTES' macro to be the number of bytes used as space padding.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_ATT_SYNTAX: the formatter does not support AT&T syntax.
@@ -76,14 +76,16 @@ the following macros(in the same place the macro 'NMD_ASSEMBLY_IMPLEMENTATION' i
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_EVEX': the formatter does not support EVEX instructions.
  - 'NMD_ASSEMBLY_DISABLE_FORMATTER_3DNOW': the formatter does not support 3DNow! instructions.
 
-Enabling and disabling features of the length disassembler:
+Enabling and disabling features of the length disassembler at compile-time:
 Use the following macros to disable features at compile-time:
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VALIDITY_CHECK': the length disassembler does not check if the instruction is invalid.
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_VEX': the length disassembler does not support VEX instructions.
  - 'NMD_ASSEMBLY_DISABLE_LENGTH_DISASSEMBLER_3DNOW': the length disassembler does not support 3DNow! instructions.
 
-Define the 'NMD_ASSEMBLY_DEFINE_INT_TYPES' macro to tell the library to define fixed width int types such as 'uint8_t', 'uint32_t', etc. By doing so,
-the library will require no depedencies whatsoever. Be aware, this feature uses platform dependent macros.
+Fixed width integer types:
+By default the library includes <stdint.h> and <stddef.h> to include these types.
+If these header-files are not available in your enviroment you may define the 'NMD_DEFINE_INT_TYPES' macro so the library will define them.
+By defining the 'NMD_IGNORE_INT_TYPES' macro, the library will neither include nor define them.
 
 You may define the 'NMD_ASSEMBLY_PRIVATE' macro to mark all functions as static so that they're not visible to other translation units.
 
@@ -135,55 +137,49 @@ Contributors(This may not be a complete list):
 #ifndef NMD_ASSEMBLY_H
 #define NMD_ASSEMBLY_H
 
-#ifdef NMD_ASSEMBLY_DEFINE_INT_TYPES
-
-#ifndef __cplusplus
-
-#define bool  _Bool
-#define false 0
-#define true  1
-
-#endif /* __cplusplus */
-
-typedef signed char        int8_t;
-typedef unsigned char      uint8_t;
-
-typedef signed short       int16_t;
-typedef unsigned short     uint16_t;
-
-typedef signed int         int32_t;
-typedef unsigned int       uint32_t;
-
-typedef signed long long   int64_t;
-typedef unsigned long long uint64_t;
-
-#if defined(_WIN64) && defined(_MSC_VER)
-	typedef unsigned __int64 size_t;
-	typedef __int64          ptrdiff_t;
-#elif (defined(_WIN32) || defined(WIN32)) && defined(_MSC_VER)
-	typedef unsigned __int32 size_t
-	typedef __int32          ptrdiff_t;
-#elif defined(__GNUC__) || defined(__clang__)
-	#if defined(__x86_64__) || defined(__ppc64__)
-		typedef unsigned long size_t
-		typedef long          ptrdiff_t
-	#else
-		typedef unsigned int size_t
-		typedef int          ptrdiff_t
-	#endif
-#else
-	typedef unsigned long size_t
-	typedef long          ptrdiff_t
-#endif
-
-#else
-
-/* Dependencies when 'NMD_ASSEMBLY_DEFINE_INT_TYPES' is not defined. */
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-
-#endif /* NMD_ASSEMBLY_DEFINE_INT_TYPES */
+#ifndef _NMD_DEFINE_INT_TYPES
+ #ifdef NMD_DEFINE_INT_TYPES
+  #define _NMD_DEFINE_INT_TYPES
+  #ifndef __cplusplus
+   #define bool  _Bool
+   #define false 0
+   #define true  1
+  #endif /* __cplusplus */
+  typedef signed char        int8_t;
+  typedef unsigned char      uint8_t;
+  typedef signed short       int16_t;
+  typedef unsigned short     uint16_t;
+  typedef signed int         int32_t;
+  typedef unsigned int       uint32_t;
+  typedef signed long long   int64_t;
+  typedef unsigned long long uint64_t;
+  #if defined(_WIN64) && defined(_MSC_VER)
+   typedef unsigned __int64 size_t;
+   typedef __int64          ptrdiff_t;
+  #elif (defined(_WIN32) || defined(WIN32)) && defined(_MSC_VER)
+   typedef unsigned __int32 size_t
+   typedef __int32          ptrdiff_t;
+  #elif defined(__GNUC__) || defined(__clang__)
+   #if defined(__x86_64__) || defined(__ppc64__)
+    typedef unsigned long size_t
+    typedef long          ptrdiff_t
+   #else
+    typedef unsigned int size_t
+    typedef int          ptrdiff_t
+   #endif
+  #else
+   typedef unsigned long size_t
+   typedef long          ptrdiff_t
+  #endif
+  
+ #else /* NMD_DEFINE_INT_TYPES */
+  #ifndef NMD_IGNORE_INT_TYPES
+    #include <stdbool.h>
+    #include <stdint.h>
+    #include <stddef.h>
+  #endif /* NMD_IGNORE_INT_TYPES */
+ #endif /* NMD_DEFINE_INT_TYPES */
+#endif /* _NMD_DEFINE_INT_TYPES */
 
 #ifndef _NMD_GET_NUM_DIGITS
 #define _NMD_GET_NUM_DIGITS _nmd_assembly_get_num_digits
@@ -2404,7 +2400,7 @@ typedef struct nmd_x86_instruction
 	nmd_x86_cpu_flags undefined_flags;                      /* Cpu flags whose state is undefined. */
 	uint8_t rex;                                            /* REX prefix. */
 	uint8_t segment_override;                               /* The segment override prefix closest to the opcode. A member of 'NMD_X86_PREFIXES'. */
-	uint16_t simd_prefix;                                   /* Either one of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
+	uint16_t simd_prefix;                                   /* One of these prefixes that is the closest to the opcode: NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE, NMD_X86_PREFIXES_LOCK, NMD_X86_PREFIXES_REPEAT_NOT_ZERO, NMD_X86_PREFIXES_REPEAT, or NMD_X86_PREFIXES_NONE. The prefixes are specified as members of the 'NMD_X86_PREFIXES' enum. */
 } nmd_x86_instruction;
 
 typedef union nmd_x86_register
