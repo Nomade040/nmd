@@ -15,7 +15,7 @@
 #define _NMD_IS_DECIMAL_NUMBER(c) ((c) >= '0' && (c) <= '9')
 #define _NMD_MIN(a, b) ((a)<(b)?(a):(b))
 #define _NMD_MAX(a, b) ((a)>(b)?(a):(b))
-#endif /* _NMD_IS_UPPERCASE */
+#endif /* _NMD_IS_UPPERCASE */  
 
 #define _NMD_SET_REG_OPERAND(operand, _is_implicit, _action, _reg) {operand.type = NMD_X86_OPERAND_TYPE_REGISTER; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.reg = _reg;}
 #define _NMD_SET_IMM_OPERAND(operand, _is_implicit, _action, _imm) {operand.type = NMD_X86_OPERAND_TYPE_IMMEDIATE; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.imm = _imm;}

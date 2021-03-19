@@ -2481,7 +2481,7 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, 
 #define _NMD_IS_DECIMAL_NUMBER(c) ((c) >= '0' && (c) <= '9')
 #define _NMD_MIN(a, b) ((a)<(b)?(a):(b))
 #define _NMD_MAX(a, b) ((a)>(b)?(a):(b))
-#endif /* _NMD_IS_UPPERCASE */
+#endif /* _NMD_IS_UPPERCASE */  
 
 #define _NMD_SET_REG_OPERAND(operand, _is_implicit, _action, _reg) {operand.type = NMD_X86_OPERAND_TYPE_REGISTER; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.reg = _reg;}
 #define _NMD_SET_IMM_OPERAND(operand, _is_implicit, _action, _imm) {operand.type = NMD_X86_OPERAND_TYPE_IMMEDIATE; operand.is_implicit = _is_implicit; operand.action = _action; operand.fields.imm = _imm;}
@@ -6718,6 +6718,22 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 						instruction->num_operands = 1;
 						_NMD_SET_REG_OPERAND(instruction->operands[0], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_AL);
 					}
+                    else if (op == 0xc7 && modrm.fields.reg == 0b000) /* mov Ev,lz */
+                    {
+                        instruction->num_operands = 2;
+                        if (modrm.fields.mod == 0b11)
+                        {
+                            const NMD_X86_REG reg = (NMD_X86_REG)(_NMD_GET_BY_MODE_OPSZPRFX_W64(mode, opszprfx, instruction->rex_w_prefix, NMD_X86_REG_AX, NMD_X86_REG_EAX, NMD_X86_REG_RAX) + modrm.fields.rm);
+                            _NMD_SET_REG_OPERAND(instruction->operands[0], false, NMD_X86_OPERAND_ACTION_WRITE, reg);
+                        }
+                        else
+                        {
+                            _nmd_decode_modrm_upper32(instruction, &instruction->operands[0]);
+                            instruction->operands[0].is_implicit = false;
+                            instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
+                        }
+                        _NMD_SET_IMM_OPERAND(instruction->operands[1], false, NMD_X86_OPERAND_ACTION_READ, instruction->immediate);						
+                    }
 					else if (op >= 0x84 && op <= 0x8b)
 					{
 						if (op % 2 == 0)
@@ -6886,7 +6902,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 						instruction->operands[0].fields.reg = (uint8_t)(op == 0xa8 ? NMD_X86_REG_AL : (instruction->rex_w_prefix ? NMD_X86_REG_RAX : ((instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE && mode != NMD_X86_MODE_16) || (mode == NMD_X86_MODE_16 && !(instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE)) ? NMD_X86_REG_AX : NMD_X86_REG_EAX)));
 						instruction->operands[1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
 					}
-					else if (op == 0xc0 || op == 0xc1 || op == 0xc6 || op == 0xc7)
+					else if (op == 0xc0 || op == 0xc1 || op == 0xc6)
 					{
 						if (!(op >= 0xc6 && instruction->modrm.fields.reg))
 						{
