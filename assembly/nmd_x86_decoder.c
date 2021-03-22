@@ -8,13 +8,15 @@ NMD_ASSEMBLY_API void _nmd_decode_operand_segment_reg(const nmd_x86_instruction*
 		operand->fields.reg = (uint8_t)(!(instruction->prefixes & NMD_X86_PREFIXES_REX_B) && (instruction->modrm.fields.rm == 0b100 || instruction->modrm.fields.rm == 0b101) ? NMD_X86_REG_SS : NMD_X86_REG_DS);
 }
 
+/* Decodes a memory operand. modrm is assumed to be in the range [00,BF] */
 NMD_ASSEMBLY_API void _nmd_decode_modrm_upper32(const nmd_x86_instruction* instruction, nmd_x86_operand* operand)
 {
+    /* Set operand type */
 	operand->type = NMD_X86_OPERAND_TYPE_MEMORY;
 
-	if (instruction->has_sib)
+	if (instruction->has_sib) /* R/M is 0b100 */
 	{
-		if (instruction->sib.fields.base == 0b101)
+		if (instruction->sib.fields.base == 0b101) /* Check if there is displacement */
 		{
 			if (instruction->modrm.fields.mod != 0b00)
 				operand->fields.mem.base = (uint8_t)(instruction->mode == NMD_X86_MODE_64 && !(instruction->prefixes & NMD_X86_PREFIXES_ADDRESS_SIZE_OVERRIDE) ? (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? NMD_X86_REG_R13 : NMD_X86_REG_RBP) : NMD_X86_REG_EBP);
@@ -28,8 +30,9 @@ NMD_ASSEMBLY_API void _nmd_decode_modrm_upper32(const nmd_x86_instruction* instr
 		if (instruction->prefixes & NMD_X86_PREFIXES_REX_X && instruction->sib.fields.index == 0b100)
 		{
 			operand->fields.mem.index = (uint8_t)NMD_X86_REG_R12;
-			operand->fields.mem.scale = instruction->sib.fields.scale;
 		}
+        
+		operand->fields.mem.scale = instruction->sib.fields.scale;
 	}
 	else if (!(instruction->modrm.fields.mod == 0b00 && instruction->modrm.fields.rm == 0b101))
 	{
