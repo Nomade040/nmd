@@ -47,9 +47,10 @@ contains a 'nmd_drawlist' variable which holds the vertex, index and command buf
 translate to a call to a rendering's API draw function. Shapes can be rendered in the drawlist by calling
 functions like nmd_add_line() and nmd_add_filled_rect().
 
-Defining types manually:
-Define the 'NMD_GRAPHICS_DEFINE_TYPES' macro to tell the library to define(typedef) the required types.
-Be aware: This feature uses platform dependent macros.
+Fixed width integer types:
+By default the library includes <stdint.h> and <stddef.h> to include int types.
+If these header-files are not available in your environment you may define the 'NMD_DEFINE_INT_TYPES' macro so the library will define them.
+By defining the 'NMD_IGNORE_INT_TYPES' macro, the library will neither include nor define int types.
 
 Define the 'NMD_GRAPHICS_DISABLE_DEFAULT_ALLOCATOR' macro to tell the library not to include default allocators.
 Define the 'NMD_GRAPHICS_DISABLE_FILE_IO' macro to tell the library not to support file operations for fonts.
@@ -68,55 +69,49 @@ Credits:
 #ifndef NMD_GRAPHICS_H
 #define NMD_GRAPHICS_H
 
-#ifdef NMD_GRAPHICS_DEFINE_TYPES
-
-#ifndef __cplusplus
-
-#define bool  _Bool
-#define false 0
-#define true  1
-
-#endif /* __cplusplus */
-
-typedef signed char        int8_t;
-typedef unsigned char      uint8_t;
-
-typedef signed short       int16_t;
-typedef unsigned short     uint16_t;
-
-typedef signed int         int32_t;
-typedef unsigned int       uint32_t;
-
-typedef signed long long   int64_t;
-typedef unsigned long long uint64_t;
-
-#if defined(_WIN64) && defined(_MSC_VER)
-	typedef unsigned __int64 size_t;
-	typedef __int64          ptrdiff_t;
-#elif (defined(_WIN32) || defined(WIN32)) && defined(_MSC_VER)
-	typedef unsigned __int32 size_t
-	typedef __int32          ptrdiff_t;
-#elif defined(__GNUC__) || defined(__clang__)
-	#if defined(__x86_64__) || defined(__ppc64__)
-		typedef unsigned long size_t
-		typedef long          ptrdiff_t
-	#else
-		typedef unsigned int size_t
-		typedef int          ptrdiff_t
-	#endif
-#else
-	typedef unsigned long size_t
-	typedef long          ptrdiff_t
-#endif
-
-#else
-
-/* Dependencies */
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-
-#endif /* NMD_GRAPHICS_DEFINE_TYPES */
+#ifndef _NMD_DEFINE_INT_TYPES
+ #ifdef NMD_DEFINE_INT_TYPES
+  #define _NMD_DEFINE_INT_TYPES
+  #ifndef __cplusplus
+   #define bool  _Bool
+   #define false 0
+   #define true  1
+  #endif /* __cplusplus */
+  typedef signed char        int8_t;
+  typedef unsigned char      uint8_t;
+  typedef signed short       int16_t;
+  typedef unsigned short     uint16_t;
+  typedef signed int         int32_t;
+  typedef unsigned int       uint32_t;
+  typedef signed long long   int64_t;
+  typedef unsigned long long uint64_t;
+  #if defined(_WIN64) && defined(_MSC_VER)
+   typedef unsigned __int64 size_t;
+   typedef __int64          ptrdiff_t;
+  #elif (defined(_WIN32) || defined(WIN32)) && defined(_MSC_VER)
+   typedef unsigned __int32 size_t
+   typedef __int32          ptrdiff_t;
+  #elif defined(__GNUC__) || defined(__clang__)
+   #if defined(__x86_64__) || defined(__ppc64__)
+    typedef unsigned long size_t
+    typedef long          ptrdiff_t
+   #else
+    typedef unsigned int size_t
+    typedef int          ptrdiff_t
+   #endif
+  #else
+   typedef unsigned long size_t
+   typedef long          ptrdiff_t
+  #endif
+  
+ #else /* NMD_DEFINE_INT_TYPES */
+  #ifndef NMD_IGNORE_INT_TYPES
+    #include <stdbool.h>
+    #include <stdint.h>
+    #include <stddef.h>
+  #endif /* NMD_IGNORE_INT_TYPES */
+ #endif /* NMD_DEFINE_INT_TYPES */
+#endif /* _NMD_DEFINE_INT_TYPES */
 
 #ifndef NMD_MALLOC
 #include <stdlib.h>
