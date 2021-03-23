@@ -108,7 +108,6 @@ NMD_ASSEMBLY_API void _nmd_append_relative_address16_32(_nmd_string_info* const 
 {
 	if (si->runtime_address == NMD_X86_INVALID_RUNTIME_ADDRESS)
 	{
-		/* *si->buffer++ = '$'; */
 		_nmd_append_signed_number(si, (int64_t)(si->instruction->immediate + si->instruction->length), true);
 	}
 	else

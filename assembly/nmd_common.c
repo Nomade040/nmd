@@ -32,10 +32,10 @@ NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[] = { "al", "cl", "dl", "bl", "
 NMD_ASSEMBLY_API const char* const _nmd_reg16[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
 NMD_ASSEMBLY_API const char* const _nmd_reg32[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
 NMD_ASSEMBLY_API const char* const _nmd_reg64[] = { "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi" };
-NMD_ASSEMBLY_API const char* const _nmd_regrx[] = { "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15" };
-NMD_ASSEMBLY_API const char* const _nmd_regrxd[] = { "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d" };
-NMD_ASSEMBLY_API const char* const _nmd_regrxw[] = { "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w" };
 NMD_ASSEMBLY_API const char* const _nmd_regrxb[] = { "r8b", "r9b", "r10b", "r11b", "r12b", "r13b", "r14b", "r15b" };
+NMD_ASSEMBLY_API const char* const _nmd_regrxw[] = { "r8w", "r9w", "r10w", "r11w", "r12w", "r13w", "r14w", "r15w" };
+NMD_ASSEMBLY_API const char* const _nmd_regrxd[] = { "r8d", "r9d", "r10d", "r11d", "r12d", "r13d", "r14d", "r15d" };
+NMD_ASSEMBLY_API const char* const _nmd_regrx[] = { "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15" };
 NMD_ASSEMBLY_API const char* const _nmd_segment_reg[] = { "es", "cs", "ss", "ds", "fs", "gs" };
 
 NMD_ASSEMBLY_API const char* const _nmd_condition_suffixes[] = { "o", "no", "b", "nb", "z", "nz", "be", "a", "s", "ns", "p", "np", "l", "ge", "le", "g" };
@@ -158,6 +158,7 @@ NMD_ASSEMBLY_API const char* _nmd_strstr_ex(const char* s, const char* s2, const
 	return 0;
 }
 
+
 /* Inserts 'c' at 's'. */
 NMD_ASSEMBLY_API void _nmd_insert_char(const char* s, char c)
 {
@@ -191,7 +192,7 @@ NMD_ASSEMBLY_API bool _nmd_is_number(const char* s1, const char* s2)
 	return true;
 }
 
-/* Returns a pointer to the first occurence of a number between 's1' and 's2', zero otherwise. */
+/* Returns a pointer to the first occurrence of a number between 's1' and 's2', zero otherwise. */
 NMD_ASSEMBLY_API const char* _nmd_find_number(const char* s1, const char* s2)
 {
 	const char* s = s1;

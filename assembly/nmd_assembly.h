@@ -110,7 +110,7 @@ Conventions:
 
 TODO:
  Short-Term
-  - implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
+  - Implement instruction set extensions to the decoder : VEX, EVEX, MVEX, 3DNOW, XOP.
   - Implement x86 assembler
  Long-Term
   - Add support for other architectures(ARM, MIPS and PowerPC ?).

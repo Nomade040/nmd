@@ -2226,9 +2226,9 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 					else if (_NMD_R(op) == 5) /* push reg,pop reg */
 					{
 						instruction->num_operands = 3;
-						_NMD_SET_REG_OPERAND(instruction->operands[0], false, NMD_X86_OPERAND_ACTION_READ, (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? (opszprfx ? NMD_X86_REG_R8W : NMD_X86_REG_R8) : (opszprfx ? (instruction->mode == NMD_X86_MODE_16 ? NMD_X86_REG_EAX : NMD_X86_REG_AX) : (NMD_X86_REG_AX + (instruction->mode >> 2) * 8))) + (op % 8));
+						_NMD_SET_REG_OPERAND(instruction->operands[0], false, _NMD_C(op) < 8 ? NMD_X86_OPERAND_ACTION_READ : NMD_X86_OPERAND_ACTION_WRITE, (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? (opszprfx ? NMD_X86_REG_R8W : NMD_X86_REG_R8) : (opszprfx ? (instruction->mode == NMD_X86_MODE_16 ? NMD_X86_REG_EAX : NMD_X86_REG_AX) : (NMD_X86_REG_AX + (instruction->mode >> 2) * 8))) + (op % 8));
 						_NMD_SET_REG_OPERAND(instruction->operands[1], true, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_GPR(NMD_X86_REG_SP));
-						_NMD_SET_MEM_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_SS, _NMD_GET_GPR(NMD_X86_REG_SP), NMD_X86_REG_NONE, 0, 0);
+						_NMD_SET_MEM_OPERAND(instruction->operands[2], true, _NMD_C(op) < 8 ? NMD_X86_OPERAND_ACTION_WRITE : NMD_X86_OPERAND_ACTION_READ, NMD_X86_REG_SS, _NMD_GET_GPR(NMD_X86_REG_SP), NMD_X86_REG_NONE, 0, 0);
 					}
 					else if (_NMD_R(op) == 7) /* jCC */
 					{

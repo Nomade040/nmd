@@ -33,10 +33,10 @@ NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[8];
 NMD_ASSEMBLY_API const char* const _nmd_reg16[8];
 NMD_ASSEMBLY_API const char* const _nmd_reg32[8];
 NMD_ASSEMBLY_API const char* const _nmd_reg64[8];
-NMD_ASSEMBLY_API const char* const _nmd_regrx[8];
-NMD_ASSEMBLY_API const char* const _nmd_regrxd[8];
-NMD_ASSEMBLY_API const char* const _nmd_regrxw[8];
 NMD_ASSEMBLY_API const char* const _nmd_regrxb[8];
+NMD_ASSEMBLY_API const char* const _nmd_regrxw[8];
+NMD_ASSEMBLY_API const char* const _nmd_regrxd[8];
+NMD_ASSEMBLY_API const char* const _nmd_regrx[8];
 NMD_ASSEMBLY_API const char* const _nmd_segment_reg[6];
 
 NMD_ASSEMBLY_API const char* const _nmd_condition_suffixes[16];
