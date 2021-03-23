@@ -91,6 +91,7 @@ NMD_ASSEMBLY_API size_t _nmd_parse_number(const char* string, int64_t* p_num)
 	bool is_negative = false;
 	bool force_positive = false;
 	bool h_suffix = false;
+    bool assume_hex = false;
 
 	if (s[0] == '-')
 	{
@@ -126,6 +127,7 @@ NMD_ASSEMBLY_API size_t _nmd_parse_number(const char* string, int64_t* p_num)
 			if ((c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
 			{
 				base = _NMD_NUMBER_BASE_HEXADECIMAL;
+                assume_hex = true;
 				continue;
 			}
 			else if (!(c >= '0' && c <= '9'))
@@ -188,7 +190,7 @@ NMD_ASSEMBLY_API size_t _nmd_parse_number(const char* string, int64_t* p_num)
 
 	if (h_suffix)
 		offset += 1;
-	else if (base == _NMD_NUMBER_BASE_HEXADECIMAL || base == _NMD_NUMBER_BASE_BINARY) /* 0x / 0b*/
+	else if ((base == _NMD_NUMBER_BASE_HEXADECIMAL && !assume_hex) || base == _NMD_NUMBER_BASE_BINARY) /* 0x / 0b*/
         offset += 2;
 	
 	return offset + num_digits;
@@ -705,7 +707,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				return 2;
 			}
 		}
-		else if (_nmd_strstr(ai->s, "add ") == ai->s)
+		else if (_nmd_strstr(ai->s, "mov ") == ai->s)
 		{
 			ai->s += 4;
 			if ((reg = _nmd_parse_reg8((const char**)&ai->s)))
@@ -981,7 +983,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 			nmd_x86_memory_operand memory_operand;
 			size_t pointer_size;
 			if (_nmd_parse_memory_operand((const char**)&ai->s, &memory_operand, &pointer_size)) /* Colum 00,01,08,09 */
-			{
+			{                
 				if (*ai->s++ != ',' || !(reg = _nmd_parse_reg((const char**)&ai->s)))
 					return 0;
                 
@@ -1062,8 +1064,8 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
 				}
 			}
             else if ((reg = _nmd_parse_reg((const char**)&ai->s)) && *ai->s++ == ',') /* column 00-04,08-0B */
-            {                
-                if(_nmd_parse_memory_operand((const char**)&ai->s, &memory_operand, &pointer_size)) /* column 02,03,0A,0B*/
+            {
+                if(_nmd_parse_memory_operand((const char**)&ai->s, &memory_operand, &pointer_size)) /* column 02,03,0A,0B */
                 {
                     return 0;
                 }
@@ -1076,7 +1078,7 @@ NMD_ASSEMBLY_API size_t _nmd_assemble_single(_nmd_assemble_info* ai)
                     
                     /* mod = 0b11, reg = reg2, rm = reg */
                     ai->b[1] = 0b11000000 | ((reg2 % 8) << 3) | (reg % 8);
-                    *(uint8_t*)(0)=0;
+                    
                     return 2;
                 }
             }

@@ -2273,6 +2273,46 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 						_NMD_SET_REG_OPERAND(instruction->operands[2], true, NMD_X86_OPERAND_ACTION_READWRITE, _NMD_GET_GPR(NMD_X86_REG_SP));
 						_NMD_SET_MEM_OPERAND(instruction->operands[3], true, NMD_X86_OPERAND_ACTION_WRITE, NMD_X86_REG_SS, _NMD_GET_GPR(NMD_X86_REG_SP), NMD_X86_REG_NONE, 0, 0);
 					}
+                    else if (_NMD_R(op) < 4 && _NMD_C(op) < 6) /* add,adc,and,xor,or,sbb,sub,cmp Eb,Gb / Ev,Gv / Gb,Eb / Gv,Ev / AL,lb / rAX,lz */
+					{
+                        /*
+                        if (op % 8 == 0)
+                        {
+                            if (modrm.mod == 0b11)
+                            {
+                                
+                            }
+                            else
+                            {
+                                _nmd_decode_modrm_upper32(instruction, &instruction->operands[0]);
+                            }
+                        }
+                        */
+						if (op % 8 == 0 || op % 8 == 2)
+						{
+							_nmd_decode_operand_Eb(instruction, &instruction->operands[op % 8 == 0 ? 0 : 1]);
+							_nmd_decode_operand_Gb(instruction, &instruction->operands[op % 8 == 0 ? 1 : 0]);
+						}
+						else if (op % 8 == 1 || op % 8 == 3)
+						{
+							_nmd_decode_operand_Ev(instruction, &instruction->operands[op % 8 == 1 ? 0 : 1]);
+							_nmd_decode_operand_Gv(instruction, &instruction->operands[op % 8 == 1 ? 1 : 0]);
+						}
+						else if (op % 8 == 4 || op % 8 == 5)
+						{
+							instruction->operands[0].type = NMD_X86_OPERAND_TYPE_REGISTER;
+							if (op % 8 == 4)
+								instruction->operands[0].fields.reg = NMD_X86_REG_AL;
+							else
+								instruction->operands[0].fields.reg = (uint8_t)(instruction->rex_w_prefix ? NMD_X86_REG_RAX : (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
+
+							instruction->operands[1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
+						}
+
+						instruction->operands[0].action = instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
+						if (!(_NMD_R(op) == 3 && _NMD_C(op) >= 8))
+							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READWRITE;
+					}
 					else if (op == 0xc3 || op == 0xcb || op == 0xcf) /* ret,retf,iret,iretd,iretf */
 					{
 						instruction->num_operands = 3;
@@ -2453,34 +2493,6 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 						instruction->operands[0].type = instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
 						instruction->operands[0].fields.reg = (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_REG_R8 : NMD_X86_REG_R8D);
 						instruction->operands[1].fields.reg = (uint8_t)(instruction->prefixes & NMD_X86_PREFIXES_REX_W ? NMD_X86_REG_RAX : NMD_X86_REG_EAX);
-					}
-					else if (_NMD_R(op) < 4)
-					{
-						const size_t op_mod8 = (size_t)(op % 8);
-						if (op_mod8 == 0 || op_mod8 == 2)
-						{
-							_nmd_decode_operand_Eb(instruction, &instruction->operands[op_mod8 == 0 ? 0 : 1]);
-							_nmd_decode_operand_Gb(instruction, &instruction->operands[op_mod8 == 0 ? 1 : 0]);
-						}
-						else if (op_mod8 == 1 || op_mod8 == 3)
-						{
-							_nmd_decode_operand_Ev(instruction, &instruction->operands[op_mod8 == 1 ? 0 : 1]);
-							_nmd_decode_operand_Gv(instruction, &instruction->operands[op_mod8 == 1 ? 1 : 0]);
-						}
-						else if (op_mod8 == 4 || op_mod8 == 5)
-						{
-							instruction->operands[0].type = NMD_X86_OPERAND_TYPE_REGISTER;
-							if (op_mod8 == 4)
-								instruction->operands[0].fields.reg = NMD_X86_REG_AL;
-							else
-								instruction->operands[0].fields.reg = (uint8_t)(instruction->rex_w_prefix ? NMD_X86_REG_RAX : (instruction->prefixes & NMD_X86_PREFIXES_OPERAND_SIZE_OVERRIDE ? NMD_X86_REG_AX : NMD_X86_REG_EAX));
-
-							instruction->operands[1].type = NMD_X86_OPERAND_TYPE_IMMEDIATE;
-						}
-
-						instruction->operands[0].action = instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
-						if (!(_NMD_R(op) == 3 && _NMD_C(op) >= 8))
-							instruction->operands[0].action = NMD_X86_OPERAND_ACTION_READWRITE;
 					}
 					else if (_NMD_R(op) == 5)
 					{
