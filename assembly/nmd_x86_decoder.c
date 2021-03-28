@@ -185,9 +185,6 @@ NMD_ASSEMBLY_API void _nmd_decode_conditional_flag(nmd_x86_instruction* instruct
 	}
 }
 
-/* Make sure we can read a byte, read a byte, increment the buffer and decrement the buffer's size */
-#define _NMD_READ_BYTE(buffer_, buffer_size_, var_) { if ((buffer_size_) < sizeof(uint8_t)) { return false; } var_ = *((uint8_t*)(buffer_)); buffer_ = ((uint8_t*)(buffer_)) + sizeof(uint8_t); (buffer_size_) -= sizeof(uint8_t); }
-
 NMD_ASSEMBLY_API bool _nmd_decode_modrm(const uint8_t** p_buffer, size_t* p_buffer_size, nmd_x86_instruction* const instruction)
 {
 	instruction->has_modrm = true;

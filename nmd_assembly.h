@@ -2494,6 +2494,9 @@ NMD_ASSEMBLY_API size_t nmd_x86_ldisasm(const void* buffer, size_t buffer_size, 
 #define _NMD_GET_BY_MODE_OPSZPRFX_D64(mode, opszprfx, _16, _32, _64) ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : ((mode) == NMD_X86_MODE_64 ? (_64) : (_32)))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed by default when mode is NMD_X86_MODE_64 and there's no operand size override prefix. */
 #define _NMD_GET_BY_MODE_OPSZPRFX_F64(mode, opszprfx, _16, _32, _64) ((mode) == NMD_X86_MODE_64 ? (_64) : ((mode) == NMD_X86_MODE_16 ? ((opszprfx) ? (_32) : (_16)) : ((opszprfx) ? (_16) : (_32)))) /* Get something based on mode and operand size prefix. The 64-bit version is accessed when mode is NMD_X86_MODE_64 independent of an operand size override prefix. */
 
+/* Make sure we can read a byte, read a byte, increment the buffer and decrement the buffer's size */
+#define _NMD_READ_BYTE(buffer_, buffer_size_, var_) { if ((buffer_size_) < sizeof(uint8_t)) { return false; } var_ = *((uint8_t*)(buffer_)); buffer_ = ((uint8_t*)(buffer_)) + sizeof(uint8_t); (buffer_size_) -= sizeof(uint8_t); }
+
 NMD_ASSEMBLY_API const char* const _nmd_reg8[] = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
 NMD_ASSEMBLY_API const char* const _nmd_reg8_x64[] = { "al", "cl", "dl", "bl", "spl", "bpl", "sil", "dil" };
 NMD_ASSEMBLY_API const char* const _nmd_reg16[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
@@ -4474,9 +4477,6 @@ NMD_ASSEMBLY_API void _nmd_decode_conditional_flag(nmd_x86_instruction* instruct
 		case 0xf: instruction->tested_flags.fields.ZF = instruction->tested_flags.fields.SF = instruction->tested_flags.fields.OF = 1; break; /* Jump if not less or equal (ZF=0 and SF=OF) */
 	}
 }
-
-/* Make sure we can read a byte, read a byte, increment the buffer and decrement the buffer's size */
-#define _NMD_READ_BYTE(buffer_, buffer_size_, var_) { if ((buffer_size_) < sizeof(uint8_t)) { return false; } var_ = *((uint8_t*)(buffer_)); buffer_ = ((uint8_t*)(buffer_)) + sizeof(uint8_t); (buffer_size_) -= sizeof(uint8_t); }
 
 NMD_ASSEMBLY_API bool _nmd_decode_modrm(const uint8_t** p_buffer, size_t* p_buffer_size, nmd_x86_instruction* const instruction)
 {
