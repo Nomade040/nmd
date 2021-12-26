@@ -5475,7 +5475,7 @@ NMD_ASSEMBLY_API bool nmd_x86_decode(const void* const buffer, size_t buffer_siz
 				else if (op >= 0x20 && op <= 0x23)
 				{
 					instruction->operands[0].type = instruction->operands[1].type = NMD_X86_OPERAND_TYPE_REGISTER;
-					instruction->operands[op < 0x22 ? 0 : 1].fields.reg = NMD_X86_REG_EAX + instruction->modrm.fields.rm;
+					instruction->operands[op < 0x22 ? 0 : 1].fields.reg = (uint8_t)(instruction->mode == NMD_X86_MODE_64 ? (instruction->prefixes & NMD_X86_PREFIXES_REX_B ? NMD_X86_REG_R8 : NMD_X86_REG_RAX) : NMD_X86_REG_EAX) + instruction->modrm.fields.rm;
 					instruction->operands[op < 0x22 ? 1 : 0].fields.reg = (uint8_t)((op % 2 == 0 ? NMD_X86_REG_CR0 : NMD_X86_REG_DR0) + instruction->modrm.fields.reg);
 					instruction->operands[0].action = NMD_X86_OPERAND_ACTION_WRITE;
 					instruction->operands[1].action = NMD_X86_OPERAND_ACTION_READ;
